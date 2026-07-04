@@ -1,0 +1,67 @@
+name: Request a New Sample
+description: Propose a new sample (technology pairing + real-world flow) for this repository
+title: "[Sample request] <technology pairing>"
+labels:
+  - sample-request
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # New Sample Request
+
+        Use this form to propose a new sample under `samples/`. See
+        [CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx-samples/blob/main/CONTRIBUTING.md)
+        for what makes a good sample and the quality bar it must meet in CI.
+
+  - type: input
+    id: technology-pairing
+    attributes:
+      label: Technology Pairing
+      description: The stack(s) the sample would exercise.
+      placeholder: "Go + RabbitMQ + Postgres"
+    validations:
+      required: true
+
+  - type: textarea
+    id: real-world-flow
+    attributes:
+      label: Real-World Flow
+      description: >
+        The concrete business transaction the sample would demonstrate, and
+        which boundary crossings it exercises (REST call, DB mutation, queue
+        event, outbound webhook, ...).
+      placeholder: >
+        e.g. "A customer places an order over REST; the order service writes
+        to Postgres, publishes an OrderPlaced event to RabbitMQ, and a
+        downstream worker consumes it and calls an outbound webhook to notify
+        a third-party fulfilment system."
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-distinct
+    attributes:
+      label: Why This Is Distinct
+      description: >
+        What integration pattern or technology combination is not already
+        covered by the existing samples (orders-dotnet, inventory-python,
+        payments-java)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Links, prior art, or anything else relevant (optional).
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      description: Please confirm these statements
+      options:
+        - label: I have read CONTRIBUTING.md and understand the quality bar (the suite must pass via scripts/run-sample.*, and CI runs the same command)
+          required: true
+        - label: I am willing to author the app, Dockerfile, and .e2e.yaml suite myself, or am flagging this idea for someone else to pick up
+          required: true

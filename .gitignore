@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# .gitignore for vouchfx-samples (reference samples + CI harness)
+# ---------------------------------------------------------------------------
+
+## .NET build output (orders-dotnet, and the vendored engine checkout)
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+publish/
+*.dll
+*.exe
+*.pdb
+project.lock.json
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+## Python build output / caches (inventory-python)
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+
+## Java / Maven / Gradle build output (payments-java)
+target/
+.gradle/
+*.class
+*.jar
+!**/lib/*.jar
+
+## The vendored engine checkout — fetched fresh by scripts/bootstrap.* from the
+## commit pinned in ENGINE_PIN. Never committed; always reproducible.
+.vouchfx-src/
+
+## CI/local run output — JUnit XML + HTML reports written by scripts/run-sample.*
+## Anchored to the repo root: a sample's own build tooling may legitimately
+## use an "out" directory name at some other depth.
+/out/
+
+## Test results & coverage
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+TestResults/
+
+## IDEs
+.vs/
+.idea/
+*.user
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+## Local secrets & environment
+*.secrets
+secrets.json
+.env
+.env.*
+!.env.example
+
+## OS / temp
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*~
+
+## Agent / tooling scratch
+.claude/
+.serena/

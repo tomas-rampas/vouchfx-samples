@@ -1,0 +1,58 @@
+# .editorconfig — vouchfx-samples baseline code style
+#
+# This repository hosts samples in three different stacks (.NET, Python,
+# Java) plus shell/PowerShell automation and YAML/Markdown, so this file
+# stays deliberately basic: whitespace and newline conventions common to
+# every editor, with per-language indent width where it matters. It does not
+# attempt to enforce a single language's formatter rule set (there is no
+# single `dotnet format`-equivalent gate across all three sample stacks).
+
+root = true
+
+# ── All files ────────────────────────────────────────────────────────────────
+[*]
+charset                  = utf-8
+end_of_line               = lf
+insert_final_newline     = true
+trim_trailing_whitespace = true
+indent_style              = space
+indent_size               = 4
+
+# ── C# (orders-dotnet) ───────────────────────────────────────────────────────
+[*.cs]
+indent_size = 4
+
+# ── Python (inventory-python) ────────────────────────────────────────────────
+[*.py]
+indent_size = 4
+
+# ── Java (payments-java) ─────────────────────────────────────────────────────
+[*.java]
+indent_size = 4
+
+# ── Shell scripts — always LF, even on Windows checkouts (a CRLF shebang
+#    fails with "bad interpreter" on Linux CI runners) ──────────────────────
+[*.sh]
+indent_size = 2
+end_of_line = lf
+
+# ── PowerShell scripts ────────────────────────────────────────────────────────
+[*.{ps1,psm1,psd1}]
+indent_size = 4
+
+# ── YAML (workflows, .e2e.yaml suites, issue forms) ──────────────────────────
+[*.{yml,yaml}]
+indent_size = 2
+
+# ── JSON ──────────────────────────────────────────────────────────────────────
+[*.json]
+indent_size = 2
+
+# ── Markdown — trailing whitespace can be a deliberate hard line break, so
+#    don't strip it ──────────────────────────────────────────────────────────
+[*.md]
+trim_trailing_whitespace = false
+
+# ── Makefiles require tabs ────────────────────────────────────────────────────
+[Makefile]
+indent_style = tab

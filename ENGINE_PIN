@@ -1,0 +1,48 @@
+0000000000000000000000000000000000000000
+#
+# ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
+#
+# What it pins
+# ------------
+# The first line is a full 40-character commit SHA on
+# https://github.com/tomas-rampas/vouchfx. scripts/bootstrap.{ps1,sh} shallow-fetch
+# exactly this commit into .vouchfx-src/ and build the engine CLI
+# (src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj) from source at that revision.
+#
+# A full SHA is required, not a short SHA or a branch/tag name: a shallow
+# `git fetch --depth 1 origin <ref>` only accepts a full SHA or a ref that the
+# remote advertises: a short SHA is silently rejected by most git servers'
+# shallow-fetch machinery, and pinning a moving branch name (e.g. "main")
+# would defeat the point of a pin — reproducible builds and an auditable,
+# reviewable upgrade step.
+#
+# The placeholder above (all zeros) is not a real commit and bootstrap will
+# refuse to run against it. The orchestrator stamps the real engine SHA here
+# as part of standing this repository up; from then on, advancing the pin is
+# a deliberate, reviewed action (see below).
+#
+# When to advance it
+# -------------------
+# Bump this SHA when:
+#   - a new vouchfx engine release or milestone lands that the samples should
+#     track (e.g. a new Sprint/Milestone merges to the engine's main branch);
+#   - a sample needs an engine fix or a new provider that only exists past
+#     the current pin;
+#   - the engine's v1.x SDK contract freeze advances and this repo should
+#     validate against the new baseline.
+#
+# How to advance it
+# ------------------
+#   1. Pick the new engine commit (a merge commit on tomas-rampas/vouchfx main
+#      is usually the right choice — record its full 40-char SHA, not a
+#      branch name).
+#   2. Replace the SHA on the first line of this file with the new one.
+#   3. Delete any local .vouchfx-src/ checkout (scripts/bootstrap.* will
+#      re-fetch it) and re-run `scripts/run-sample.* all` to confirm every
+#      sample still passes against the new pin.
+#   4. Open a PR with just the pin bump (plus any sample changes the new
+#      engine revision requires) so the change is reviewable in isolation.
+#
+# Once the vouchfx engine publishes a versioned NuGet package / GitHub
+# release for the CLI, this file's role shifts from "commit to build from
+# source" to "minimum supported engine version" — see docs/RUNNING.md.

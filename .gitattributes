@@ -1,0 +1,11 @@
+# Normalise text files to LF in the repository; check out native on each platform.
+* text=auto
+
+# Keep these explicitly LF even in the working tree. This matters more than
+# usual here: this repo is frequently authored on Windows but scripts/*.sh
+# runs on ubuntu-latest in CI — a CRLF shebang line ("#!/usr/bin/env bash\r")
+# fails with "bad interpreter: No such file or directory".
+*.sh    text eol=lf
+*.py    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf

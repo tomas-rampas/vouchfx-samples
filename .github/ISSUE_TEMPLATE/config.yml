@@ -1,0 +1,38 @@
+# .github/ISSUE_TEMPLATE/config.yml
+#
+# Disables blank issue creation and provides redirect links so contributors
+# can find the correct destination for off-topic traffic without having to
+# search for it.
+#
+# Engine bugs, feature requests, provider questions, and general questions
+# all belong in the main engine repository at
+# https://github.com/tomas-rampas/vouchfx. This repository only accepts
+# requests for new samples (sample-request.yml) and issues about the samples
+# themselves (a broken suite, an outdated Dockerfile, a stale ENGINE_PIN).
+
+blank_issues_enabled: false
+
+contact_links:
+  - name: Engine bug report or defect
+    url: https://github.com/tomas-rampas/vouchfx/issues/new/choose
+    about: >
+      Report a bug in the vouchfx engine, compiler, orchestration layer,
+      or any of the built-in Core providers. This repository only hosts
+      sample applications and their .e2e.yaml suites.
+
+  - name: Engine feature request
+    url: https://github.com/tomas-rampas/vouchfx/issues/new/choose
+    about: >
+      Request a new engine feature, DSL capability, or Core provider improvement.
+
+  - name: Provider listing or Verified-tier submission
+    url: https://github.com/tomas-rampas/vouchfx-providers/issues/new/choose
+    about: >
+      List a community provider, or submit a provider for Verified-tier
+      endorsement.
+
+  - name: Questions and community discussion
+    url: https://github.com/tomas-rampas/vouchfx/discussions
+    about: >
+      Ask questions about writing providers, the YAML DSL, orchestration,
+      or anything else vouchfx-related.
