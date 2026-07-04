@@ -1,0 +1,115 @@
+# tests/payments.e2e.yaml — payments-java sample suite (vouchfx-samples).
+#
+# One business transaction across four technologies: the Spring Boot "Payments" service
+# (app/) is called over REST; the request lands a row in SQL Server; an AUTHORISED event is
+# published to a NATS JetStream subject; and a plain-text receipt e-mail is sent over SMTP
+# and captured by Mailpit.
+#
+# JETSTREAM STREAM-OWNERSHIP NOTE (read before touching subject/stream naming):
+# the mq-expect.nats step below (step 3) consumes via an EPHEMERAL ordered JetStream
+# consumer that scans its stream from the START of the retained log
+# (Platform.Steps.MqExpect.Nats/MqExpectNatsProvider.cs in the vouchfx engine repo --
+# DeliverPolicy.All, mirroring mq-expect.kafka's retained-log semantics). That provider
+# creates its stream itself, but only the FIRST TIME ITS OWN STEP RUNS -- i.e. AFTER step 1
+# (http.rest) has already told the application to publish. A JetStream publish issued before
+# any stream captures the subject is unrecoverable (JetStream cannot retroactively capture
+# it), so app/ creates the SAME stream, over the SAME subject, during its own resilient
+# startup sequence -- see app/src/main/java/com/vouchfx/samples/payments/messaging/
+# NatsPublisher.java for the full rationale. The 'stream:' field below is pinned to the
+# literal name the application uses (PAYMENTS_AUTHORISED) so neither side depends on both
+# independently re-deriving the provider's uppercase/underscore stream-naming rule from the
+# subject string.
+#
+# BODY-SUBSTITUTION NOTE: step 1's 'body:' values are written as quoted {placeholder}
+# strings because a YAML mapping body is serialised to JSON at compile time and
+# {placeholder} substitution happens afterwards as a textual replace -- so 'amount' always
+# arrives at the application as a JSON STRING (e.g. "49.99"), never an unquoted JSON number.
+# app/'s CreatePaymentRequest models 'amount' as a String for exactly this reason (see its
+# Javadoc).
+
+metadata:
+  name: payments-end-to-end
+  owner: samples
+  tags: [samples, java, sqlserver, nats, smtp]
+  description: >-
+    REST call -> SQL Server row -> NATS JetStream event -> SMTP receipt e-mail, exercised
+    against the payments-java Spring Boot sample service.
+
+variables:
+  orderId: ord-SAMPLE-1001
+  customerEmail: alice@example.com
+  # Quoted deliberately (not a bare YAML float) so the substituted value is exactly this
+  # text, with no float/double round-trip formatting risk.
+  paymentAmount: "49.99"
+
+environment:
+  services:
+    payments-api:
+      image: vouchfx-samples-payments-java:local
+      httpPort: 8080
+      env:
+        SPRING_DATASOURCE_URL: "jdbc:sqlserver://${conn:paydb.host}:${conn:paydb.port};databaseName=${conn:paydb.database};encrypt=false"
+        SPRING_DATASOURCE_USERNAME: "${conn:paydb.username}"
+        SPRING_DATASOURCE_PASSWORD: "${conn:paydb.password}"
+        NATS_URL: "nats://${conn:bus.host}:${conn:bus.port}"
+        SMTP_HOST: "${conn:mail.host}"
+        SMTP_PORT: "${conn:mail.port}"
+
+  dependencies:
+    paydb: { type: sqlserver }
+    bus: { type: nats }
+    mail: { type: mailpit }
+
+steps:
+  # ── Step 1: place the order over REST; capture the generated payment id ────────────────
+  - id: create-payment
+    type: http.rest
+    target: payments-api
+    method: POST
+    path: /payments
+    body:
+      orderId: "{orderId}"
+      amount: "{paymentAmount}"
+      customerEmail: "{customerEmail}"
+    expect:
+      status: 201
+    capture:
+      paymentId: "$.id"
+
+  # ── Step 2: the same transaction must have landed a row in SQL Server ───────────────────
+  - id: assert-payment-row
+    type: db-assert.sqlserver
+    target: paydb
+    query: >-
+      SELECT status FROM payments WHERE id = @id
+    parameters:
+      id: "{paymentId}"
+    verifyMode: IMMEDIATE
+    expect:
+      rowCount: 1
+      row:
+        status: AUTHORISED
+
+  # ── Step 3: the application must have published the authorised event to NATS JetStream ─
+  # 'stream' is pinned explicitly -- see the JETSTREAM STREAM-OWNERSHIP NOTE above.
+  - id: assert-authorised-event
+    type: mq-expect.nats
+    target: bus
+    subject: payments.authorised
+    stream: PAYMENTS_AUTHORISED
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      json:
+        "$.id": "{paymentId}"
+
+  # ── Step 4: the customer must have received a receipt e-mail, captured by Mailpit ──────
+  - id: assert-receipt-email
+    type: mail-expect.smtp
+    target: mail
+    verifyMode: RETRY
+    timeout: 60s
+    expect:
+      match:
+        to: "{customerEmail}"
+        subject-contains: "Payment receipt"

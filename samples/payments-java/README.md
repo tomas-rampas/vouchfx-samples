@@ -1,0 +1,295 @@
+# payments-java
+
+A real Spring Boot 3.3 payments service, tested end-to-end with
+[vouchfx](https://github.com/tomas-rampas/vouchfx): one HTTP request is followed all the way
+through a SQL Server write, an outbound NATS JetStream event, and an outbound SMTP receipt
+e-mail — in a single `.e2e.yaml` suite, against a real container topology. This is the sample's
+Java entry in the set (alongside `orders-dotnet` and `inventory-python`) and the only one that
+exercises SQL Server, NATS JetStream, and SMTP/Mailpit.
+
+## What this demonstrates
+
+A "hello world" REST sample stops at asserting an HTTP response. A real payments service keeps
+working *after* it answers the request: it commits a database row, tells the rest of the system
+the payment happened via an event, and lets the customer know by e-mail. A unit test — or a tool
+that only speaks HTTP — cannot see any of that. This sample exists to prove vouchfx can:
+
+- drive a **real containerised Java/Spring Boot service** (not a stub) through its public HTTP
+  surface, including its own resilient startup sequence against slow-starting dependencies;
+- assert a **side-effecting SQL Server write** landed correctly, with the row keyed by a value
+  captured from the HTTP response;
+- assert an **asynchronous NATS JetStream event** was published, via engine-owned RETRY polling
+  (no author-written `sleep`) — and do so despite the specific ordering hazard JetStream
+  publish-before-stream-exists creates (see "Design decision: JetStream stream ownership" below);
+- assert the service sent a **real SMTP e-mail**, captured by Mailpit and matched on recipient
+  and subject — again via engine-owned RETRY, not a fixed wait;
+- and do all of this from **one coherent business-transaction narrative**, not four disconnected
+  checks.
+
+## Architecture
+
+```
+                                    ┌───────────────────────────────┐
+                                    │     vouchfx orchestration      │
+                                    │     (.NET Aspire topology)     │
+                                    └───────────────┬─────────────────┘
+                                                    │ starts / health-gates
+                                                    ▼
+ ┌───────────────┐   1. POST /payments    ┌──────────────────────┐
+ │ vouchfx        │ ─────────────────────▶│    payments-api        │
+ │ compiled       │   {orderId, amount,   │  (this sample's app)   │
+ │ suite (CSX)    │    customerEmail}     └───────────┬─────────────┘
+ │                │                                   │
+ │                │   201 {id, orderId,               │ 2. INSERT INTO payments (…)
+ │                │◀── amount, status}                 ▼
+ │                │                          ┌──────────────────────┐
+ │                │                          │      SQL Server         │
+ │                │   2. db-assert.sqlserver │      (paydbdb)          │
+ │                │─────────────────────────▶│    payments table       │
+ │                │                          └──────────────────────┘
+ │                │
+ │                │                          ┌──────────────────────┐
+ │                │   3. mq-expect.nats      │   NATS JetStream         │
+ │                │─────────────────────────▶│  payments.authorised    │◀── 3. JetStream
+ │                │        (RETRY)           │  stream: PAYMENTS_       │    publish (app)
+ │                │                          │  AUTHORISED              │
+ │                │                          └──────────────────────┘
+ │                │
+ │                │                          ┌──────────────────────┐
+ │                │   4. mail-expect.smtp    │        Mailpit           │
+ │                │─────────────────────────▶│    (SMTP capture)        │◀── 4. SMTP send
+ │                │        (RETRY)           └──────────────────────┘        (app)
+ └───────────────┘
+```
+
+`payments-api` runs as an ordinary container (`environment.services.payments-api`); SQL Server,
+NATS, and Mailpit run as vouchfx-managed Aspire dependencies (`environment.dependencies`), each
+of type `sqlserver`, `nats`, and `mailpit` respectively.
+
+## The app (`app/`)
+
+A single-module Maven project (`pom.xml`), Java 17, Spring Boot 3.3.13. No Lombok, no JPA/ORM —
+one table, plain `JdbcTemplate`. Dependencies: `spring-boot-starter-web`,
+`spring-boot-starter-jdbc`, `mssql-jdbc` (12.10.0.jre11), `io.nats:jnats` (2.25.3),
+`spring-boot-starter-mail` (used only to pull in `jakarta.mail-api` + Angus Mail — see
+`ReceiptMailSender`'s Javadoc for why Spring's own mail autoconfiguration is bypassed).
+
+Configured entirely by environment variables (no `spring.mail.*`, no custom `application-*.yml`
+profiles):
+
+| Env var | Purpose |
+| --- | --- |
+| `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | Bound natively by Spring Boot's relaxed environment-variable binding to `spring.datasource.{url,username,password}`. |
+| `NATS_URL` | `nats://host:port`; read directly via `System.getenv` in `NatsPublisher`. |
+| `SMTP_HOST` / `SMTP_PORT` | Read directly via `System.getenv` in `ReceiptMailSender` — deliberately not `SPRING_MAIL_*` (see that class's Javadoc). |
+
+Behaviour:
+
+- **Startup** (`ReadinessGate`, a Spring `ApplicationRunner`): retries the SQL Server schema
+  check (`IF OBJECT_ID(...) IS NULL BEGIN CREATE TABLE ... END` — T-SQL has no `CREATE TABLE IF
+  NOT EXISTS`) and the NATS connect + JetStream-stream-ensure step every 2s, with no hard
+  timeout (see "Troubleshooting" for why), typically converging within the ~60s the brief
+  targets. `GET /` returns `503 {"status":"starting"}` until both succeed, then
+  `200 {"status":"ready"}` — **this is the exact contract the vouchfx health gate polls** before
+  letting any step run. Requires `spring.datasource.hikari.initialization-fail-timeout: -1` (set
+  in `application.yml`) so the autoconfigured `HikariDataSource` bean does not itself throw and
+  crash the process before the retry loop ever runs.
+- **`POST /payments`** `{orderId, amount, customerEmail}` → `201 {id, orderId, amount, status:
+  "AUTHORISED"}`. Inserts the row, publishes `{id, orderId, amount, status}` (camelCase JSON) to
+  the NATS JetStream subject `payments.authorised`, and sends a plain-text receipt e-mail
+  (subject `Payment receipt <id>`, body containing the order id and amount) via `SMTP_HOST:
+  SMTP_PORT` — best-effort, see "Troubleshooting".
+- **`GET /payments/{id}`** → `200` row JSON, or `404`.
+
+### Design decision: JetStream stream ownership
+
+Read `app/src/main/java/com/vouchfx/samples/payments/messaging/NatsPublisher.java`'s Javadoc for
+the full rationale; summary: the engine's `mq-expect.nats` step provider
+(`Platform.Steps.MqExpect.Nats/MqExpectNatsProvider.cs` in the vouchfx engine repo) consumes via
+an **ephemeral ordered JetStream consumer** that scans its stream from the start of the retained
+log (`DeliverPolicy.All`), and that provider **does** create its stream idempotently — but only
+the first time its own step actually executes, i.e. step 3, well after step 1 has already told
+this application to publish. A JetStream publish issued before any stream captures the target
+subject is unrecoverable (there is nothing to retroactively record it against), so this
+application creates the *same* stream, over the *same* subject, during its own resilient startup
+sequence, well before it can accept the first `POST /payments`. Both sides are pinned to the
+identical literal stream name `PAYMENTS_AUTHORISED` — the suite's `mq-expect.nats` step sets
+`stream: PAYMENTS_AUTHORISED` explicitly rather than relying on both the app and the provider
+independently re-deriving the provider's uppercase/underscore stream-naming rule from the subject
+string (a single typo in either derivation would otherwise silently split the stream in two).
+
+### Design decision: `amount` is a JSON string on the wire, not a JSON number
+
+`CreatePaymentRequest.amount` is a `String`, parsed to `BigDecimal` explicitly in
+`PaymentController`, not bound as a `BigDecimal` field directly. This follows from how the vouchfx
+DSL's `{placeholder}` substitution actually works: the suite's `http.rest` step supplies
+`amount` via a YAML `body:` mapping, and YAML forces the placeholder to be written as a quoted
+string scalar (`"{paymentAmount}"`) — a bare `{paymentAmount}` would parse as an empty YAML
+flow-mapping, not a placeholder token. The `body:` mapping is JSON-serialised at compile time
+*before* `{placeholder}` substitution runs (a runtime textual replace over the already-serialised
+JSON template), so the wire value is always a JSON string such as `"amount":"49.99"`, never an
+unquoted JSON number. Modelling `amount` as a `String` and parsing it explicitly sidesteps any
+reliance on Jackson's string-to-number coercion leniency and works identically regardless of how
+a caller (this suite, or anyone else) sends the value.
+
+## The suite (`tests/payments.e2e.yaml`)
+
+Four steps, one narrative — "a customer pays, and everything downstream reacts":
+
+1. **`create-payment`** (`http.rest`, `POST /payments`) — places the payment. Expects `201` and
+   captures `paymentId` from the response's `$.id`. This proves the REST surface accepted the
+   request and returned the shape the rest of the suite depends on.
+2. **`assert-payment-row`** (`db-assert.sqlserver`, target `paydb`) — proves the `POST` really
+   persisted a row, not just a `201` with no side effect: queries `WHERE id = @id` with
+   `{paymentId}` substituted in as the parameter value, and asserts `rowCount: 1` and
+   `row: {status: AUTHORISED}`. Deliberately does not assert on `amount` — comparing a SQL
+   Server `decimal(12,2)` column's stringified form against a hand-typed literal is a needless
+   source of formatting mismatches (trailing zeros, culture) this sample has no reason to court.
+3. **`assert-authorised-event`** (`mq-expect.nats`, target `bus`, subject `payments.authorised`,
+   `stream: PAYMENTS_AUTHORISED`, `verifyMode: RETRY`, `timeout: 60s`) — proves the app published
+   the domain event, matching `$.id == {paymentId}` via `match.json`. RETRY absorbs the small,
+   variable delay between the `INSERT` and the event landing — no author-written `sleep`. See
+   "Design decision: JetStream stream ownership" above for why `stream:` is pinned explicitly.
+4. **`assert-receipt-email`** (`mail-expect.smtp`, target `mail`, `verifyMode: RETRY`,
+   `timeout: 60s`) — proves the customer received the receipt, matching `to: {customerEmail}`
+   (the same value used in step 1's request body) and `subject-contains: "Payment receipt"`. No
+   `expect.count` is set, so the step passes on at least one matching message rather than
+   asserting an exact count.
+
+### Exact provider fields used, and where each was verified
+
+Every field below was checked against the actual provider source in the vouchfx engine repo
+(`src/Providers/Core/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually enforced)
+and its emitted-CSX `Emit`/helper logic — not just `docs/language-reference.md`, and distrusting
+the known-broken `examples/mail-expect-smtp.e2e.yaml`/`mq-rabbitmq`/`db-assert-mysql`/
+`cache-assert-redis` examples per the brief:
+
+| Step type | Fields used | Verified against |
+| --- | --- | --- |
+| `http.rest` | `target`, `method`, `path`, `body` (YAML mapping), `expect.status`, `capture` | `Platform.Steps.Core.HttpRest/HttpRestModel.cs` + `HttpRestProvider.cs` — a YAML mapping/sequence `body` is JSON-serialised at `Bind` time and the resulting template's `{placeholder}` tokens are resolved at step-execution time (never pre-resolved) — the basis for the `amount`-as-string design decision above. |
+| `db-assert.sqlserver` | `target`, `query`, `parameters`, `expect.rowCount`, `expect.row` | `Platform.Steps.DbAssert.SqlServer/DbAssertSqlServerProvider.cs` — parameter values are bound via `SqlParameter`/`AddWithValue` (parameterised, never concatenated); `expect.row` values are compared via `.ToString()` (ordinal) against the first row only; the query TEXT itself only supports `{placeholder}` for **identifier** substitution (`ResolveIdentifier`, `[A-Za-z0-9_.]`-validated), which this suite does not use — `{paymentId}` here is a **parameter value** (`parameters.id`), bound safely via `AddWithValue`. |
+| `mq-expect.nats` | `target`, `subject`, `stream`, `verifyMode: RETRY`, `timeout`, `match.json` | `Platform.Steps.MqExpect.Nats/MqExpectNatsModel.cs` + `MqExpectNatsProvider.cs` — the emitted helper creates an **ephemeral ordered consumer** (`DeliverPolicy.All`, scanning from the start of the retained log) per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout); the provider's own `CreateStreamAsync` call is idempotent and tolerates NATS API error code 10058 ("stream name already in use") — the same code this sample's `NatsPublisher` tolerates. |
+| `mail-expect.smtp` | `target`, `expect.match.to`, `expect.match.subject-contains` | `Platform.Steps.MailExpect.Smtp/MailExpectSmtpModel.cs` + `MailExpectSmtpProvider.cs` — queries Mailpit's HTTP API (`GET /api/v1/messages?limit=100`, then `GET /api/v1/message/{ID}` only if `body-contains` is set, which this suite does not use), matches `to` case-insensitively against each address in the message's `To` list, and `subject-contains` ordinally; passes on `matched >= 1` when `expect.count` is absent (as here). |
+
+### Contract doubts — flagged explicitly
+
+Two things this suite relies on are **not yet present** on the vouchfx `main` branch this was
+authored against (commit `d2c4b3d`), per the brief ("NEW `env:` feature ... take as given"):
+
+1. **`environment.services.<name>.env`** — the current `ServiceSpec` record
+   (`Platform.Engine.Authoring/Model/EnvironmentSpec.cs`) carries only `Image`, `Project`, and
+   `HttpPort`; `EnvironmentMapper.cs`'s image-service branch calls `AddContainer(name,
+   fullImage).WithHttpEndpoint(...).WithHttpHealthCheck(...)` with no `.WithEnvironment(...)` call
+   reading any `env` field. The suite's `env: { SPRING_DATASOURCE_URL: ..., NATS_URL: ..., ... }`
+   block is authored strictly to the shape given in the brief.
+2. **`${conn:<dependency>.<field>}` tokens** (`.host`, `.port`, `.database`, `.username`,
+   `.password`) — no such token form, nor any per-field connection decomposition, appears
+   anywhere in the current engine source. `EnvironmentMapper.ResolveServices` currently resolves
+   each dependency to a single opaque connection-string value (`GetConnectionStringAsync`, or a
+   custom builder for plain-container dependencies), not to individually addressable
+   host/port/database/username/password sub-fields.
+
+Neither of these could be exercised against a live engine build as part of this delivery (the
+brief is explicit that the orchestrator validates this suite live once the feature merges) —
+flagging here so the first live run is the actual point these two assumptions get checked, not a
+surprise. This sample's own validation therefore stopped at `docker build` plus a manual,
+hand-wired container smoke test (see "Running" below) — the `.e2e.yaml` suite itself was **not**
+executed as part of this delivery.
+
+3. **Image-tag naming appears inconsistent between the samples' suites and
+   `scripts/run-sample.sh`** — noticed while cross-checking conventions, not introduced by this
+   sample. All three samples' suites (`orders.e2e.yaml`, `inventory.e2e.yaml`, and this suite)
+   reference a short semantic image name (`vouchfx-samples-orders-dotnet:local`,
+   `vouchfx-samples-inventory-python:local`, `vouchfx-samples-payments-java:local`), but
+   `scripts/run-sample.sh`'s `run_one()` builds and tags
+   `vouchfx-samples-${name}:local` where `${name}` is the **sample directory name** passed on the
+   command line (`orders-dotnet`, `inventory-python`, `payments-java`) — a different string in
+   every case. If this is not resolved elsewhere (an alias, a retag step, or a `run-sample.sh`
+   fix), `scripts/run-sample.sh payments-java` would build an image nobody's suite references.
+   This sample follows the sibling suites' existing short-name convention rather than inventing a
+   third pattern, but the mismatch itself is repo-wide and outside this sample's directory to fix.
+
+## Running
+
+Via the repository's sample runner:
+
+```bash
+scripts/run-sample.sh payments-java
+```
+
+This is expected to: `docker build` `app/` to the image referenced by
+`environment.services.payments-api.image`, then hand `tests/payments.e2e.yaml` to the vouchfx
+engine CLI so it provisions the Aspire topology (SQL Server + NATS + Mailpit + the
+`payments-api` container) and executes the suite against it — see "Contract doubts" above for
+the two assumptions that live run will actually test for the first time, and the image-tag point
+that may need resolving first.
+
+Manual equivalent for the parts validated as part of this delivery:
+
+```bash
+# 1. Build the image the suite's environment.services.payments-api references.
+docker build -t vouchfx-samples-payments-java:local samples/payments-java/app
+
+# 2. Run the suite (once the engine build supports env:/${conn:...} — see "Contract doubts").
+vouchfx run samples/payments-java/tests/payments.e2e.yaml
+```
+
+### What was actually validated for this delivery
+
+`docker build` was run and passed. In place of a live engine run (not available/not in scope —
+see "Contract doubts"), the compiled behaviour was proven by hand-wiring a real SQL Server 2022,
+`nats:2 -js`, and `axllent/mailpit` on a scratch Docker network, running the built image against
+them with the equivalent environment variables set directly, and driving the same HTTP surface
+the suite's steps exercise:
+
+- `GET /` → `503 {"status":"starting"}` while dependencies were deliberately unreachable, `200
+  {"status":"ready"}` once `ReadinessGate` completed (SQL Server schema check + NATS JetStream
+  stream ensure both succeeded within roughly half a second against warm containers).
+- `POST /payments` with `{"orderId":"ord-SMOKE-1","amount":"49.99","customerEmail":
+  "alice@example.com"}` → `201 {"id":"a7a5...","orderId":"ord-SMOKE-1","amount":49.99,"status":
+  "AUTHORISED"}`.
+- `GET /payments/{id}` → `200` with the full row; a random unknown id → `404`.
+- The SQL Server row was confirmed directly via `sqlcmd`: `id=A7A5...`, `status=AUTHORISED`,
+  `amount=49.99`, `customer_email=alice@example.com`.
+- The JetStream stream was confirmed via the `nats` CLI (`nats-box` container):
+  `PAYMENTS_AUTHORISED` existed with exactly one message on subject `payments.authorised`,
+  payload `{"id":"a7a5...","orderId":"ord-SMOKE-1","amount":49.99,"status":"AUTHORISED"}` —
+  proving the stream-ownership design above actually prevents the lost-message race.
+- The receipt e-mail was confirmed via Mailpit's HTTP API (`GET /api/v1/messages`): one message,
+  `To: alice@example.com`, `Subject: Payment receipt a7a5...`, body containing the order id and
+  amount.
+- `POST /payments` with a missing field, a non-numeric `amount`, and a zero `amount` all returned
+  `400`.
+- All smoke-test containers and the scratch network were removed afterwards.
+
+## Troubleshooting
+
+- **`GET /` stays `503` for a long time.** SQL Server's container is the usual cause: it
+  routinely takes 15-45s to accept connections after `docker ps` reports it running, and during
+  this delivery's own smoke test it took noticeably longer on a cold pull/first-init pass —
+  `ReadinessGate` has **no hard timeout** precisely because of this variance (see its Javadoc);
+  check `docker logs` for the SQL Server container to confirm it is still finishing its own
+  startup/recovery sequence rather than the application being stuck.
+- **The application crashes immediately instead of retrying.** Almost certainly
+  `spring.datasource.hikari.initialization-fail-timeout` regressed away from `-1` in
+  `application.yml` — without it, the autoconfigured `HikariDataSource` bean validates a
+  connection eagerly during `ApplicationContext` startup and throws before `ReadinessGate` ever
+  gets a chance to retry.
+- **`mq-expect.nats` never matches, or matches a stale message from a previous run.** Check that
+  `NatsPublisher.STREAM_NAME` (`PAYMENTS_AUTHORISED`) and the suite's `stream:` field on
+  `assert-authorised-event` still agree — see "Design decision: JetStream stream ownership"
+  above. Also remember `mq-expect.nats` scans its stream from the **start** of the retained log
+  on every attempt (an ordered consumer, `DeliverPolicy.All`), so re-running this suite against a
+  **shared, already-populated** `bus` dependency (rather than a fresh one per run) can produce a
+  false pass against an old message; this is a documented engine-level constraint
+  (`MqExpectNatsProvider.cs`'s "Shared-stream caution" comment), not specific to this sample.
+- **The receipt e-mail never arrives / `mail-expect.smtp` times out.** `ReceiptMailSender` treats
+  SMTP failure as best-effort by design (logs and returns after 3 attempts with a short backoff,
+  rather than failing the customer-facing `POST /payments`) — check `docker logs` for the "Giving
+  up sending receipt e-mail" line; if present, the fault is in reaching Mailpit (wrong
+  `SMTP_HOST`/`SMTP_PORT`, or Mailpit not yet healthy), not in the suite's matching criteria.
+- **`db-assert.sqlserver` reports a row-count or column mismatch.** Remember `expect.row` values
+  are compared as `.ToString()` output (ordinal) against whatever `Microsoft.Data.SqlClient`
+  returns for that column — this suite only asserts on `status` (a plain `nvarchar`) for exactly
+  this reason; if you extend the query to assert on `amount` (a `decimal(12,2)`), expect the
+  driver's default numeric-to-string formatting to matter.

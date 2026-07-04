@@ -1,0 +1,117 @@
+# samples/orders-dotnet/tests/orders.e2e.yaml
+#
+# End-to-end proof of ../app/ — a real ASP.NET Core 8 "Orders" minimal API — across all four
+# vouchfx step families in one business transaction:
+#
+#   REST call (http.rest)  ->  Postgres row (db-assert.postgres)
+#                          ->  Kafka event (mq-expect.kafka)
+#                          ->  outbound webhook (webhook-listen.http)
+#
+# See ../README.md for the architecture diagram and the step-by-step narrative this suite
+# proves. Idioms (capture, RETRY, webhook path matching, match.json) mirror vouchfx's own
+# canonical reference scenario: examples/reference/reference.e2e.yaml.
+#
+# NOTE (engine contract): environment.services.<name>.env and the ${conn:<name>} placeholder
+# are a new engine feature at the time this suite was authored — not yet in
+# docs/language-reference.md — taken here as given per the brief. See README
+# "Contract doubts" for what to double-check once that feature merges.
+
+metadata:
+  name: orders-end-to-end
+  owner: samples
+  tags: [samples, dotnet, postgres, kafka, webhook]
+  description: >-
+    One order-confirmation transaction across REST + Postgres + Kafka + an outbound webhook,
+    exercised against a real ASP.NET Core 8 service (samples/orders-dotnet/app).
+
+environment:
+  services:
+    orders-api:
+      image: vouchfx-samples-orders-dotnet:local
+      httpPort: 8080
+      env:
+        ConnectionStrings__orders: "${conn:ordersdb}"
+        KAFKA_BOOTSTRAP: "${conn:broker}"
+
+  dependencies:
+    ordersdb:
+      type: postgres
+    broker:
+      type: kafka
+
+steps:
+  # ── Step 1: place the order over REST, handing the app a container-reachable callback URL ──
+  # {cb_container} is the webhook-listen.http listener 'cb' declared by step 4, resolved to
+  # its host.docker.internal form so the containerised orders-api can reach back out to the
+  # host-owned listener. The response's {"id": "..."} is captured for every later step.
+  - id: place-order
+    type: http.rest
+    target: orders-api
+    method: POST
+    path: /orders
+    body:
+      sku: WIDGET-1
+      quantity: 3
+      callbackUrl: "{cb_container}"
+    expect:
+      status: 201
+    capture:
+      orderId: "$.id"
+
+  # ── Step 2: the order row really landed in Postgres ─────────────────────────────────────
+  # Proves the REST call actually persisted a row (not just a 201 with no side effect), and
+  # that the captured {orderId} placeholder threads correctly into a parameterised query.
+  - id: assert-order-row
+    type: db-assert.postgres
+    target: ordersdb
+    # @id::uuid: db-assert.postgres always binds parameter VALUES as Npgsql string parameters
+    # (AddWithValue on a C# string -> a 'text' OID), and Postgres has no implicit text->uuid
+    # cast, so 'id = @id' against the uuid primary key would fail with "operator does not
+    # exist: uuid = text". The explicit cast is on the STATIC query text (no {placeholder} in
+    # it), so it is unaffected by the identifier-substitution guard on the query string.
+    query: >-
+      SELECT sku, status FROM orders WHERE id = @id::uuid
+    parameters:
+      id: "{orderId}"
+    expect:
+      rowCount: 1
+      row:
+        sku: WIDGET-1
+        status: CONFIRMED
+
+  # ── Step 3: the order-events Kafka event was really published ───────────────────────────
+  # RETRY: the app awaits Kafka delivery before responding, but polling absorbs any residual
+  # broker/consumer-group startup latency rather than requiring the author to guess a sleep.
+  - id: assert-order-event
+    type: mq-expect.kafka
+    target: broker
+    topic: order-events
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      json:
+        "$.id": "{orderId}"
+
+  # ── Step 4: the app called back out over the outbound webhook ───────────────────────────
+  # 'cb' is the SAME listener name referenced by {cb_container} in step 1 — the engine stands
+  # the listener up before step 1 runs and stages its URL at Vars["cb"] / Vars["cb_container"].
+  # The app POSTs to "<callbackUrl>/callbacks/<orderId>" (see app/WebhookNotifier.cs), so the
+  # match path below must agree with that exactly, mirroring vouchfx's own reference scenario
+  # (examples/reference/reference.e2e.yaml, step webhook-await).
+  - id: assert-webhook-callback
+    type: webhook-listen.http
+    listener: cb
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      method: POST
+      path: "/callbacks/{orderId}"
+
+  # ── Step 5 (optional): re-fetch the order over REST as a final end-to-end sanity check ──
+  - id: refetch-order
+    type: http.rest
+    target: orders-api
+    method: GET
+    path: "/orders/{orderId}"
+    expect:
+      status: 200

@@ -1,0 +1,142 @@
+# tests/inventory.e2e.yaml — inventory-python sample suite.
+#
+# Proves one business transaction across four technologies against a Python
+# FastAPI service (not a .NET one) — the same "REST + DB + broker + cache"
+# shape as vouchfx's own reference scenario
+# (vouchfx/examples/reference/reference.e2e.yaml), reproduced here for a
+# non-.NET system under test:
+#
+#   1. POST /items on inventory-api creates a stock item (capture its sku
+#      from the response so later steps never hard-code it).
+#   2. db-assert.mysql confirms the row landed in MySQL with the expected
+#      name/stock.
+#   3. cache-assert.redis confirms the write-through Redis cache entry
+#      exists for that sku.
+#   4. mq-expect.rabbitmq confirms a "stock-changed" event reached the
+#      'stock-events' queue.
+#      ASSUMPTION: the app declares 'stock-events' as a DURABLE queue at
+#      startup (see app/mq.py: declare_queue, called from app/main.py's
+#      lifespan startup) — this suite does not declare the queue itself.
+#   5. GET /items/{sku} proves the Redis read-through path (200): the
+#      second read is served from cache rather than a fresh MySQL query.
+#
+# Ground truth for every field below: vouchfx's docs/language-reference.md
+# and the provider sources under src/Providers/Core/{Platform.Steps.DbAssert.Mysql,
+# Platform.Steps.CacheAssert.Redis,Platform.Steps.MqExpect.Rabbitmq}/*Provider.cs.
+# examples/mq-rabbitmq.e2e.yaml, examples/db-assert-mysql.e2e.yaml, and
+# examples/cache-assert-redis.e2e.yaml in the engine repo are known-broken
+# (wrong http.rest field names, ISO-8601 timeouts) and were deliberately NOT
+# used as a reference.
+
+metadata:
+  name: inventory-end-to-end
+  owner: samples
+  tags: [samples, python, mysql, rabbitmq, redis]
+  description: >-
+    REST call -> MySQL row -> Redis cache entry -> RabbitMQ event, against a
+    Python FastAPI "Inventory" service — proving vouchfx orchestrates a
+    non-.NET system under test through the engine's reference four-technology
+    transaction pattern.
+
+variables:
+  itemName: "Bluetooth Keyboard"
+  stock: 25
+
+environment:
+  services:
+    inventory-api:
+      image: vouchfx-samples-inventory-python:local
+      httpPort: 8080
+      # NEW engine feature: `env:` on a service maps environment variable
+      # names to ${conn:<dependency>.<field>} references. Each reference is
+      # resolved to the real container-network host/port/credential once the
+      # topology is healthy — never at compile time — mirroring the
+      # ${secret:...} resolve-at-execution discipline (§17). The app itself
+      # only ever reads plain env vars (DB_HOST, DB_PORT, ...); it has no
+      # knowledge of vouchfx or the ${conn:...} syntax.
+      env:
+        DB_HOST: "${conn:invdb.host}"
+        DB_PORT: "${conn:invdb.port}"
+        DB_USER: "${conn:invdb.username}"
+        DB_PASSWORD: "${conn:invdb.password}"
+        DB_NAME: "${conn:invdb.database}"
+        RABBITMQ_URL: "${conn:mq}"
+        REDIS_HOST: "${conn:cache.host}"
+        REDIS_PORT: "${conn:cache.port}"
+
+  dependencies:
+    invdb: { type: mysql }
+    mq: { type: rabbitmq }
+    cache: { type: redis }
+
+steps:
+  # ── Step 1: create the item over REST, capture its sku ───────────────────
+  - id: create-item
+    type: http.rest
+    description: "Create a stock item; the sku threads forward via capture."
+    target: inventory-api
+    method: POST
+    path: /items
+    body:
+      sku: "SKU-1042"
+      name: "{itemName}"
+      stock: 25
+    expect:
+      status: 201
+    capture:
+      sku: "$.sku"
+
+  # ── Step 2: MySQL row proof ────────────────────────────────────────────────
+  - id: assert-mysql-row
+    type: db-assert.mysql
+    description: "The upsert landed in MySQL with the expected name/stock."
+    target: invdb
+    query: "SELECT sku, name, stock FROM items WHERE sku = @sku"
+    parameters:
+      sku: "{sku}"
+    expect:
+      rowCount: 1
+      row:
+        name: "{itemName}"
+        stock: "{stock}"
+
+  # ── Step 3: Redis cache-entry proof ────────────────────────────────────────
+  # cache-assert.redis (Platform.Steps.CacheAssert.Redis/CacheAssertRedisModel.cs)
+  # offers only exact string equality (expect.value, for get/hget) or boolean
+  # presence (expect.exists) — there is no JSONPath or substring match against
+  # a cached value. Asserting exact JSON-string equality here would couple
+  # this suite to the app's precise serialisation (key order, whitespace,
+  # int-vs-string encoding); 'exists' proves the write-through happened
+  # without that coupling, which is the robust choice for a sample suite.
+  - id: assert-redis-key
+    type: cache-assert.redis
+    description: "The write-through cache entry exists for the created sku."
+    target: cache
+    key: "item:{sku}"
+    operation: exists
+    expect:
+      exists: true
+
+  # ── Step 4: RabbitMQ event proof ───────────────────────────────────────────
+  # RETRY: the event is published after the HTTP response is returned, so the
+  # message may not have landed the instant this step starts polling.
+  - id: assert-stock-event
+    type: mq-expect.rabbitmq
+    description: "A stock-changed event for the created sku reached the durable 'stock-events' queue."
+    target: mq
+    queue: stock-events
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      json:
+        "$.sku": "{sku}"
+
+  # ── Step 5: Redis read-through proof ───────────────────────────────────────
+  - id: get-item
+    type: http.rest
+    description: "GET returns 200, served via the Redis read-through path."
+    target: inventory-api
+    method: GET
+    path: "/items/{sku}"
+    expect:
+      status: 200

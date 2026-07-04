@@ -1,0 +1,28 @@
+# payments-java configuration.
+#
+# spring.datasource.{url,username,password} are populated by Spring Boot's relaxed
+# environment-variable binding directly from SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD
+# (set by the vouchfx suite's environment.services.payments-api.env block) -- nothing to
+# declare here. NATS_URL / SMTP_HOST / SMTP_PORT are read directly via System.getenv(...) in
+# NatsPublisher / ReceiptMailSender, bypassing Spring property binding entirely.
+spring:
+  datasource:
+    hikari:
+      # Must stay negative: see ReadinessGate's Javadoc. A positive (or default) value makes
+      # HikariDataSource bean creation validate a connection eagerly during ApplicationContext
+      # startup and throw if SQL Server is not yet reachable, crashing the whole process
+      # before the resilient retry loop ever runs.
+      initialization-fail-timeout: -1
+      # Bounds each failed connection attempt so the ~2s retry loop in ReadinessGate is not
+      # dominated by Hikari's much longer default (30s) connection-timeout.
+      connection-timeout: 5000
+      maximum-pool-size: 10
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    com.vouchfx.samples.payments: INFO
+    com.zaxxer.hikari: WARN

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  payments-java — vouchfx-samples SUT.
+
+  A small Spring Boot 3.3 "Payments" service that demonstrates a single business
+  transaction crossing four technologies: REST -> SQL Server -> NATS JetStream ->
+  SMTP. See README.md (samples/payments-java/) for the end-to-end narrative and
+  tests/payments.e2e.yaml for the vouchfx suite that exercises it.
+
+  Dependency set is intentionally minimal (per the sample's design brief):
+    - spring-boot-starter-web    REST controller + embedded Tomcat.
+    - spring-boot-starter-jdbc   DataSource autoconfiguration + JdbcTemplate.
+    - mssql-jdbc                 SQL Server JDBC driver (Spring auto-detects the
+                                  driver class from the jdbc:sqlserver: URL prefix).
+    - jnats                      NATS Java client (core NATS + JetStream).
+    - spring-boot-starter-mail   Pulls in jakarta.mail-api plus the Angus Mail
+                                  implementation; used directly via jakarta.mail.*
+                                  (Session/Transport), NOT via Spring's
+                                  spring.mail.* autoconfiguration; see
+                                  ReceiptMailSender's Javadoc for why.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.3.13</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.vouchfx.samples</groupId>
+  <artifactId>payments-java</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>payments-java</name>
+  <description>vouchfx sample SUT: Spring Boot payments service (REST, SQL Server, NATS JetStream, SMTP)</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <mssql-jdbc.version>12.10.0.jre11</mssql-jdbc.version>
+    <jnats.version>2.25.3</jnats.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>com.microsoft.sqlserver</groupId>
+      <artifactId>mssql-jdbc</artifactId>
+      <version>${mssql-jdbc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.nats</groupId>
+      <artifactId>jnats</artifactId>
+      <version>${jnats.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!-- Fixed jar name so the Dockerfile does not need to know the version. -->
+    <finalName>payments</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
