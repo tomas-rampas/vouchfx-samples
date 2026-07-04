@@ -18,6 +18,12 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
+# Run as the non-root 'app' user the aspnet:8.0 base image already ships (via the
+# $APP_UID build arg/env var it defines) rather than the image's default root user.
+# Orders.Api binds Kestrel to 0.0.0.0:8080, an unprivileged port, so nothing about
+# dropping root affects its ability to serve traffic.
+USER $APP_UID
+
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "Orders.Api.dll"]

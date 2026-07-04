@@ -80,7 +80,7 @@ profiles):
 | Env var | Purpose |
 | --- | --- |
 | `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | Bound natively by Spring Boot's relaxed environment-variable binding to `spring.datasource.{url,username,password}`. |
-| `NATS_URL` | `nats://host:port`; read directly via `System.getenv` in `NatsPublisher`. |
+| `NATS_URL` | full `nats://user:pass@host:port` connection URL (the managed NATS dependency is provisioned with credentials); read directly via `System.getenv` in `NatsPublisher`. |
 | `SMTP_HOST` / `SMTP_PORT` | Read directly via `System.getenv` in `ReceiptMailSender` — deliberately not `SPRING_MAIL_*` (see that class's Javadoc). |
 
 Behaviour:
@@ -99,7 +99,10 @@ Behaviour:
   the NATS JetStream subject `payments.authorised`, and sends a plain-text receipt e-mail
   (subject `Payment receipt <id>`, body containing the order id and amount) via `SMTP_HOST:
   SMTP_PORT` — best-effort, see "Troubleshooting".
-- **`GET /payments/{id}`** → `200` row JSON, or `404`.
+- **`GET /payments/{id}`** → `200` row JSON, or `404` for an unknown (but validly-formed) UUID.
+  A syntactically invalid id (not a UUID at all) instead yields `400`: Spring binds `{id}` to a
+  `UUID` path variable, and a value that does not parse fails that bind — this is Spring's
+  `@PathVariable UUID` conversion behaviour, not a check `PaymentController` performs itself.
 
 ### Design decision: JetStream stream ownership
 
@@ -171,43 +174,15 @@ the known-broken `examples/mail-expect-smtp.e2e.yaml`/`mq-rabbitmq`/`db-assert-m
 | `mq-expect.nats` | `target`, `subject`, `stream`, `verifyMode: RETRY`, `timeout`, `match.json` | `Platform.Steps.MqExpect.Nats/MqExpectNatsModel.cs` + `MqExpectNatsProvider.cs` — the emitted helper creates an **ephemeral ordered consumer** (`DeliverPolicy.All`, scanning from the start of the retained log) per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout); the provider's own `CreateStreamAsync` call is idempotent and tolerates NATS API error code 10058 ("stream name already in use") — the same code this sample's `NatsPublisher` tolerates. |
 | `mail-expect.smtp` | `target`, `expect.match.to`, `expect.match.subject-contains` | `Platform.Steps.MailExpect.Smtp/MailExpectSmtpModel.cs` + `MailExpectSmtpProvider.cs` — queries Mailpit's HTTP API (`GET /api/v1/messages?limit=100`, then `GET /api/v1/message/{ID}` only if `body-contains` is set, which this suite does not use), matches `to` case-insensitively against each address in the message's `To` list, and `subject-contains` ordinally; passes on `matched >= 1` when `expect.count` is absent (as here). |
 
-### Contract doubts — flagged explicitly
+### Engine contract
 
-Two things this suite relies on are **not yet present** on the vouchfx `main` branch this was
-authored against (commit `d2c4b3d`), per the brief ("NEW `env:` feature ... take as given"):
-
-1. **`environment.services.<name>.env`** — the current `ServiceSpec` record
-   (`Platform.Engine.Authoring/Model/EnvironmentSpec.cs`) carries only `Image`, `Project`, and
-   `HttpPort`; `EnvironmentMapper.cs`'s image-service branch calls `AddContainer(name,
-   fullImage).WithHttpEndpoint(...).WithHttpHealthCheck(...)` with no `.WithEnvironment(...)` call
-   reading any `env` field. The suite's `env: { SPRING_DATASOURCE_URL: ..., NATS_URL: ..., ... }`
-   block is authored strictly to the shape given in the brief.
-2. **`${conn:<dependency>.<field>}` tokens** (`.host`, `.port`, `.database`, `.username`,
-   `.password`) — no such token form, nor any per-field connection decomposition, appears
-   anywhere in the current engine source. `EnvironmentMapper.ResolveServices` currently resolves
-   each dependency to a single opaque connection-string value (`GetConnectionStringAsync`, or a
-   custom builder for plain-container dependencies), not to individually addressable
-   host/port/database/username/password sub-fields.
-
-Neither of these could be exercised against a live engine build as part of this delivery (the
-brief is explicit that the orchestrator validates this suite live once the feature merges) —
-flagging here so the first live run is the actual point these two assumptions get checked, not a
-surprise. This sample's own validation therefore stopped at `docker build` plus a manual,
-hand-wired container smoke test (see "Running" below) — the `.e2e.yaml` suite itself was **not**
-executed as part of this delivery.
-
-3. **Image-tag naming appears inconsistent between the samples' suites and
-   `scripts/run-sample.sh`** — noticed while cross-checking conventions, not introduced by this
-   sample. All three samples' suites (`orders.e2e.yaml`, `inventory.e2e.yaml`, and this suite)
-   reference a short semantic image name (`vouchfx-samples-orders-dotnet:local`,
-   `vouchfx-samples-inventory-python:local`, `vouchfx-samples-payments-java:local`), but
-   `scripts/run-sample.sh`'s `run_one()` builds and tags
-   `vouchfx-samples-${name}:local` where `${name}` is the **sample directory name** passed on the
-   command line (`orders-dotnet`, `inventory-python`, `payments-java`) — a different string in
-   every case. If this is not resolved elsewhere (an alias, a retag step, or a `run-sample.sh`
-   fix), `scripts/run-sample.sh payments-java` would build an image nobody's suite references.
-   This sample follows the sibling suites' existing short-name convention rather than inventing a
-   third pattern, but the mismatch itself is repo-wide and outside this sample's directory to fix.
+This suite exercises the engine's SUT-configuration surface: `environment.services.<name>.env`
+(the `env:` block on `payments-api`) and the `${conn:<dependency>.<field>}` placeholder forms
+(`.host`, `.port`, `.database`, `.username`, `.password`, plus the bare `${conn:bus}` full-URL
+form used for `NATS_URL`). All of it has been validated **live, end-to-end**, against the
+vouchfx engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) — the topology stands up
+SQL Server, NATS, and Mailpit, `payments-api` receives its `env:` values and per-field
+connection tokens, and all four suite steps pass against the real containers.
 
 ## Running
 
@@ -217,50 +192,32 @@ Via the repository's sample runner:
 scripts/run-sample.sh payments-java
 ```
 
-This is expected to: `docker build` `app/` to the image referenced by
-`environment.services.payments-api.image`, then hand `tests/payments.e2e.yaml` to the vouchfx
-engine CLI so it provisions the Aspire topology (SQL Server + NATS + Mailpit + the
-`payments-api` container) and executes the suite against it — see "Contract doubts" above for
-the two assumptions that live run will actually test for the first time, and the image-tag point
-that may need resolving first.
+```powershell
+scripts\run-sample.ps1 payments-java
+```
 
-Manual equivalent for the parts validated as part of this delivery:
+This: `docker build`s `app/` to the image referenced by
+`environment.services.payments-api.image`, then hands `tests/payments.e2e.yaml` to the vouchfx
+engine CLI so it provisions the Aspire topology (SQL Server + NATS + Mailpit + the
+`payments-api` container) and executes the suite against it.
+
+The equivalent manual steps, useful if you want finer-grained control over either half:
 
 ```bash
 # 1. Build the image the suite's environment.services.payments-api references.
 docker build -t vouchfx-samples-payments-java:local samples/payments-java/app
 
-# 2. Run the suite (once the engine build supports env:/${conn:...} — see "Contract doubts").
+# 2. Run the suite (from the vouchfx engine checkout, with the dotnet global tool or CLI installed).
 vouchfx run samples/payments-java/tests/payments.e2e.yaml
 ```
 
-### What was actually validated for this delivery
+### Validated live
 
-`docker build` was run and passed. In place of a live engine run (not available/not in scope —
-see "Contract doubts"), the compiled behaviour was proven by hand-wiring a real SQL Server 2022,
-`nats:2 -js`, and `axllent/mailpit` on a scratch Docker network, running the built image against
-them with the equivalent environment variables set directly, and driving the same HTTP surface
-the suite's steps exercise:
-
-- `GET /` → `503 {"status":"starting"}` while dependencies were deliberately unreachable, `200
-  {"status":"ready"}` once `ReadinessGate` completed (SQL Server schema check + NATS JetStream
-  stream ensure both succeeded within roughly half a second against warm containers).
-- `POST /payments` with `{"orderId":"ord-SMOKE-1","amount":"49.99","customerEmail":
-  "alice@example.com"}` → `201 {"id":"a7a5...","orderId":"ord-SMOKE-1","amount":49.99,"status":
-  "AUTHORISED"}`.
-- `GET /payments/{id}` → `200` with the full row; a random unknown id → `404`.
-- The SQL Server row was confirmed directly via `sqlcmd`: `id=A7A5...`, `status=AUTHORISED`,
-  `amount=49.99`, `customer_email=alice@example.com`.
-- The JetStream stream was confirmed via the `nats` CLI (`nats-box` container):
-  `PAYMENTS_AUTHORISED` existed with exactly one message on subject `payments.authorised`,
-  payload `{"id":"a7a5...","orderId":"ord-SMOKE-1","amount":49.99,"status":"AUTHORISED"}` —
-  proving the stream-ownership design above actually prevents the lost-message race.
-- The receipt e-mail was confirmed via Mailpit's HTTP API (`GET /api/v1/messages`): one message,
-  `To: alice@example.com`, `Subject: Payment receipt a7a5...`, body containing the order id and
-  amount.
-- `POST /payments` with a missing field, a non-numeric `amount`, and a zero `amount` all returned
-  `400`.
-- All smoke-test containers and the scratch network were removed afterwards.
+The full suite (`tests/payments.e2e.yaml`) has been run against a real container topology through
+the vouchfx engine and passed: `create-payment` → `assert-payment-row` → `assert-authorised-event`
+→ `assert-receipt-email`, all green — the SQL Server row, the JetStream event, and the Mailpit
+receipt e-mail were each independently confirmed by the engine's own provider assertions, not by a
+hand-wired smoke test standing in for them. `docker build` also passes standalone.
 
 ## Troubleshooting
 

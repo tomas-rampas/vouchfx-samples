@@ -63,6 +63,8 @@ environment:
         RABBITMQ_URL: "${conn:mq}"
         REDIS_HOST: "${conn:cache.host}"
         REDIS_PORT: "${conn:cache.port}"
+        # The managed redis dependency is provisioned with a required password.
+        REDIS_PASSWORD: "${conn:cache.password}"
 
   dependencies:
     invdb: { type: mysql }

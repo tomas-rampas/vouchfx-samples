@@ -95,12 +95,17 @@ Five steps, one narrative — "a customer places an order, and everything downst
 
 1. **`place-order`** (`http.rest`, `POST /orders`) — places the order, handing the app
    `{cb_container}` as `callbackUrl` (the host-owned webhook listener's container-reachable
-   URL — see "Contract doubts" below). Expects `201` and captures `orderId` from the response's
+   URL — see "Engine contract" below). Expects `201` and captures `orderId` from the response's
    `$.id`. This proves the REST surface accepted the request and returned the shape the rest of
    the suite depends on.
+
+   **Caveat if you copy this pattern:** `callbackUrl` is caller-supplied and the app POSTs to it
+   unchecked — a deliberate demo-grade SSRF surface that keeps this sample simple. Do not carry
+   that shape into production without an allowlist (or another way of constraining which hosts
+   the service will call back to).
 2. **`assert-order-row`** (`db-assert.postgres`, target `ordersdb`) — proves the `POST` really
    persisted a row, not just a 201 with no side effect: queries `WHERE id = @id::uuid` (see
-   "Contract doubts" for the cast) with `{orderId}` substituted in as the parameter value, and
+   "Engine contract" for the cast) with `{orderId}` substituted in as the parameter value, and
    asserts `rowCount: 1` and `row: {sku: WIDGET-1, status: CONFIRMED}`.
 3. **`assert-order-event`** (`mq-expect.kafka`, target `broker`, topic `order-events`,
    `verifyMode: RETRY`, `timeout: 60s`) — proves the app published the domain event, matching
@@ -146,43 +151,34 @@ enforced) and its emitted-CSX `Emit`/helper logic — not just `docs/language-re
 | `mq-expect.kafka` | `target`, `topic`, `verifyMode: RETRY`, `timeout`, `match.json` | `Platform.Steps.MqExpect.Kafka/MqExpectKafkaProvider.cs` — this is the plain-JSON (non-Avro) path; the emitted helper performs one idempotent poll per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout). |
 | `webhook-listen.http` | `listener`, `verifyMode: RETRY`, `timeout`, `match.method`, `match.path` | `Platform.Steps.WebhookListen.Http/WebhookListenHttpProvider.cs` + `Platform.Engine.Orchestration/HostResources/WebhookListener.cs` — confirms the token-stripped `path` semantics described above; the provider's own doc comment explicitly calls captured request bodies/headers "untrusted... outside SecretString redaction", which is why this suite does not attempt to assert on the callback body. |
 
-### Contract doubts — flagged explicitly
+### Engine contract
 
-Two things this suite relies on are **not yet present** on the vouchfx `main` branch this was
-authored against, per the brief ("being merged; not yet in docs" — taken as given):
-
-1. **`environment.services.<name>.env`** — the current `ServiceSpec` record
-   (`Platform.Engine.Authoring/YamlDocumentParser.cs`, `ParseServiceMap`) only carries `image`,
-   `project`, `imagePullPolicy`, and `httpPort` — no `env` field exists on `main` today. The
-   suite's `env: { ConnectionStrings__orders: ..., KAFKA_BOOTSTRAP: ... }` block is authored
-   strictly to the contract given in the brief.
-2. **`${conn:<dependency>}` and `{<listener>_container}`** — neither token form appears
-   anywhere in the current engine source. In particular,
-   `WebhookListener.ResolveBoundUrl` currently stages **only** the host-loopback
-   (`127.0.0.1:<port>`) form, with a code comment reading *"A containerised SUT reaches the same
-   port via host.docker.internal:<port> (deferred to the E2 Docker capstone)"* — i.e. the
-   container-reachable `{cb_container}` form is exactly the still-to-land feature the brief
-   describes, not something already shipping.
-
-Neither of these could be exercised against a live engine build as part of this delivery (the
-brief is explicit that the orchestrator validates this suite live once that feature merges) —
-flagging here so the first live run is the actual point these two assumptions get checked, not a
-surprise.
+This suite exercises the engine's SUT-configuration surface: `environment.services.<name>.env`
+(the `env:` block on `orders-api`) and the `${conn:<dependency>}` / `{<listener>_container}`
+placeholder forms (the container-reachable form of a host-owned webhook listener's URL). All of
+it has been validated **live, end-to-end**, against the vouchfx engine commit pinned in
+[`../../ENGINE_PIN`](../../ENGINE_PIN) — the topology stands up, `orders-api` receives its `env:`
+values and connection strings, and the webhook listener's `{cb_container}` URL is reachable from
+inside the container network.
 
 ## Running
 
-Via the repository's sample runner (once `../../scripts/run-sample` exists):
+Via the repository's sample runner:
 
 ```bash
-scripts/run-sample orders-dotnet
+scripts/run-sample.sh orders-dotnet
 ```
 
-This is expected to: `docker build` `app/` to `vouchfx-samples-orders-dotnet:local`, then hand
-`tests/orders.e2e.yaml` to `vouchfx run` so the engine provisions the Aspire topology
+```powershell
+scripts\run-sample.ps1 orders-dotnet
+```
+
+This: `docker build`s `app/` to `vouchfx-samples-orders-dotnet:local`, then hands
+`tests/orders.e2e.yaml` to the vouchfx engine CLI so it provisions the Aspire topology
 (Postgres + Kafka + the `orders-api` container + the host-owned webhook listener) and executes
 the suite against it.
 
-Until that script lands, the equivalent manual steps are:
+The equivalent manual steps, useful if you want finer-grained control over either half:
 
 ```bash
 # 1. Build the image the suite's environment.services.orders-api references.

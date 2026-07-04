@@ -112,10 +112,17 @@ function Invoke-Sample {
     }
 
     Write-SampleLog "=== ${Name}: docker build $image ==="
-    docker build -t $image "$appDir"
-    if ($LASTEXITCODE -ne 0) {
-        Write-SampleLog "docker build failed for $Name."
-        return 1
+    # Pipe to Out-Host: native stdout/stderr still streams live to the console (Out-Host
+    # writes each line as it arrives), but it no longer folds into this function's success
+    # stream. Without this, the bare native call's captured output becomes part of what
+    # `return` emits, turning the caller's `$rc = Invoke-Sample ...` into an array instead
+    # of an int, and `exit $overallRc` on that array silently coerces to a 0 exit code even
+    # when the sample genuinely failed (the false-green this fixes).
+    docker build -t $image "$appDir" | Out-Host
+    $buildRc = [int]$LASTEXITCODE
+    if ($buildRc -ne 0) {
+        Write-SampleLog "docker build failed for $Name (exit $buildRc)."
+        return [int]$buildRc
     }
 
     Write-SampleLog "=== ${Name}: running suite (samples/$Name/tests) ==="
@@ -127,25 +134,40 @@ function Invoke-Sample {
         '--fail-on-env-error',
         '--fail-on-inconclusive'
     )
-    & dotnet @dotnetArgs
-    $rc = $LASTEXITCODE
+    & dotnet @dotnetArgs | Out-Host
+    $rc = [int]$LASTEXITCODE
 
     Write-SampleLog "=== ${Name}: exit code $rc ==="
     if (Test-Path $junitOut) { Write-SampleLog "JUnit report: $junitOut" }
     if (Test-Path $htmlOut)  { Write-SampleLog "HTML report:  $htmlOut" }
 
-    return $rc
+    # This return is the ONLY statement in the function that reaches the success stream --
+    # every other line above is either Write-Host (goes straight to the host, not the
+    # pipeline), a condition inside if(), or now explicitly piped to Out-Host/Out-Null.
+    return [int]$rc
 }
 
 # -- Execute --------------------------------------------------------------------
-$targets = if ($SampleName -eq 'all') { $AvailableSamples } else { @($SampleName) }
+# The @(...) MUST wrap the whole if/else, not just the 'all'-is-false branch: a single-
+# element array written to the pipeline from inside an if/else branch is unrolled back to
+# a bare scalar by PowerShell's normal pipeline semantics, so `$targets` would silently
+# become a plain string whenever a single sample name is passed (the common case) --
+# and then `$targets.Count` below throws PropertyNotFoundException under
+# Set-StrictMode -Version Latest, aborting the script via $ErrorActionPreference = 'Stop'
+# BEFORE it ever reaches `exit [int]$overallRc`. Wrapping the entire expression forces a
+# real array regardless of branch or element count.
+$targets = @(if ($SampleName -eq 'all') { $AvailableSamples } else { $SampleName })
 
 $summaryNames = @()
 $summaryRcs   = @()
 $overallRc    = 0
 
 foreach ($name in $targets) {
-    $rc = Invoke-Sample -Name $name
+    # [int](...) is a defence-in-depth cast, not the fix itself: Invoke-Sample's own
+    # single `return [int]$rc` is what keeps this a scalar. If a future edit accidentally
+    # reintroduces a leaked bare native/pipeline call inside the function, this cast fails
+    # loudly (cannot convert Object[] to int) instead of silently coercing to 0.
+    $rc = [int](Invoke-Sample -Name $name)
     $summaryNames += $name
     $summaryRcs   += $rc
     if ($rc -ne 0) { $overallRc = $rc }
@@ -158,4 +180,4 @@ if ($targets.Count -gt 1) {
     }
 }
 
-exit $overallRc
+exit [int]$overallRc

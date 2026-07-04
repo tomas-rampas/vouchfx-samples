@@ -51,7 +51,7 @@ environment:
         SPRING_DATASOURCE_URL: "jdbc:sqlserver://${conn:paydb.host}:${conn:paydb.port};databaseName=${conn:paydb.database};encrypt=false"
         SPRING_DATASOURCE_USERNAME: "${conn:paydb.username}"
         SPRING_DATASOURCE_PASSWORD: "${conn:paydb.password}"
-        NATS_URL: "nats://${conn:bus.host}:${conn:bus.port}"
+        NATS_URL: "${conn:bus}"  # full form carries the Aspire-provisioned user:password credentials
         SMTP_HOST: "${conn:mail.host}"
         SMTP_PORT: "${conn:mail.port}"
 

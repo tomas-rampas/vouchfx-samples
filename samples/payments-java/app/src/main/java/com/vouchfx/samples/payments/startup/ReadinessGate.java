@@ -8,6 +8,8 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -90,8 +92,13 @@ public class ReadinessGate implements ApplicationRunner {
                             NatsPublisher.SUBJECT, NatsPublisher.STREAM_NAME, attempt,
                             Duration.between(started, Instant.now()));
                 } catch (Exception e) {
-                    log.warn("Attempt {}: waiting for NATS ({} elapsed): {}",
-                            attempt, Duration.between(started, Instant.now()), e.getMessage());
+                    // Deliberately NOT e.getMessage(): NATS_URL (and therefore the client
+                    // library's own exception text) can carry the "nats://user:pass@host:port"
+                    // form -- the managed dependency is provisioned with credentials. Log the
+                    // exception class plus a redacted host:port only, never the raw message.
+                    log.warn("Attempt {}: waiting for NATS at {} ({} elapsed): {}",
+                            attempt, redactNatsUrl(natsUrl), Duration.between(started, Instant.now()),
+                            e.getClass().getName());
                 }
             }
 
@@ -112,5 +119,25 @@ public class ReadinessGate implements ApplicationRunner {
 
         ready.set(true);
         log.info("Startup complete after {} -- service is ready.", Duration.between(started, Instant.now()));
+    }
+
+    /**
+     * Reduces a NATS connection URL to {@code scheme://host:port} for logging, stripping any
+     * {@code user:pass@} userinfo component. Used instead of ever logging {@code NATS_URL}
+     * itself, or an exception message derived from it, verbatim.
+     */
+    private static String redactNatsUrl(String natsUrl) {
+        if (natsUrl == null || natsUrl.isBlank()) {
+            return "(unset)";
+        }
+        try {
+            URI uri = new URI(natsUrl);
+            String scheme = uri.getScheme() != null ? uri.getScheme() : "nats";
+            String host = uri.getHost() != null ? uri.getHost() : "?";
+            int port = uri.getPort();
+            return port >= 0 ? scheme + "://" + host + ":" + port : scheme + "://" + host;
+        } catch (URISyntaxException e) {
+            return "(unparseable)";
+        }
     }
 }

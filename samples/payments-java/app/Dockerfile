@@ -18,6 +18,13 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /workspace/target/payments.jar ./payments.jar
 
+# Non-root, mirroring the inventory-python sample's pattern: a dedicated unprivileged
+# user rather than the image's default root user. Spring Boot binds to 8080, an
+# unprivileged port, so dropping root does not affect the app's ability to serve traffic.
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "/app/payments.jar"]

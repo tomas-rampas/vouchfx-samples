@@ -22,6 +22,7 @@ class Settings:
     rabbitmq_url: str
     redis_host: str
     redis_port: int
+    redis_password: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -40,4 +41,8 @@ class Settings:
             rabbitmq_url=os.environ["RABBITMQ_URL"],
             redis_host=os.environ["REDIS_HOST"],
             redis_port=int(os.environ.get("REDIS_PORT", "6379")),
+            # Optional: managed Redis instances (including vouchfx's Aspire-provisioned
+            # dependency) usually require authentication; plain smoke-test containers
+            # may not, so absence is tolerated.
+            redis_password=os.environ.get("REDIS_PASSWORD") or None,
         )

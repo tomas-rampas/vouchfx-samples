@@ -108,15 +108,19 @@ slow-to-schedule dependency container is a startup delay, not a hard failure.
 This sample is driven by the repo-level runner, not directly:
 
 ```bash
-scripts/run-sample inventory-python
+scripts/run-sample.sh inventory-python
+```
+
+```powershell
+scripts\run-sample.ps1 inventory-python
 ```
 
 That script builds `app/Dockerfile` as `vouchfx-samples-inventory-python:local`,
 stands up the topology declared in `tests/inventory.e2e.yaml` via vouchfx, and
 runs the suite. Do not run `tests/inventory.e2e.yaml` directly with `vouchfx
 run` unless you know the orchestrator's image tag and topology conventions —
-`scripts/run-sample` exists precisely to keep those consistent across every
-sample in this repo.
+`scripts/run-sample.sh`/`.ps1` exists precisely to keep those consistent across
+every sample in this repo.
 
 To iterate on the app in isolation without the engine (what this sample's
 build was validated with), build and run it by hand against real containers:

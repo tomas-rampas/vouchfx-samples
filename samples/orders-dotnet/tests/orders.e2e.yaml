@@ -12,9 +12,9 @@
 # canonical reference scenario: examples/reference/reference.e2e.yaml.
 #
 # NOTE (engine contract): environment.services.<name>.env and the ${conn:<name>} placeholder
-# are a new engine feature at the time this suite was authored — not yet in
-# docs/language-reference.md — taken here as given per the brief. See README
-# "Contract doubts" for what to double-check once that feature merges.
+# exercise the engine's SUT-configuration surface. This suite has been validated live,
+# end-to-end, against the vouchfx engine commit pinned in ../../../ENGINE_PIN — see README
+# "Engine contract" for details.
 
 metadata:
   name: orders-end-to-end
