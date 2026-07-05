@@ -23,10 +23,9 @@
 # Ground truth for every field below: vouchfx's docs/language-reference.md
 # and the provider sources under src/Providers/Core/{Platform.Steps.DbAssert.Mysql,
 # Platform.Steps.CacheAssert.Redis,Platform.Steps.MqExpect.Rabbitmq}/*Provider.cs.
-# examples/mq-rabbitmq.e2e.yaml, examples/db-assert-mysql.e2e.yaml, and
-# examples/cache-assert-redis.e2e.yaml in the engine repo are known-broken
-# (wrong http.rest field names, ISO-8601 timeouts) and were deliberately NOT
-# used as a reference.
+# Every field was verified directly against the provider source rather than
+# the per-provider example suites, which are validated separately by the
+# engine's own examples-compile CI gate.
 
 metadata:
   name: inventory-end-to-end

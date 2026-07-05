@@ -64,6 +64,7 @@ steps:
   # ── Step 1: place the order over REST; capture the generated payment id ────────────────
   - id: create-payment
     type: http.rest
+    description: "Authorise a payment; the paymentId threads forward via capture."
     target: payments-api
     method: POST
     path: /payments
@@ -79,6 +80,7 @@ steps:
   # ── Step 2: the same transaction must have landed a row in SQL Server ───────────────────
   - id: assert-payment-row
     type: db-assert.sqlserver
+    description: "The payment row landed in SQL Server with status AUTHORISED."
     target: paydb
     query: >-
       SELECT status FROM payments WHERE id = @id
@@ -94,6 +96,7 @@ steps:
   # 'stream' is pinned explicitly -- see the JETSTREAM STREAM-OWNERSHIP NOTE above.
   - id: assert-authorised-event
     type: mq-expect.nats
+    description: "A payment-authorised event for {paymentId} reached the JetStream subject."
     target: bus
     subject: payments.authorised
     stream: PAYMENTS_AUTHORISED
@@ -106,6 +109,7 @@ steps:
   # ── Step 4: the customer must have received a receipt e-mail, captured by Mailpit ──────
   - id: assert-receipt-email
     type: mail-expect.smtp
+    description: "A receipt e-mail for the customer was captured by Mailpit."
     target: mail
     verifyMode: RETRY
     timeout: 60s

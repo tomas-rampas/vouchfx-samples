@@ -36,6 +36,8 @@ command -v dotnet >/dev/null 2>&1 \
   || fail ".NET SDK is not installed or not on PATH. Install .NET 8 SDK (8.0.400 or later) from https://dotnet.microsoft.com/download/dotnet/8.0 and re-run."
 command -v docker >/dev/null 2>&1 \
   || fail "Docker is not installed or not on PATH. Install Docker Desktop (or the Docker Engine) from https://www.docker.com/products/docker-desktop/ — the engine orchestrates test topology via containers and cannot run without it."
+docker info >/dev/null 2>&1 \
+  || fail "Docker is installed but the daemon is not responding. Start Docker Desktop (or the Docker service) and re-run."
 
 DOTNET_VERSION="$(dotnet --version 2>/dev/null || true)"
 log "Using dotnet ${DOTNET_VERSION:-<unknown>}"

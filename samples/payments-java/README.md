@@ -163,9 +163,9 @@ Four steps, one narrative — "a customer pays, and everything downstream reacts
 
 Every field below was checked against the actual provider source in the vouchfx engine repo
 (`src/Providers/Core/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually enforced)
-and its emitted-CSX `Emit`/helper logic — not just `docs/language-reference.md`, and distrusting
-the known-broken `examples/mail-expect-smtp.e2e.yaml`/`mq-rabbitmq`/`db-assert-mysql`/
-`cache-assert-redis` examples per the brief:
+and its emitted-CSX `Emit`/helper logic — not just `docs/language-reference.md`, verifying every
+field directly against the provider source rather than the per-provider example
+suites (those are validated separately by the engine's own examples-compile CI gate):
 
 | Step type | Fields used | Verified against |
 | --- | --- | --- |

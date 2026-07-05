@@ -1,4 +1,4 @@
-20d98a9475cee950d124fe47b044c67993b83007
+134d5cc121acd3633f1c60b894a03516fb622ce6
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -16,7 +16,7 @@
 # would defeat the point of a pin — reproducible builds and an auditable,
 # reviewable upgrade step.
 #
-# The placeholder above (all zeros) is not a real commit and bootstrap will
+# If the SHA above is ever the all-zeros placeholder, bootstrap will
 # refuse to run against it. The orchestrator stamps the real engine SHA here
 # as part of standing this repository up; from then on, advancing the pin is
 # a deliberate, reviewed action (see below).

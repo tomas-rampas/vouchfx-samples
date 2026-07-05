@@ -46,6 +46,7 @@ steps:
   # host-owned listener. The response's {"id": "..."} is captured for every later step.
   - id: place-order
     type: http.rest
+    description: "Place an order; the orderId threads forward via capture."
     target: orders-api
     method: POST
     path: /orders
@@ -63,6 +64,7 @@ steps:
   # that the captured {orderId} placeholder threads correctly into a parameterised query.
   - id: assert-order-row
     type: db-assert.postgres
+    description: "The order row landed in Postgres with the expected sku and status."
     target: ordersdb
     # @id::uuid: db-assert.postgres always binds parameter VALUES as Npgsql string parameters
     # (AddWithValue on a C# string -> a 'text' OID), and Postgres has no implicit text->uuid
@@ -84,6 +86,7 @@ steps:
   # broker/consumer-group startup latency rather than requiring the author to guess a sleep.
   - id: assert-order-event
     type: mq-expect.kafka
+    description: "An order-placed event for {orderId} reached the order-events topic."
     target: broker
     topic: order-events
     verifyMode: RETRY
@@ -100,6 +103,7 @@ steps:
   # (examples/reference/reference.e2e.yaml, step webhook-await).
   - id: assert-webhook-callback
     type: webhook-listen.http
+    description: "The service delivered its outbound webhook to the engine's listener."
     listener: cb
     verifyMode: RETRY
     timeout: 60s
@@ -110,6 +114,7 @@ steps:
   # ── Step 5 (optional): re-fetch the order over REST as a final end-to-end sanity check ──
   - id: refetch-order
     type: http.rest
+    description: "The order is retrievable over REST after the transaction completes."
     target: orders-api
     method: GET
     path: "/orders/{orderId}"

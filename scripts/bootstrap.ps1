@@ -55,6 +55,10 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Fail "Docker is not installed or not on PATH. Install Docker Desktop (or the Docker Engine) from https://www.docker.com/products/docker-desktop/ -- the engine orchestrates test topology via containers and cannot run without it."
 }
+docker info *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "Docker is installed but the daemon is not responding. Start Docker Desktop (or the Docker service) and re-run."
+}
 
 $dotnetVersion = $null
 try {

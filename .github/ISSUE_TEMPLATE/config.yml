@@ -32,7 +32,7 @@ contact_links:
       endorsement.
 
   - name: Questions and community discussion
-    url: https://github.com/tomas-rampas/vouchfx/discussions
+    url: https://github.com/tomas-rampas/vouchfx/issues
     about: >
       Ask questions about writing providers, the YAML DSL, orchestration,
       or anything else vouchfx-related.
