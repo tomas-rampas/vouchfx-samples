@@ -144,7 +144,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 **Samples:** All three samples are validated live against local Docker and orchestrated end-to-end with vouchfx.
 
-**Engine consumption:** Samples build and run the vouchfx engine from source at the pinned SHA in [`ENGINE_PIN`](ENGINE_PIN). Once the vouchfx engine publishes its v1.0 release to NuGet, this repository will consume a packaged CLI instead.
+**Engine consumption:** vouchfx v1.0.0-alpha pre-releases are live on NuGet.org and GitHub. This repository **deliberately builds from source** at the pinned SHA in [`ENGINE_PIN`](ENGINE_PIN) for reproducibility and DCP binary path portability — the packaged CLI's embedded absolute paths only work on systems whose ~/.nuget/packages already holds matching aspire.hosting.orchestration versions. Building from source guarantees a self-sufficient CI run.
 
 **Documentation:** British English throughout. Samples are living documentation: every `.e2e.yaml` file is a worked example of the YAML DSL, and every sample's README cross-references the engine's architecture blueprint and language reference so authors can verify their understanding against the canonical source.
 

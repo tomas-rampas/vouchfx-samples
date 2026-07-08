@@ -43,6 +43,10 @@
 #   4. Open a PR with just the pin bump (plus any sample changes the new
 #      engine revision requires) so the change is reviewable in isolation.
 #
-# Once the vouchfx engine publishes a versioned NuGet package / GitHub
-# release for the CLI, this file's role shifts from "commit to build from
-# source" to "minimum supported engine version" — see docs/RUNNING.md.
+# Role decision (2026-07-08): the vouchfx engine published v1.0.0-alpha
+# pre-releases to NuGet.org and GitHub. This file's role *deliberately* remains
+# "commit to build from source" — the packaged CLI embeds an absolute DCP
+# binary path resolved at NuGet-cache-time, so it only runs on machines with
+# a matching aspire.hosting.orchestration version already installed. Building
+# from source here ensures every CI run is self-sufficient and reproducible.
+# Revisit this decision at v1.0.0 GA when DCP portability is confirmed stable.
