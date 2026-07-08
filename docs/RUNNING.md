@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-The engine CLI is **not yet published** as a NuGet package or GitHub release, so it is always built from source at a pinned commit — see [`ENGINE_PIN`](../ENGINE_PIN) for exactly which one and why.
+The vouchfx engine CLI is published as pre-release packages on NuGet.org (`dotnet tool install --global vouchfx --prerelease`). This repository **deliberately builds the engine from source** at a pinned commit to preserve reproducibility and avoid DCP binary path portability issues that affect pre-built packages. See [`ENGINE_PIN`](../ENGINE_PIN) for the exact commit and design rationale.
 
 ## Quick start
 
