@@ -58,4 +58,7 @@ a24a3f5beae0ff78ba97b69ab1f2fefa4d7eff99
 # engine's namespaces/assemblies; 25 Core providers across 11 families).
 # Prior pin: 9c0f811 (pre-rebrand). Verified via a full .vouchfx-src/ rebuild
 # (Vouchfx.Sdk / Vouchfx.Cli resolve, 25 Core provider projects present) and
-# a live `run-sample.sh orders-dotnet` pass against the new engine.
+# a live `run-sample.sh orders-dotnet` pass against the new engine
+# (representative single-sample check: all three samples share the identical
+# bootstrap/build/run path and differ only in comment-level doc changes in
+# this PR; the CI matrix runs all three as the full gate).
