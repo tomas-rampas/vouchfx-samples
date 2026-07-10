@@ -30,12 +30,15 @@
          explicit Version). Not packable; this is a sample runner, not a
          published artifact. -->
     <IsPackable>false</IsPackable>
-    <!-- npm-parity supply-chain pin: restore is locked to the exact resolved
-         graph (incl. transitive versions + content hashes) recorded in the
-         adjacent packages.lock.json, the same guarantee package-lock.json
-         gives the Node samples. `dotnet restore` fails closed if the graph
-         drifts from the committed lock file instead of silently resolving a
-         newer transitive version. -->
+    <!-- npm-parity supply-chain manifest: the exact resolved graph (incl.
+         transitive versions + content hashes) is recorded in the adjacent
+         packages.lock.json, mirroring what package-lock.json records for
+         the Node samples. NOTE: without RestoreLockedMode the lock file
+         is a recorded manifest with integrity hashes, not an enforced gate —
+         restore updates it silently on drift. Locked-mode enforcement is
+         deliberately NOT enabled: this file was generated on Windows and
+         records win-x64 Aspire RID assets, so --locked-mode would fail on
+         Linux CI; regenerate per-OS before ever enabling it. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 

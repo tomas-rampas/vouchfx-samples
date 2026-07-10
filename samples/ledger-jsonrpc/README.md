@@ -63,7 +63,7 @@ the whole story end-to-end.
   │              │                   ┌──────────────┐  │
   │              │  5. mq-expect     │   Postgres   │  │
   │              │  .kafka (RETRY)   │   accounts   │◄─┘
-  │              │  (deposit event)  │   audits     │
+  │              │  (deposit event)  │ adjustments  │
   │              │◄──────────────────┴──────┬───────┘
   │              │                         │
   │              │                 ┌───────▼───────┐
@@ -180,7 +180,7 @@ One Node.js 22 image, dual-role:
 - No other HTTP surface. In the background, consumes `ledger-adjustments` Kafka topic
   (consumer group `ledger-worker`), reads `{accountId, delta, reason}` from each message,
   and applies a transactional balance adjustment to the Postgres `accounts` table,
-  logging the adjustment to the `audits` table.
+  logging the adjustment to the `adjustments` table.
 
 ## The suite (`tests/ledger.e2e.yaml`)
 

@@ -167,6 +167,10 @@ steps:
       amount: 500
     expect:
       result:
+        # NOTE the asymmetric JSONPath roots in this provider's contract:
+        # expect.result paths are rooted at the RPC result member ($.balance),
+        # while capture paths are rooted at the FULL response envelope
+        # ($.result.balance) — see steps 2 and 9.
         - path: "$.balance"
           value: 500
 
