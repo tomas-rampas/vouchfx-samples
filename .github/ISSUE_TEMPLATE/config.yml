@@ -25,11 +25,11 @@ contact_links:
     about: >
       Request a new engine feature, DSL capability, or Core provider improvement.
 
-  - name: Provider listing or Verified-tier submission
+  - name: Provider listing or Vouched badge request
     url: https://github.com/tomas-rampas/vouchfx-providers/issues/new/choose
     about: >
-      List a community provider, or submit a provider for Verified-tier
-      endorsement.
+      List a community provider, or request a Vouched badge after rubric
+      review by the maintainer.
 
   - name: Questions and community discussion
     url: https://github.com/tomas-rampas/vouchfx/issues

@@ -45,7 +45,7 @@ This repository consumes the vouchfx engine at a pinned commit (`ENGINE_PIN`) â€
 
 - Engine [`CONTRIBUTING.md`](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)
 - Engine issues: <https://github.com/tomas-rampas/vouchfx/issues>
-- Provider listings and Verified-tier submissions: [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)
+- Provider listings and Vouched badge requests: [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)
 
 ## Licence
 

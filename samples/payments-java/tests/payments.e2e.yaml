@@ -8,7 +8,7 @@
 # JETSTREAM STREAM-OWNERSHIP NOTE (read before touching subject/stream naming):
 # the mq-expect.nats step below (step 3) consumes via an EPHEMERAL ordered JetStream
 # consumer that scans its stream from the START of the retained log
-# (Platform.Steps.MqExpect.Nats/MqExpectNatsProvider.cs in the vouchfx engine repo --
+# (Vouchfx.Steps.MqExpect.Nats/MqExpectNatsProvider.cs in the vouchfx engine repo --
 # DeliverPolicy.All, mirroring mq-expect.kafka's retained-log semantics). That provider
 # creates its stream itself, but only the FIRST TIME ITS OWN STEP RUNS -- i.e. AFTER step 1
 # (http.rest) has already told the application to publish. A JetStream publish issued before

@@ -127,7 +127,7 @@ suite's `webhook-listen.http` step matches `path: "/callbacks/{orderId}"`. This 
 reference scenario** (`examples/reference/reference.e2e.yaml`, step `webhook-trigger` /
 `webhook-await` in the vouchfx engine repo), for two reasons:
 
-- vouchfx's host-owned listener (`Platform.Engine.Orchestration/HostResources/WebhookListener.cs`)
+- vouchfx's host-owned listener (`Vouchfx.Engine.Orchestration/HostResources/WebhookListener.cs`)
   embeds an unguessable token as the *first path segment* of the URL it stages
   (`http://<host>:<port>/<token>/`) and strips that segment before exposing the path to
   `match.path` — so authors match the SUT-facing tail (`/callbacks/<id>`) without ever knowing
@@ -146,10 +146,10 @@ enforced) and its emitted-CSX `Emit`/helper logic — not just `docs/language-re
 
 | Step type | Fields used | Verified against |
 | --- | --- | --- |
-| `http.rest` | `target`, `method`, `path`, `body`, `expect.status`, `capture` (JSONPath) | `Platform.Steps.Core.HttpRest/HttpRestProvider.cs` — `path` must be rooted (`/...`); `body` given as inline YAML is JSON-serialised at bind time and `{placeholder}` tokens inside it survive to be resolved at execution time (`Secret_Helpers.ResolveTemplate`); JSONPath capture writes `Inconclusive` (not `Fail`) on a miss. |
-| `db-assert.postgres` | `target`, `query`, `parameters`, `expect.rowCount`, `expect.row` | `Platform.Steps.DbAssert.Postgres/DbAssertPostgresProvider.cs` — parameter values are always bound as Npgsql **string** parameters (`AddWithValue` on a C# `string`); `expect.row` values are compared via `.ToString()` (ordinal); the query TEXT itself only supports `{placeholder}` for **identifier** substitution (table/column names), which we do not use. |
-| `mq-expect.kafka` | `target`, `topic`, `verifyMode: RETRY`, `timeout`, `match.json` | `Platform.Steps.MqExpect.Kafka/MqExpectKafkaProvider.cs` — this is the plain-JSON (non-Avro) path; the emitted helper performs one idempotent poll per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout). |
-| `webhook-listen.http` | `listener`, `verifyMode: RETRY`, `timeout`, `match.method`, `match.path` | `Platform.Steps.WebhookListen.Http/WebhookListenHttpProvider.cs` + `Platform.Engine.Orchestration/HostResources/WebhookListener.cs` — confirms the token-stripped `path` semantics described above; the provider's own doc comment explicitly calls captured request bodies/headers "untrusted... outside SecretString redaction", which is why this suite does not attempt to assert on the callback body. |
+| `http.rest` | `target`, `method`, `path`, `body`, `expect.status`, `capture` (JSONPath) | `Vouchfx.Steps.Core.HttpRest/HttpRestProvider.cs` — `path` must be rooted (`/...`); `body` given as inline YAML is JSON-serialised at bind time and `{placeholder}` tokens inside it survive to be resolved at execution time (`Secret_Helpers.ResolveTemplate`); JSONPath capture writes `Inconclusive` (not `Fail`) on a miss. |
+| `db-assert.postgres` | `target`, `query`, `parameters`, `expect.rowCount`, `expect.row` | `Vouchfx.Steps.DbAssert.Postgres/DbAssertPostgresProvider.cs` — parameter values are always bound as Npgsql **string** parameters (`AddWithValue` on a C# `string`); `expect.row` values are compared via `.ToString()` (ordinal); the query TEXT itself only supports `{placeholder}` for **identifier** substitution (table/column names), which we do not use. |
+| `mq-expect.kafka` | `target`, `topic`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Kafka/MqExpectKafkaProvider.cs` — this is the plain-JSON (non-Avro) path; the emitted helper performs one idempotent poll per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout). |
+| `webhook-listen.http` | `listener`, `verifyMode: RETRY`, `timeout`, `match.method`, `match.path` | `Vouchfx.Steps.WebhookListen.Http/WebhookListenHttpProvider.cs` + `Vouchfx.Engine.Orchestration/HostResources/WebhookListener.cs` — confirms the token-stripped `path` semantics described above; the provider's own doc comment explicitly calls captured request bodies/headers "untrusted... outside SecretString redaction", which is why this suite does not attempt to assert on the callback body. |
 
 ### Engine contract
 
