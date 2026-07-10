@@ -127,7 +127,7 @@ logic.
 # List every step kind the runner knows about (Community + Core)
 dotnet run --project samples/ledger-jsonrpc/runner --list
 
-# Run the suite (passes via the runner, not scripts/run-sample.sh)
+# Run the suite (run-sample.sh auto-detects the custom runner)
 dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \
   samples/ledger-jsonrpc/tests --html out/ledger-report.html --junit out/ledger-results.xml
 ```
@@ -269,7 +269,7 @@ as `Verdict.Fail` (never an unhandled crash).
 
 ## How to run
 
-This sample runs via its **custom runner**, not `scripts/run-sample.sh`:
+This sample runs via its **custom runner**. The everyday path is the same as every other sample — `./scripts/run-sample.sh ledger-jsonrpc` auto-detects `runner/` and uses it — or invoke the runner directly:
 
 ```bash
 # 1. Fetch and build the pinned engine (one-time, same as other samples)

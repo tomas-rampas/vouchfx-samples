@@ -80,6 +80,8 @@ The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# run
 2. Constructs a provider registry that includes both Core and Community providers
 3. Runs `.e2e.yaml` files against that registry
 
+`scripts/run-sample.sh ledger-jsonrpc` (and the PowerShell twin) auto-detect the `runner/` directory and use it automatically — same reports, same exit codes as the stock-CLI path.
+
 This is the **reference pattern** for consuming Community providers until a provider-loader
 feature ships. Run it directly:
 

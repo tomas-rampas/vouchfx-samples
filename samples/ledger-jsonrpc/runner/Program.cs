@@ -2,7 +2,7 @@
 // COMMUNITY-provider consumption in this samples repo.
 //
 // Every other sample here runs its suite through the shared `vouchfx` engine CLI
-// (see scripts/run-sample.sh), because the engine CLI only ships the Core provider
+// (scripts/run-sample.sh auto-detects it), because the engine CLI only ships the Core provider
 // catalogue. The ledger-jsonrpc suite also exercises rpc.json-rpc — a Community-tier
 // provider published as the Vouchfx.Community.JsonRpc NuGet package
 // (github.com/tomas-rampas/vouchfx-providers) — which the stock CLI does not know
@@ -305,7 +305,7 @@ static void PrintUsage()
         LedgerRunner — a custom vouchfx runner for the ledger-jsonrpc sample, wiring
         the community rpc.json-rpc provider (Vouchfx.Community.JsonRpc) alongside
         four Core providers (db-assert.postgres, mq-publish.kafka, mq-expect.kafka,
-        script.csharp) that the stock `vouchfx` engine CLI does not know about.
+        script.csharp — Core kinds the stock CLI also ships, bundled here as source-built copies) plus `rpc.json-rpc`, which the stock CLI does not know about.
 
         Usage:
           LedgerRunner <tests-dir> [--junit <path>] [--html <path>]

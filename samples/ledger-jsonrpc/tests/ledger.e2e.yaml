@@ -4,11 +4,11 @@
 # (../runner/) instead of the stock `vouchfx` engine CLI — this suite is the first real
 # demonstration of a COMMUNITY-tier step provider, rpc.json-rpc
 # (Vouchfx.Community.JsonRpc, github.com/tomas-rampas/vouchfx-providers), which the
-# stock CLI does not ship. Invoke directly:
+# stock CLI does not ship. Run via ./scripts/run-sample.sh ledger-jsonrpc (auto-detects
 #
 #   dotnet run --project ../runner -c Release -- ../tests --junit <path> --html <path>
 #
-# never via scripts/run-sample.sh (which only knows the stock CLI's Core-provider set).
+# the custom runner), or invoke the runner directly with dotnet run --project.
 #
 # GOTCHA (hit this live building the suite): `dotnet run --project <p>` sets the SPAWNED
 # process's working directory to <p>'s own project directory, NOT the invoking shell's
