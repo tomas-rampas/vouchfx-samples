@@ -21,8 +21,8 @@
 #      second read is served from cache rather than a fresh MySQL query.
 #
 # Ground truth for every field below: vouchfx's docs/language-reference.md
-# and the provider sources under src/Providers/Core/{Platform.Steps.DbAssert.Mysql,
-# Platform.Steps.CacheAssert.Redis,Platform.Steps.MqExpect.Rabbitmq}/*Provider.cs.
+# and the provider sources under src/Providers/Core/{Vouchfx.Steps.DbAssert.Mysql,
+# Vouchfx.Steps.CacheAssert.Redis,Vouchfx.Steps.MqExpect.Rabbitmq}/*Provider.cs.
 # Every field was verified directly against the provider source rather than
 # the per-provider example suites, which are validated separately by the
 # engine's own examples-compile CI gate.
@@ -102,7 +102,7 @@ steps:
         stock: "{stock}"
 
   # ── Step 3: Redis cache-entry proof ────────────────────────────────────────
-  # cache-assert.redis (Platform.Steps.CacheAssert.Redis/CacheAssertRedisModel.cs)
+  # cache-assert.redis (Vouchfx.Steps.CacheAssert.Redis/CacheAssertRedisModel.cs)
   # offers only exact string equality (expect.value, for get/hget) or boolean
   # presence (expect.exists) — there is no JSONPath or substring match against
   # a cached value. Asserting exact JSON-string equality here would couple

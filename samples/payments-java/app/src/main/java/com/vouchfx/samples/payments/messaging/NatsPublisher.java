@@ -20,7 +20,7 @@ import java.io.IOException;
  *
  * <h2>JetStream stream-ownership note (read before touching subject/stream naming)</h2>
  * The vouchfx engine's {@code mq-expect.nats} step provider
- * ({@code Platform.Steps.MqExpect.Nats.MqExpectNatsProvider} in the vouchfx engine repo)
+ * ({@code Vouchfx.Steps.MqExpect.Nats.MqExpectNatsProvider} in the vouchfx engine repo)
  * consumes via an ephemeral <em>ordered</em> JetStream consumer that scans its stream from
  * the START of the retained log on every attempt ({@code DeliverPolicy.All}, mirroring
  * {@code mq-expect.kafka}'s retained-log semantics). That provider ensures its stream exists

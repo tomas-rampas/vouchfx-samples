@@ -137,7 +137,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 ### Related Repositories
 
-- **[vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)** — the community provider hub, Verified-tier submission gate, and provider index. Submit custom providers here for platform-team endorsement.
+- **[vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)** — the community provider hub with community provider registry. Submit custom providers for the Vouched badge, awarded by the maintainer after rubric review.
 - **[vouchfx-telemetry-backend](https://github.com/tomas-rampas/vouchfx-telemetry-backend)** — the optional telemetry aggregation service (run-metadata, event-stream collection, retention policy).
 
 ## Status
@@ -152,7 +152,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 All contributions are made under the [Apache-2.0 licence](LICENSE). By contributing to this repository, you agree your contribution is licensed under Apache-2.0 and you have the right to licence it as such.
 
-The vouchfx engine, the `Platform.Sdk`, and all related documentation are also Apache-2.0 licensed, as are all provider tiers in the vouchfx-providers community hub.
+The vouchfx engine, the `Vouchfx.Sdk`, and all related documentation are also Apache-2.0 licensed, as are all provider tiers in the vouchfx-providers community hub.
 
 ---
 
