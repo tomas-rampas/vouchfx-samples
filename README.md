@@ -137,7 +137,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 ### Related Repositories
 
-- **[vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)** — the community provider hub with community provider registry. Submit custom providers for the Vouched badge, awarded by the maintainer after rubric review.
+- **[vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)** — the community provider hub: the registry of community providers and hub-hosted provider source. Providers can earn the maintainer-awarded Vouched badge after rubric review.
 - **[vouchfx-telemetry-backend](https://github.com/tomas-rampas/vouchfx-telemetry-backend)** — the optional telemetry aggregation service (run-metadata, event-stream collection, retention policy).
 
 ## Status
