@@ -1,0 +1,19 @@
+{
+  "name": "ledger-jsonrpc-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "vouchfx ledger-jsonrpc sample system under test — one Node.js image serving either the hand-rolled JSON-RPC 2.0 API (ROLE=api) or the Kafka ledger-adjustments worker (ROLE=worker).",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "pg": "^8.13.1"
+  }
+}
