@@ -68,17 +68,43 @@ Full exit code table, as implemented by the engine CLI:
 
 **Only a `Fail`/exit-`1` result means "something in this sample is broken."** An exit `3` means Docker, the network, or a dependency image is the problem — not the sample's code. An exit `4` usually means the suite's timeouts are too tight for the machine it ran on, or a genuinely flaky race in the sample's own service. Treat `3` and `4` as "investigate the environment," and `1` as "investigate the code," starting from the HTML report's step-by-step timeline.
 
+## Samples with custom runners
+
+Most samples run via `scripts/run-sample.sh <name>`, which invokes the stock `vouchfx` engine CLI.
+The CLI ships only the 25 frozen Core providers; it cannot load Community-tier providers from
+the [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers) hub.
+
+The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# runner that:
+
+1. References the Community `Vouchfx.Community.JsonRpc` package from NuGet
+2. Constructs a provider registry that includes both Core and Community providers
+3. Runs `.e2e.yaml` files against that registry
+
+`scripts/run-sample.sh ledger-jsonrpc` (and the PowerShell twin) auto-detect the `runner/` directory and use it automatically — same reports, same exit codes as the stock-CLI path.
+
+This is the **reference pattern** for consuming Community providers until a provider-loader
+feature ships. Run it directly:
+
+```bash
+dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \
+  samples/ledger-jsonrpc/tests --html out/ledger-report.html --junit out/ledger-results.xml
+```
+
+The runner produces the same JUnit XML and HTML reports as the stock CLI, and the exit codes
+remain identical (0 = Pass, 1 = Fail, 3 = EnvironmentError, 4 = Inconclusive). See
+[`samples/ledger-jsonrpc/README.md`](../samples/ledger-jsonrpc/README.md) for details.
+
 ## Why samples don't run concurrently on one machine
 
 Each suite brings up its own topology through .NET Aspire's orchestrator (DCP). Running two topologies at once on one host causes DCP port/network contention — the symptoms are usually a spurious `EnvironmentError` with a health-gate timeout that has nothing to do with either sample's actual code. `scripts/run-sample.* all` therefore always runs samples one after another, never in parallel, regardless of how many CPU cores are available.
 
 ## CI notes
 
-`.github/workflows/samples-ci.yml` runs on every push and pull request to `main`, plus manual dispatch. It uses a **matrix of separate runners** — one per sample — rather than running all three on one machine:
+`.github/workflows/samples-ci.yml` runs on every push and pull request to `main`, plus manual dispatch. It uses a **matrix of separate runners** — one per sample — rather than running all four on one machine:
 
 - Each matrix job independently checks out the repo, sets up the pinned .NET SDK, bootstraps the pinned engine commit, and runs exactly one sample via `scripts/run-sample.sh <sample>`.
 - Because each sample gets its own runner, there's no DCP contention between samples in CI even though they execute at the same time — the sequential constraint above is about *one machine*, not about the samples being inherently unable to run in parallel.
-- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all three every time.
+- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all four every time.
 - Every job uploads its `out/` directory as an artifact (`reports-<sample>`) regardless of outcome (`if: always()`), so you can open the HTML report for a failed CI run without reproducing it locally first.
 - The job timeout is generous (25 minutes) to comfortably cover image pulls, Aspire/DCP startup (roughly 20 seconds per managed resource), and the heavier samples' dependencies (e.g. SQL Server) — a run taking the full 25 minutes is itself worth investigating, but isn't expected in the normal case.
 

@@ -11,6 +11,7 @@ Each sample is a **real service** (not a toy echo), with its own database, broke
 | **[orders-dotnet](samples/orders-dotnet/)** | ASP.NET Core 8 + C# | Customer places order → Postgres row → Kafka event → outbound webhook callback | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
 | **[inventory-python](samples/inventory-python/)** | FastAPI + Python 3.12 | Create item → MySQL row + Redis cache entry → RabbitMQ event | `http.rest`, `db-assert.mysql`, `cache-assert.redis`, `mq-expect.rabbitmq` |
 | **[payments-java](samples/payments-java/)** | Spring Boot 3.3 + Java 17 | Authorise payment → SQL Server row → NATS JetStream event → SMTP receipt email | `http.rest`, `db-assert.sqlserver`, `mq-expect.nats`, `mail-expect.smtp` |
+| **[ledger-jsonrpc](samples/ledger-jsonrpc/)** | Node.js 22 + JSON-RPC 2.0 | Ledger transactions (REST) → Postgres row → Kafka event → independent worker role consuming an injected adjustment | `rpc.json-rpc` (Community), `db-assert.postgres`, `mq-publish.kafka`, `mq-expect.kafka`, `script.csharp` — **custom runner** |
 
 Each sample's `README.md` walks through the transaction, the code, the suite design, and what success looks like.
 
@@ -35,7 +36,7 @@ On Windows (PowerShell):
 .\scripts\run-sample.ps1 orders-dotnet
 ```
 
-To run all three samples back-to-back:
+To run all four samples back-to-back:
 
 ```bash
 ./scripts/run-sample.sh all
@@ -108,6 +109,11 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 │   │   ├── app/                        (Dockerfile + Spring Boot service)
 │   │   ├── tests/payments.e2e.yaml     (the test suite)
 │   │   └── README.md                   (sample documentation)
+│   ├── ledger-jsonrpc/
+│   │   ├── app/                        (Dockerfile + Node.js service, dual-role)
+│   │   ├── runner/                     (custom runner for Community providers)
+│   │   ├── tests/ledger.e2e.yaml       (the test suite)
+│   │   └── README.md                   (sample documentation)
 │   └── ...
 ├── out/                                (test results: HTML, JUnit XML)
 │   └── (generated after running samples)
@@ -126,6 +132,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
   - [`samples/orders-dotnet/README.md`](samples/orders-dotnet/README.md) — ASP.NET Core e2e flow, webhook listener design, database assertions
   - [`samples/inventory-python/README.md`](samples/inventory-python/README.md) — Python/FastAPI, MySQL + Redis + RabbitMQ integration, read-through cache proof
   - [`samples/payments-java/README.md`](samples/payments-java/README.md) — Spring Boot, SQL Server, NATS JetStream, SMTP email capture, stream-ownership design pattern
+  - [`samples/ledger-jsonrpc/README.md`](samples/ledger-jsonrpc/README.md) — Node.js JSON-RPC 2.0, custom runner pattern for Community providers, multi-role containers, Kafka producer + consumer coordination
 
 ### vouchfx Engine
 
@@ -142,7 +149,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 ## Status
 
-**Samples:** All three samples are validated live against local Docker and orchestrated end-to-end with vouchfx.
+**Samples:** All four samples are validated live against local Docker and orchestrated end-to-end with vouchfx.
 
 **Engine consumption:** vouchfx v1.0.0-alpha pre-releases are live on NuGet.org and GitHub. This repository **deliberately builds from source** at the pinned SHA in [`ENGINE_PIN`](ENGINE_PIN) for reproducibility and DCP binary path portability — the packaged CLI's embedded absolute paths only work on systems whose ~/.nuget/packages already holds matching aspire.hosting.orchestration versions. Building from source guarantees a self-sufficient CI run.
 

@@ -40,6 +40,11 @@ target/
 *.jar
 !**/lib/*.jar
 
+## Node.js build output / caches (ledger-jsonrpc)
+node_modules/
+npm-debug.log*
+.npm
+
 ## The vendored engine checkout — fetched fresh by scripts/bootstrap.* from the
 ## commit pinned in ENGINE_PIN. Never committed; always reproducible.
 .vouchfx-src/

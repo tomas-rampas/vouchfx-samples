@@ -31,6 +31,12 @@ a24a3f5beae0ff78ba97b69ab1f2fefa4d7eff99
 #   - the engine's v1.x SDK contract freeze advances and this repo should
 #     validate against the new baseline.
 #
+# NOTE: the ledger-jsonrpc sample's custom runner ProjectReferences engine-
+# internal paths under .vouchfx-src/ and keeps a packages.lock.json — an
+# advance that reorganises the engine tree breaks its build (step 3's
+# run-sample all re-run catches this), and the lock file may need
+# regeneration (dotnet restore) after the advance.
+#
 # How to advance it
 # ------------------
 #   1. Pick the new engine commit (a merge commit on tomas-rampas/vouchfx main
