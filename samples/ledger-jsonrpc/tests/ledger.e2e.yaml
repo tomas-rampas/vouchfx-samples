@@ -1,0 +1,289 @@
+# tests/ledger.e2e.yaml — ledger-jsonrpc sample suite (vouchfx-samples).
+#
+# One business transaction across FIVE technologies, run through a CUSTOM runner
+# (../runner/) instead of the stock `vouchfx` engine CLI — this suite is the first real
+# demonstration of a COMMUNITY-tier step provider, rpc.json-rpc
+# (Vouchfx.Community.JsonRpc, github.com/tomas-rampas/vouchfx-providers), which the
+# stock CLI does not ship. Invoke directly:
+#
+#   dotnet run --project ../runner -c Release -- ../tests --junit <path> --html <path>
+#
+# never via scripts/run-sample.sh (which only knows the stock CLI's Core-provider set).
+#
+# GOTCHA (hit this live building the suite): `dotnet run --project <p>` sets the SPAWNED
+# process's working directory to <p>'s own project directory, NOT the invoking shell's
+# cwd — so the <tests-dir>/--junit/--html path arguments are resolved relative to
+# ../runner/, not to wherever you typed the command. "../tests" above is therefore
+# correct from ANY invoking cwd; passing a path relative to the repo root (e.g.
+# "samples/ledger-jsonrpc/tests") instead silently resolves to a nonsense nested path
+# under runner/ and fails with "Discovery root ... does not exist". When in doubt, pass
+# absolute paths — that is what CI should do.
+#
+# THE APP (../app/): one Node.js image, two ROLES selected by the ROLE env var —
+#   ROLE=api    hand-rolled JSON-RPC 2.0 endpoint (POST /rpc): createAccount, deposit,
+#               withdraw, getAccount. Publishes an event to Kafka topic 'ledger-events'
+#               on every successful mutation.
+#   ROLE=worker consumes Kafka topic 'ledger-adjustments' (consumer group 'ledger-worker')
+#               and applies {accountId, delta, reason} adjustments straight to Postgres —
+#               a second, asynchronous write path the JSON-RPC surface never touches
+#               directly, proving the suite can observe a side effect that arrives via a
+#               completely different route than the one that triggered it.
+# Both roles serve GET / for the engine's health gate (503 {"status":"starting"} until
+# ready, then 200) — see ../app/src/server.js.
+#
+# THE FLOW:
+#   1. script.csharp bridges the engine-staged service URL into a placeholder-safe var
+#      (see the WART note on step 1).
+#   2. rpc.json-rpc createAccount -> capture accountId.
+#   3. rpc.json-rpc deposit 500 -> expect.result balance == 500.
+#   4. db-assert.postgres: the deposit really landed in the 'accounts' table.
+#   5. mq-expect.kafka (RETRY): the api role published 'funds.deposited' to ledger-events.
+#   6. rpc.json-rpc withdraw 10000 (> balance) -> expect.error.code -32001 (a NEGATIVE
+#      test: JSON-RPC 2.0's implementation-reserved -32000..-32099 range).
+#   7. mq-publish.kafka: the suite itself injects a chargeback adjustment directly onto
+#      ledger-adjustments — bypassing the JSON-RPC surface entirely — to exercise the
+#      worker role's independent consume-and-write path.
+#   8. db-assert.postgres (RETRY, 90s): balance == 475 (500 - 25) — proves the worker
+#      role actually consumed the message and wrote the adjustment; this is the step
+#      most likely to need the longest RETRY budget (a fresh consumer group joining a
+#      broker that only just became healthy).
+#   9. rpc.json-rpc getAccount -> capture the closing balance over the SAME JSON-RPC
+#      surface that started the transaction, closing the loop.
+#  10. script.csharp asserts the arithmetic invariant (500 - 25 == 475) from captured
+#      Vars, throwing (-> Verdict.Fail) on any mismatch.
+#
+# WART (read before touching step 1): the engine stages each service's discovered base
+# URL at Vars["svc::<serviceName>"] (VarKeys.Service, Vouchfx.Engine.Abstractions/
+# VarKeys.cs) BEFORE any step runs. {placeholder} substitution, however, only recognises
+# [A-Za-z_][A-Za-z0-9_]* (ScenarioRunner.cs's s_placeholderRegex) — no ':' or '-' — so
+# "{svc::ledger-api}" can never be written as a placeholder token. rpc.json-rpc has no
+# `target:` field (unlike http.rest) that the engine could resolve internally; it only
+# takes a literal/{placeholder} `url:`. Step 1 is the documented workaround: a
+# script.csharp step reads Vars["svc::ledger-api"] by raw dictionary key (scripts have
+# full ambient Vars access — no placeholder-regex restriction applies to C# code) and
+# copies it to the underscore-only Vars["ledger_url"], which every later {ledger_url}
+# token can then reference normally.
+#
+# Ground truth for every field below: the community rpc.json-rpc provider source
+# (vouchfx-providers/community/Vouchfx.Community.JsonRpc/{JsonRpcModel,JsonRpcProvider}.cs)
+# and the Core provider sources under vouchfx's src/Providers/Core/{Vouchfx.Steps.DbAssert.Postgres,
+# Vouchfx.Steps.MqExpect.Kafka,Vouchfx.Steps.MqPublish.Kafka,Vouchfx.Steps.Script.Csharp}/*.cs —
+# each field was verified directly against provider source, not against illustrative
+# examples, per this repo's convention (see the other three samples' suites).
+
+metadata:
+  name: ledger-jsonrpc-end-to-end
+  owner: samples
+  tags: [samples, nodejs, jsonrpc, community-provider, postgres, kafka]
+  description: >-
+    JSON-RPC 2.0 call -> Postgres row -> Kafka event -> a suite-injected Kafka message
+    consumed by an independent worker role -> Postgres row (again) -> JSON-RPC 2.0
+    read-back, against the ledger-jsonrpc Node.js sample service. Exercises the
+    Community-tier rpc.json-rpc provider via a custom runner (../runner/), the first
+    real demonstration of community-provider consumption in this repo.
+
+environment:
+  services:
+    # Both roles are the SAME image; ROLE selects which server.js code path runs. Both
+    # serve GET / on 8080 for the engine's health gate (see file header).
+    ledger-api:
+      image: vouchfx-samples-ledger-jsonrpc:local
+      httpPort: 8080
+      env:
+        ROLE: api
+        # The app builds its Postgres pool from INDIVIDUAL PG* variables (never a single
+        # connection string — see ../app/src/db.js), so each part is wired separately via
+        # the postgres dependency's five supported ${conn:<dep>.<part>} accessors
+        # (EnvironmentMapper.cs's s_dbKindParts: host/port/username/password/database).
+        PGHOST: "${conn:ledgerdb.host}"
+        PGPORT: "${conn:ledgerdb.port}"
+        PGUSER: "${conn:ledgerdb.username}"
+        PGPASSWORD: "${conn:ledgerdb.password}"
+        PGDATABASE: "${conn:ledgerdb.database}"
+        # KAFKA_BROKERS wants "host:port" (comma-separated for multiple brokers — see
+        # ../app/src/kafka.js); the kafka dependency's FULL form (no .part accessor)
+        # resolves to exactly that, reading KafkaServerResource.InternalEndpoint.
+        KAFKA_BROKERS: "${conn:broker}"
+    ledger-worker:
+      image: vouchfx-samples-ledger-jsonrpc:local
+      httpPort: 8080
+      env:
+        ROLE: worker
+        PGHOST: "${conn:ledgerdb.host}"
+        PGPORT: "${conn:ledgerdb.port}"
+        PGUSER: "${conn:ledgerdb.username}"
+        PGPASSWORD: "${conn:ledgerdb.password}"
+        PGDATABASE: "${conn:ledgerdb.database}"
+        KAFKA_BROKERS: "${conn:broker}"
+
+  dependencies:
+    ledgerdb:
+      type: postgres
+    broker:
+      type: kafka
+
+steps:
+  # ── Step 1: bridge the engine-staged service URL past the placeholder-regex wart ──
+  # See the file-header WART note. Vars["svc::ledger-api"] is staged by the orchestrator
+  # before ANY step runs, so it is already present here; the guard below fails fast with
+  # a clear message instead of a bare NullReferenceException/InvalidCastException if that
+  # assumption is ever wrong.
+  - id: bridge-ledger-url
+    type: script.csharp
+    description: >-
+      WART workaround: copy the engine-staged Vars["svc::ledger-api"] (unusable as a
+      {placeholder} — the regex forbids ':' and '-') into the underscore-only
+      Vars["ledger_url"] every later rpc.json-rpc 'url:' field references.
+    code: |
+      if (Vars["svc::ledger-api"] is not string ledgerApiUrl || string.IsNullOrEmpty(ledgerApiUrl))
+      {
+          throw new Exception("Vars[\"svc::ledger-api\"] was not staged by the orchestrator before this step ran.");
+      }
+      Vars["ledger_url"] = ledgerApiUrl;
+
+  # ── Step 2: open an account over JSON-RPC; capture the generated accountId ─────────
+  # A "bare call" (no expect block): the app's result is only {accountId} — ownerName is
+  # NOT echoed back (see ../app/src/api.js handleCreateAccount) — so there is no
+  # predictable value here to assert with expect.result; capture is enough to prove the
+  # call succeeded (capture downgrades to Inconclusive, not Pass, if it can't match).
+  - id: create-account
+    type: rpc.json-rpc
+    description: "Open a ledger account over JSON-RPC; the accountId threads forward via capture."
+    url: "{ledger_url}/rpc"
+    method: createAccount
+    params:
+      ownerName: "Ada Lovelace"
+    capture:
+      account_id: "$.result.accountId"
+
+  # ── Step 3: deposit 500 -> expect the JSON-RPC result to report the new balance ────
+  - id: deposit-funds
+    type: rpc.json-rpc
+    description: "Deposit 500 into the new account; expect.result asserts the returned balance."
+    url: "{ledger_url}/rpc"
+    method: deposit
+    params:
+      accountId: "{account_id}"
+      amount: 500
+    expect:
+      result:
+        - path: "$.balance"
+          value: 500
+
+  # ── Step 4: the deposit really landed in Postgres ──────────────────────────────────
+  # balance is an INTEGER column, but expect.row's schema fragment declares every value
+  # "additionalProperties": {"type": "string"} (DbAssertPostgresProvider.SchemaFragment)
+  # — an UNQUOTED YAML integer here would be seen as a JSON number by DocumentValidator
+  # and fail schema validation before the topology even starts (Inconclusive, 0 steps
+  # run — hit this live on the first run of this suite). Quoting is therefore required,
+  # not stylistic. At runtime db-assert.postgres compares Npgsql's reader[col].ToString()
+  # against this STRING with plain StringComparison.Ordinal (DbAssertPostgres_Helpers
+  # .ExecuteAsync) — "500" already matches an int column's ToString() output exactly, so
+  # no cast/formatting trick is needed (contrast orders-dotnet's uuid column, which DOES
+  # need one).
+  - id: assert-balance-after-deposit
+    type: db-assert.postgres
+    description: "The deposit landed in Postgres with the expected balance."
+    target: ledgerdb
+    query: "SELECT balance FROM accounts WHERE id = @id"
+    parameters:
+      id: "{account_id}"
+    expect:
+      rowCount: 1
+      row:
+        balance: "500"
+
+  # ── Step 5: the api role published a funds.deposited event to ledger-events ───────
+  # RETRY: publishEvent (../app/src/api.js) runs AFTER the HTTP response is already
+  # sent, so the message may not have landed the instant this step starts polling.
+  - id: assert-deposit-event
+    type: mq-expect.kafka
+    description: "A funds.deposited event for {account_id} reached the ledger-events topic."
+    target: broker
+    topic: ledger-events
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      json:
+        "$.type": "funds.deposited"
+        "$.accountId": "{account_id}"
+
+  # ── Step 6: withdraw far more than the balance -> a NEGATIVE JSON-RPC test ────────
+  # -32001 is this app's INSUFFICIENT_FUNDS code, from the implementation-reserved
+  # -32000..-32099 range (see ../app/src/api.js). expect.error.code asserts the response
+  # IS a JSON-RPC error envelope with exactly this code; a result envelope or any other
+  # code both Fail. The account's balance is untouched by a rejected withdrawal.
+  - id: withdraw-too-much
+    type: rpc.json-rpc
+    description: "Withdrawing far more than the balance is rejected with INSUFFICIENT_FUNDS (-32001)."
+    url: "{ledger_url}/rpc"
+    method: withdraw
+    params:
+      accountId: "{account_id}"
+      amount: 10000
+    expect:
+      error:
+        code: -32001
+
+  # ── Step 7: inject a chargeback adjustment DIRECTLY onto Kafka ────────────────────
+  # Bypasses the JSON-RPC surface entirely: this message is consumed only by the
+  # ROLE=worker container (consumer group 'ledger-worker', ../app/src/worker.js),
+  # exercising an independent write path the suite never triggers over JSON-RPC. payload
+  # is a single-quoted YAML scalar (it starts with '{', which YAML would otherwise try to
+  # parse as flow-mapping syntax if left unquoted) carrying literal JSON text; the
+  # {account_id} token inside is still substituted normally — {placeholder} substitution
+  # runs on the resolved TEXT payload, independent of YAML quoting style.
+  - id: publish-chargeback-adjustment
+    type: mq-publish.kafka
+    description: "Inject a -25 chargeback adjustment onto ledger-adjustments for the worker role to consume."
+    target: broker
+    topic: ledger-adjustments
+    payload: '{"accountId":"{account_id}","delta":-25,"reason":"chargeback"}'
+
+  # ── Step 8: the worker role actually consumed it and wrote the adjustment ─────────
+  # RETRY with the suite's longest budget (90s, per the file header): this is a FRESH
+  # consumer group joining a broker that only just became healthy, on top of the
+  # worker's own applyAdjustment transaction (../app/src/db.js) — the step most likely
+  # to need real polling headroom rather than landing on the first attempt.
+  - id: assert-balance-after-adjustment
+    type: db-assert.postgres
+    description: "500 - 25 == 475: the worker role's consumer applied the chargeback to Postgres."
+    target: ledgerdb
+    query: "SELECT balance FROM accounts WHERE id = @id"
+    parameters:
+      id: "{account_id}"
+    verifyMode: RETRY
+    timeout: 90s
+    expect:
+      rowCount: 1
+      row:
+        balance: "475"
+
+  # ── Step 9: read the closing balance back over JSON-RPC, closing the loop ─────────
+  - id: get-closing-balance
+    type: rpc.json-rpc
+    description: "Read the account back over JSON-RPC; capture the closing balance for the final invariant check."
+    url: "{ledger_url}/rpc"
+    method: getAccount
+    params:
+      accountId: "{account_id}"
+    capture:
+      closing_balance: "$.result.balance"
+
+  # ── Step 10: assert the whole transaction's arithmetic invariant ──────────────────
+  # closing_balance was captured as a JSON-RPC result value (a JSON number), so it comes
+  # back through Vars as its JSON text ("475"), not a native int — see the community
+  # provider's capture implementation (RpcJsonRpc_Helpers.ExecuteAsync: a non-string
+  # JsonValue capture falls back to val.ToJsonString()). A thrown exception here is
+  # caught by the script.csharp scaffolding and recorded as Verdict.Fail (never an
+  # unhandled crash of the whole suite) — see ScriptCsharpProvider.Emit.
+  - id: assert-arithmetic-invariant
+    type: script.csharp
+    description: "500 (deposit) - 25 (chargeback) must equal the JSON-RPC-reported closing balance (475)."
+    code: |
+      var closingBalance = int.Parse((string)Vars["closing_balance"]);
+      const int expectedBalance = 500 - 25;
+      if (closingBalance != expectedBalance)
+      {
+          throw new Exception($"arithmetic invariant violated: expected closing balance {expectedBalance} (500 deposit - 25 chargeback), got {closingBalance}");
+      }
