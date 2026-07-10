@@ -58,6 +58,7 @@ jobs:
           - orders-dotnet
           - inventory-python
           - payments-java
+          - ledger-jsonrpc
 
     steps:
       - name: Checkout vouchfx-samples

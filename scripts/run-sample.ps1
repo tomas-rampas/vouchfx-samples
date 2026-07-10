@@ -89,6 +89,19 @@ if (-not (Test-Path $CliProject)) {
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
+# Test-RunnerProject reports whether samples/<name>/runner contains a
+# .csproj -- signalling a sample with a custom Aspire-hosted runner (e.g. one
+# consuming a community provider not yet vendored into engine Core) instead
+# of the standard CLI-only invocation.
+function Test-RunnerProject {
+    param([string]$RunnerDir)
+    if (-not (Test-Path $RunnerDir)) {
+        return $false
+    }
+    $csproj = Get-ChildItem -Path $RunnerDir -Filter '*.csproj' -File -ErrorAction SilentlyContinue
+    return [bool]$csproj
+}
+
 # Invoke-Sample builds and tests a single sample. It never calls Write-Fail/exit
 # for a sample-scoped problem -- every failure path returns a non-zero status
 # so the "all" loop can continue past a broken sample and report a full
@@ -96,11 +109,12 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 function Invoke-Sample {
     param([string]$Name)
 
-    $image    = "vouchfx-samples-${Name}:local"
-    $appDir   = Join-Path (Join-Path $SamplesDir $Name) 'app'
-    $testsDir = Join-Path (Join-Path $SamplesDir $Name) 'tests'
-    $junitOut = Join-Path $OutDir "$Name-results.xml"
-    $htmlOut  = Join-Path $OutDir "$Name-report.html"
+    $image     = "vouchfx-samples-${Name}:local"
+    $appDir    = Join-Path (Join-Path $SamplesDir $Name) 'app'
+    $testsDir  = Join-Path (Join-Path $SamplesDir $Name) 'tests'
+    $runnerDir = Join-Path (Join-Path $SamplesDir $Name) 'runner'
+    $junitOut  = Join-Path $OutDir "$Name-results.xml"
+    $htmlOut   = Join-Path $OutDir "$Name-report.html"
 
     if (-not (Test-Path $appDir)) {
         Write-SampleLog "Sample '$Name' has no app/ directory at $appDir."
@@ -125,17 +139,46 @@ function Invoke-Sample {
         return [int]$buildRc
     }
 
-    Write-SampleLog "=== ${Name}: running suite (samples/$Name/tests) ==="
-    $dotnetArgs = @(
-        'run', '--project', $CliProject, '-c', 'Release', '--no-build', '--',
-        'run', $testsDir,
-        '--junit', $junitOut,
-        '--html', $htmlOut,
-        '--fail-on-env-error',
-        '--fail-on-inconclusive'
-    )
-    & dotnet @dotnetArgs | Out-Host
-    $rc = [int]$LASTEXITCODE
+    $rc = 0
+
+    if (Test-RunnerProject $runnerDir) {
+        # Custom-runner sample: it project-references the bootstrapped
+        # .vouchfx-src checkout, already guaranteed present by the
+        # auto-bootstrap gate above (run once, before any Invoke-Sample call,
+        # regardless of target). Build it, then invoke it directly -- its
+        # exit codes (0/1/3/4) are already taxonomy-strict, so it takes no
+        # --fail-on-* flags.
+        Write-SampleLog "=== ${Name}: building runner (samples/$Name/runner) ==="
+        dotnet build $runnerDir -c Release | Out-Host
+        $buildRc = [int]$LASTEXITCODE
+        if ($buildRc -ne 0) {
+            Write-SampleLog "dotnet build failed for $Name runner (exit $buildRc)."
+            return [int]$buildRc
+        }
+
+        Write-SampleLog "=== ${Name}: running suite via runner (samples/$Name/tests) ==="
+        $dotnetArgs = @(
+            'run', '--project', $runnerDir, '-c', 'Release', '--no-build', '--',
+            $testsDir,
+            '--junit', $junitOut,
+            '--html', $htmlOut
+        )
+        & dotnet @dotnetArgs | Out-Host
+        $rc = [int]$LASTEXITCODE
+    }
+    else {
+        Write-SampleLog "=== ${Name}: running suite (samples/$Name/tests) ==="
+        $dotnetArgs = @(
+            'run', '--project', $CliProject, '-c', 'Release', '--no-build', '--',
+            'run', $testsDir,
+            '--junit', $junitOut,
+            '--html', $htmlOut,
+            '--fail-on-env-error',
+            '--fail-on-inconclusive'
+        )
+        & dotnet @dotnetArgs | Out-Host
+        $rc = [int]$LASTEXITCODE
+    }
 
     Write-SampleLog "=== ${Name}: exit code $rc ==="
     if (Test-Path $junitOut) { Write-SampleLog "JUnit report: $junitOut" }

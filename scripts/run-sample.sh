@@ -84,6 +84,21 @@ fi
 
 mkdir -p "$OUT_DIR"
 
+# has_runner_project reports whether samples/<name>/runner contains a
+# .csproj — signalling a sample with a custom Aspire-hosted runner (e.g. one
+# consuming a community provider not yet vendored into engine Core) instead
+# of the standard CLI-only invocation. Same defensive glob idiom as
+# list_samples above (no nullglob needed): an unmatched glob stays literal
+# and just fails the -f test.
+has_runner_project() {
+  local dir="$1"
+  local f
+  for f in "$dir"/*.csproj; do
+    [[ -f "$f" ]] && return 0
+  done
+  return 1
+}
+
 # run_one builds and tests a single sample. It never calls fail()/exit — every
 # failure path returns a non-zero status so the "all" loop can continue past a
 # broken sample and report a full summary at the end.
@@ -92,6 +107,7 @@ run_one() {
   local image="vouchfx-samples-${name}:local"
   local app_dir="${SAMPLES_DIR}/${name}/app"
   local tests_dir="${SAMPLES_DIR}/${name}/tests"
+  local runner_dir="${SAMPLES_DIR}/${name}/runner"
   local junit_out="${OUT_DIR}/${name}-results.xml"
   local html_out="${OUT_DIR}/${name}-report.html"
 
@@ -110,17 +126,40 @@ run_one() {
     return 1
   fi
 
-  log "=== ${name}: running suite (samples/${name}/tests) ==="
   local rc=0
-  set +e
-  dotnet run --project "$CLI_PROJECT" -c Release --no-build -- \
-    run "$tests_dir" \
-    --junit "$junit_out" \
-    --html "$html_out" \
-    --fail-on-env-error \
-    --fail-on-inconclusive
-  rc=$?
-  set -e
+
+  if has_runner_project "$runner_dir"; then
+    # Custom-runner sample: it project-references the bootstrapped
+    # .vouchfx-src checkout, already guaranteed present by the auto-bootstrap
+    # gate above (run once, before any run_one call, regardless of target).
+    # Build it, then invoke it directly — its exit codes (0/1/3/4) are
+    # already taxonomy-strict, so it takes no --fail-on-* flags.
+    log "=== ${name}: building runner (samples/${name}/runner) ==="
+    if ! dotnet build "$runner_dir" -c Release; then
+      log "dotnet build failed for ${name} runner."
+      return 1
+    fi
+
+    log "=== ${name}: running suite via runner (samples/${name}/tests) ==="
+    set +e
+    dotnet run --project "$runner_dir" -c Release --no-build -- \
+      "$tests_dir" \
+      --junit "$junit_out" \
+      --html "$html_out"
+    rc=$?
+    set -e
+  else
+    log "=== ${name}: running suite (samples/${name}/tests) ==="
+    set +e
+    dotnet run --project "$CLI_PROJECT" -c Release --no-build -- \
+      run "$tests_dir" \
+      --junit "$junit_out" \
+      --html "$html_out" \
+      --fail-on-env-error \
+      --fail-on-inconclusive
+    rc=$?
+    set -e
+  fi
 
   log "=== ${name}: exit code ${rc} ==="
   [[ -f "$junit_out" ]] && log "JUnit report: ${junit_out}"
