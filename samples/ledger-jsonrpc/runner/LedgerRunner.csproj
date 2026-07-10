@@ -37,7 +37,7 @@
          is a recorded manifest with integrity hashes, not an enforced gate —
          restore updates it silently on drift. Locked-mode enforcement is
          deliberately NOT enabled: this file was generated on Windows and
-         records win-x64 Aspire RID assets, so --locked-mode would fail on
+         records win-x64 Aspire RID assets, so locked-mode restore would fail on
          Linux CI; regenerate per-OS before ever enabling it. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
