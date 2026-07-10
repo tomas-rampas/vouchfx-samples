@@ -220,7 +220,12 @@ async function dispatch(request, deps) {
   }
 
   const { method, params } = request;
-  const handler = METHODS[method];
+  // Object.hasOwn guards against Object.prototype members (constructor,
+  // toString, hasOwnProperty, __proto__, ...): without it, METHODS[method]
+  // resolves those through the prototype chain instead of returning
+  // undefined, letting a request smuggle a call to a non-RPC function (or,
+  // for "__proto__", the prototype object itself) past this dispatch check.
+  const handler = Object.hasOwn(METHODS, method) ? METHODS[method] : undefined;
   if (!handler) {
     return isNotification ? null : rpcError(id, METHOD_NOT_FOUND, `method '${method}' not found`);
   }

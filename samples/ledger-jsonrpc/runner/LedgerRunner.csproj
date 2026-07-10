@@ -30,6 +30,13 @@
          explicit Version). Not packable; this is a sample runner, not a
          published artifact. -->
     <IsPackable>false</IsPackable>
+    <!-- npm-parity supply-chain pin: restore is locked to the exact resolved
+         graph (incl. transitive versions + content hashes) recorded in the
+         adjacent packages.lock.json, the same guarantee package-lock.json
+         gives the Node samples. `dotnet restore` fails closed if the graph
+         drifts from the committed lock file instead of silently resolving a
+         newer transitive version. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup Label="Aspire host wiring — pinned explicitly (no CPM in this tree)">

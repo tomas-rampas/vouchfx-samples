@@ -142,9 +142,9 @@ One Node.js 22 image, dual-role:
 |---|---|
 | `src/server.js` | HTTP entrypoint. Selects role via `ROLE` env var, serves `GET /` (readiness), sets up Postgres and Kafka. |
 | `src/api.js` | JSON-RPC 2.0 handler (`POST /rpc`): `createAccount`, `deposit`, `withdraw`, `getAccount`. Hand-rolled (not delegated to a library) to show the protocol's rules explicitly. Domain error code: `-32001` (INSUFFICIENT_FUNDS). |
-| `src/db.js` | Postgres pool and schema: `accounts` table (id, owner, balance) and `audits` table (timestamp, account_id, delta, reason). Reads env vars `PG*` (standard libpq names). |
+| `src/db.js` | Postgres pool and schema: `accounts` table (id, balance, created_at) and `adjustments` table (id, account_id, delta, reason, applied_at). Reads env vars `PG*` (standard libpq names). |
 | `src/kafka.js` | Kafka client, producer (for `ledger-api` role), consumer (for `ledger-worker` role), topic provisioning. Reads `KAFKA_BROKERS` (comma-separated `host:port`). |
-| `src/worker.js` | Kafka consumer message processor for `ledger-worker` role: reads `{accountId, delta, reason}`, applies a transactional balance adjustment, logs to the `audits` table. |
+| `src/worker.js` | Kafka consumer message processor for `ledger-worker` role: reads `{accountId, delta, reason}`, applies a transactional balance adjustment, logs to the `adjustments` table. |
 
 **Startup contract (health gate):**
 
@@ -162,14 +162,18 @@ One Node.js 22 image, dual-role:
 - `GET /` — readiness probe (as above).
 - `POST /rpc` — JSON-RPC 2.0 request/response. Methods:
   - `createAccount(ownerName: string)` → `{accountId: string}` (new account created with balance 0).
-  - `deposit(accountId: string, amount: number)` → `{balance: number}` (balance after deposit).
+  - `deposit(accountId: string, amount: number)` → `{accountId: string, balance: number}` (balance after deposit).
   - `withdraw(accountId: string, amount: number)` → `{balance: number}`, or error `-32001`
     (insufficient funds) if balance < amount.
-  - `getAccount(accountId: string)` → `{balance: number}`, or error `-32004` (account not found).
-- Publishes `{"type":"funds.deposited", "accountId":"...", "amount":...}` to the `ledger-events`
-  Kafka topic after every successful `deposit` or `withdraw`. (Publication failures are logged
-  and swallowed — the HTTP response already went out, so an event-pipeline hiccup must not fail
-  an otherwise successful transaction.)
+  - `getAccount(accountId: string)` → `{accountId: string, balance: number}`, or error `-32004` (account not found).
+  
+  **Security note:** The JSON-RPC endpoint is deliberately unauthenticated — it is an ephemeral,
+  network-isolated test system under test. Do not copy this design to production services.
+
+- Publishes `{"type":"funds.deposited", ...}` to the `ledger-events` Kafka topic after every
+  successful `deposit`, and `{"type":"funds.withdrawn", ...}` after every successful `withdraw`.
+  (Publication failures are logged and swallowed — the HTTP response already went out, so an
+  event-pipeline hiccup must not fail an otherwise successful transaction.)
 
 `ledger-worker` (`ROLE=worker`):
 - `GET /` — readiness probe (as above).
@@ -257,7 +261,7 @@ as `Verdict.Fail` (never an unhandled crash).
 
 | Family | Provider | Technology | Version | Hub Link |
 |--------|----------|-----------|---------|----------|
-| `rpc` | `json-rpc` | Community (`Vouchfx.Community.JsonRpc`) | 0.1.0 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
+| `rpc` | `json-rpc` | Community (`Vouchfx.Community.JsonRpc` 1.0.0-alpha.1) | 1.0.0 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
 | `db-assert` | `postgres` | Core (PostgreSQL) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 | `mq-publish` | `kafka` | Core (Apache Kafka) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 | `mq-expect` | `kafka` | Core (Apache Kafka) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
@@ -309,7 +313,8 @@ dotnet run --project samples/ledger-jsonrpc/runner --list
 
 This prints every step kind the runner knows (Community + Core) without starting Docker or the
 topology — useful to verify the custom runner wired both provider sets correctly. The runner's
-list should show 25 step kinds (24 Core + 1 Community).
+list should show 5 step kinds (4 Core + 1 Community) — a custom runner registers only what it
+explicitly references, demonstrating the minimal-bundle pattern for hub consumption.
 
 ## Key documents
 

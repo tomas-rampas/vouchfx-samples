@@ -52,7 +52,10 @@ jobs:
 
     strategy:
       fail-fast: false
-      max-parallel: 3
+      # Four matrix entries, four isolated runners — full fan-out is safe
+      # (see the file header: the CI matrix, not this value, is what keeps
+      # samples from colliding on shared Aspire/DCP resources).
+      max-parallel: 4
       matrix:
         sample:
           - orders-dotnet

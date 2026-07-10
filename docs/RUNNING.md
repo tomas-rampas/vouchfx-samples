@@ -98,11 +98,11 @@ Each suite brings up its own topology through .NET Aspire's orchestrator (DCP). 
 
 ## CI notes
 
-`.github/workflows/samples-ci.yml` runs on every push and pull request to `main`, plus manual dispatch. It uses a **matrix of separate runners** — one per sample — rather than running all three on one machine:
+`.github/workflows/samples-ci.yml` runs on every push and pull request to `main`, plus manual dispatch. It uses a **matrix of separate runners** — one per sample — rather than running all four on one machine:
 
 - Each matrix job independently checks out the repo, sets up the pinned .NET SDK, bootstraps the pinned engine commit, and runs exactly one sample via `scripts/run-sample.sh <sample>`.
 - Because each sample gets its own runner, there's no DCP contention between samples in CI even though they execute at the same time — the sequential constraint above is about *one machine*, not about the samples being inherently unable to run in parallel.
-- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all three every time.
+- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all four every time.
 - Every job uploads its `out/` directory as an artifact (`reports-<sample>`) regardless of outcome (`if: always()`), so you can open the HTML report for a failed CI run without reproducing it locally first.
 - The job timeout is generous (25 minutes) to comfortably cover image pulls, Aspire/DCP startup (roughly 20 seconds per managed resource), and the heavier samples' dependencies (e.g. SQL Server) — a run taking the full 25 minutes is itself worth investigating, but isn't expected in the normal case.
 

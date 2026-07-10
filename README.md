@@ -36,7 +36,7 @@ On Windows (PowerShell):
 .\scripts\run-sample.ps1 orders-dotnet
 ```
 
-To run all three samples back-to-back:
+To run all four samples back-to-back:
 
 ```bash
 ./scripts/run-sample.sh all
@@ -149,7 +149,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 ## Status
 
-**Samples:** All three samples are validated live against local Docker and orchestrated end-to-end with vouchfx.
+**Samples:** All four samples are validated live against local Docker and orchestrated end-to-end with vouchfx.
 
 **Engine consumption:** vouchfx v1.0.0-alpha pre-releases are live on NuGet.org and GitHub. This repository **deliberately builds from source** at the pinned SHA in [`ENGINE_PIN`](ENGINE_PIN) for reproducibility and DCP binary path portability — the packaged CLI's embedded absolute paths only work on systems whose ~/.nuget/packages already holds matching aspire.hosting.orchestration versions. Building from source guarantees a self-sufficient CI run.
 
