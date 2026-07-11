@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>vouchfx samples — four stacks, one engine, proven end-to-end</title>
+<meta name="description" content="Four production-shaped applications in four stacks, each tested end-to-end with vouchfx against real containers. Clone this repository, run one command, and watch a complete business transaction pass." />
+<meta name="theme-color" content="#0b0f1a" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="vouchfx samples — four stacks, one engine, proven end-to-end" />
+<meta property="og:description" content="Four production-shaped applications in four stacks, each tested end-to-end with vouchfx against real containers." />
+
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<header class="nav" id="top">
+  <div class="nav__inner">
+    <a class="brand" href="#top" aria-label="vouchfx samples home">
+      <span class="brand__mark" aria-hidden="true"></span>
+      <span class="brand__name">vouchfx samples</span>
+    </a>
+    <nav class="nav__links" aria-label="Primary">
+      <a href="#stacks">Stacks</a>
+      <a href="#patterns">Patterns</a>
+      <a href="#proven">Proven</a>
+      <a href="docs.html">Docs</a>
+      <a href="https://tomas-rampas.github.io/vouchfx/">Engine docs</a>
+    </nav>
+    <a class="btn btn--ghost nav__gh" href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">GitHub</a>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <div class="hero__glow" aria-hidden="true"></div>
+  <div class="container hero__inner">
+    <p class="eyebrow">vouchfx samples</p>
+    <h1 class="hero__title">See vouchfx prove <span class="grad">a real system.</span></h1>
+    <p class="hero__lede">
+      Four production-shaped applications in four stacks — clone, run one command, and watch a complete
+      end-to-end suite pass against real containers.
+    </p>
+    <div class="hero__cta">
+      <a class="btn btn--primary" href="docs/RUNNING.html">Run your first sample</a>
+      <a class="btn btn--ghost" href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">GitHub repository</a>
+    </div>
+    <p class="hero__not">
+      Samples pinned to the vouchfx engine commit in
+      <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/ENGINE_PIN">ENGINE_PIN</a>
+      · current engine release {{fact:engine_release}}
+    </p>
+  </div>
+</section>
+
+<!-- ===================== CHOOSE YOUR STACK ===================== -->
+<section class="section" id="stacks">
+  <div class="container">
+    <p class="eyebrow">The sample catalogue</p>
+    <h2 class="section__title">Choose your stack.</h2>
+    <p class="section__lede">
+      Each sample is a <strong>real service</strong> — its own database, broker, or cache — driving one
+      coherent business transaction through every hop, not four disconnected checks.
+    </p>
+    <div class="grid grid--4">
+      <a class="card" href="samples/orders-dotnet/README.html">
+        <h3>Orders</h3>
+        <p>C#/ASP.NET · PostgreSQL, Kafka, webhook · 5 steps</p>
+      </a>
+      <a class="card" href="samples/inventory-python/README.html">
+        <h3>Inventory</h3>
+        <p>Python/FastAPI · MySQL, RabbitMQ, Redis · 5 steps</p>
+      </a>
+      <a class="card" href="samples/payments-java/README.html">
+        <h3>Payments</h3>
+        <p>Java/Spring Boot · SQL Server, NATS, SMTP email · 4 steps</p>
+      </a>
+      <a class="card" href="samples/ledger-jsonrpc/README.html">
+        <h3>Ledger</h3>
+        <p>Node.js JSON-RPC · PostgreSQL, Kafka + the Community provider rpc.json-rpc via a custom runner · 10 steps</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FIND THE PATTERN ===================== -->
+<section class="section section--alt" id="patterns">
+  <div class="container">
+    <p class="eyebrow">Find the pattern you need</p>
+    <h2 class="section__title">Every idiom, traced back to a real suite.</h2>
+    <p class="section__lede">
+      Not sure which sample answers your question? Jump straight to the pattern.
+    </p>
+    <div class="doc-list">
+      <a href="samples/orders-dotnet/README.html"><b>ORDERS</b> Webhook listening</a>
+      <a href="samples/orders-dotnet/README.html"><b>ORDERS</b> Engine-owned RETRY polling</a>
+      <a href="samples/inventory-python/README.html"><b>INVENTORY</b> Cache read-through proof</a>
+      <a href="samples/payments-java/README.html"><b>PAYMENTS</b> Email capture</a>
+      <a href="samples/payments-java/README.html"><b>PAYMENTS</b> JetStream stream ownership</a>
+      <a href="samples/ledger-jsonrpc/README.html"><b>LEDGER</b> Community-provider consumption + custom runner</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== BEYOND CORE PROVIDERS ===================== -->
+<section class="section" id="beyond-core">
+  <div class="container">
+    <p class="eyebrow">Beyond Core providers</p>
+    <h2 class="section__title">Consume a Community provider today.</h2>
+    <p class="section__lede">
+      The stock <code>vouchfx</code> CLI ships only the 25 frozen Core providers. The ledger-jsonrpc sample
+      is the reference pattern for consuming a hub provider before a provider-loader feature ships — a thin
+      custom runner over the engine's public SDK.
+    </p>
+    <div class="grid grid--3">
+      <a class="card" href="docs/custom-runner.html">
+        <h3>The custom-runner recipe</h3>
+        <p>The runnable code walkthrough: build and freeze the registry, discover suites, execute, map exit codes.</p>
+      </a>
+      <a class="card" href="https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html" target="_blank" rel="noopener noreferrer">
+        <h3>Using community providers</h3>
+        <p>The hub's guide to compile-time discovery, NuGet pinning, and source builds.</p>
+      </a>
+      <a class="card" href="samples/ledger-jsonrpc/README.html">
+        <h3>The ledger-jsonrpc sample</h3>
+        <p>See the recipe applied end-to-end: rpc.json-rpc alongside four Core providers, in one suite.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== WHAT PROVEN MEANS ===================== -->
+<section class="section section--alt" id="proven">
+  <div class="container">
+    <p class="eyebrow">What proven means</p>
+    <h2 class="section__title">Not &quot;it compiled.&quot; Proven, live, against real containers.</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <span class="stat__num">1</span>
+        <span class="stat__label">exact engine commit pinned per sample in <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/ENGINE_PIN">ENGINE_PIN</a> — advancing it is a deliberate, reviewed action</span>
+      </div>
+      <div class="stat">
+        <span class="stat__num">4/4</span>
+        <span class="stat__label">samples validated live in CI, one matrix job per sample, against real Docker containers — never mocked</span>
+      </div>
+      <div class="stat">
+        <span class="stat__num">1×</span>
+        <span class="stat__label">samples run <a href="docs/RUNNING.html#why-samples-dont-run-concurrently-on-one-machine">sequentially, never concurrently, on one machine</a> — each topology owns its own DCP-orchestrated network</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CTA ===================== -->
+<section class="cta">
+  <div class="container cta__inner">
+    <h2>Clone it. Run it. Watch it pass.</h2>
+    <p>Every sample's README walks through the transaction, the code, the suite design, and what success looks like.</p>
+    <div class="hero__cta">
+      <a class="btn btn--primary" href="docs/RUNNING.html">Run your first sample</a>
+      <a class="btn btn--ghost" href="docs.html">Browse the docs</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer">
+  <div class="container footer__inner">
+    <div class="footer__brand">
+      <span class="brand__mark" aria-hidden="true"></span>
+      <div>
+        <strong>vouchfx samples</strong>
+        <p>Real-world working samples for the vouchfx engine — four production-shaped applications, four stacks, one coherent business transaction proven end-to-end in each.</p>
+      </div>
+    </div>
+    <div class="footer__links">
+      <a href="docs.html">Documentation</a>
+      <a href="https://tomas-rampas.github.io/vouchfx/" target="_blank" rel="noopener noreferrer">Engine docs</a>
+      <a href="https://tomas-rampas.github.io/vouchfx-providers/" target="_blank" rel="noopener noreferrer">Provider hub</a>
+      <a href="https://github.com/tomas-rampas/vouchfx-telemetry-backend" target="_blank" rel="noopener noreferrer">Telemetry backend</a>
+      <a href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">Repository</a>
+      <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Licence (Apache-2.0)</a>
+    </div>
+  </div>
+  <div class="footer__base">
+    <span>© 2026 vouchfx samples · Apache-2.0</span>
+    <span>Four stacks · one vouchfx engine · proven end-to-end against real containers</span>
+  </div>
+</footer>
+
+</body>
+</html>
