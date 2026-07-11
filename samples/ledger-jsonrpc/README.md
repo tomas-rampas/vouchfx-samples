@@ -266,13 +266,31 @@ this repo's `ENGINE_PIN` (see that file's header) is pinned at or past that comm
 
 ## Provider table
 
-| Family | Provider | Technology | Version | Hub Link |
-|--------|----------|-----------|---------|----------|
-| `rpc` | `json-rpc` | Community (`Vouchfx.Community.JsonRpc` 1.0.0-alpha.1) | 1.0.0 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
-| `db-assert` | `postgres` | Core (PostgreSQL) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-publish` | `kafka` | Core (Apache Kafka) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-expect` | `kafka` | Core (Apache Kafka) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `script` | `csharp` | Core (C# snippet) | 1.0.0 | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| Family | Provider | Tier | Package (version) | Reference |
+|--------|----------|------|-------------------|-----------|
+| `rpc` | `json-rpc` | Community | `Vouchfx.Community.JsonRpc` 1.0.0-alpha.1 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
+| `db-assert` | `postgres` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-publish` | `kafka` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `kafka` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `script` | `csharp` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+
+## Exact provider fields used, and where each was verified
+
+Every field below was checked against the actual provider source in the vouchfx engine repo
+and the vouchfx-providers hub (`src/Providers/Core/**/*Provider.cs` and `community/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually enforced) and its emitted-CSX `Emit`/helper logic — not just illustrative examples:
+
+| Step type | Fields used | Verified against |
+| --- | --- | --- |
+| `rpc.json-rpc` | `url`, `method`, `params`, `expect.result`, `expect.error.code`, `capture` (JSONPath from full envelope) | `Vouchfx.Community.JsonRpc/JsonRpcModel.cs` + `JsonRpcProvider.cs` (vouchfx-providers) — `url` is a literal or `{placeholder}` string (unlike `http.rest` which takes a `target` reference); `params` is a YAML mapping JSON-serialised at compile time with `{placeholder}` tokens resolved at execution time; `expect.result` paths are rooted at the RPC result member (e.g., `$.balance`), whilst `capture` paths are rooted at the full response envelope (e.g., `$.result.balance`) — this asymmetry is documented in the provider's model; error codes are matched ordinally as JSON numbers. |
+| `db-assert.postgres` | `target`, `query`, `parameters`, `expect.rowCount`, `expect.row` | `Vouchfx.Steps.DbAssert.Postgres/DbAssertPostgresProvider.cs` — parameter values are bound as Npgsql string parameters (`AddWithValue` on a C# `string`); `expect.row` values are compared via `.ToString()` (ordinal); schema fragment declares every row value as `"type": "string"` (requiring quoted YAML for numeric columns), and at runtime Npgsql's `reader[col].ToString()` is compared ordinally against the declared string value. |
+| `mq-expect.kafka` | `target`, `topic`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Kafka/MqExpectKafkaProvider.cs` — the emitted helper performs one idempotent poll per RETRY attempt from the retained log start; the provider never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout); assumes the topic exists or will be created by the service under test before step execution. |
+| `mq-publish.kafka` | `target`, `topic`, `payload` | `Vouchfx.Steps.MqPublish.Kafka/MqPublishKafkaProvider.cs` — `payload` is a literal YAML string (single-quoted to prevent YAML flow-mapping parsing when it starts with `{`); `{placeholder}` tokens inside the payload text are resolved at execution time after YAML parsing, enabling the suite to inject test data directly onto the broker. |
+| `script.csharp` | `code` (inline) or `file` (external), `Vars` access (full ambient access, no placeholder-regex restriction) | `Vouchfx.Steps.Script.Csharp/ScriptCsharpProvider.cs` — either `code:` (inline C# snippet) or `file:` (path relative to the `.e2e.yaml` file, resolved at compile time) — mutually exclusive; scripts have full read/write access to the `Vars` dictionary, including keys with special characters (`:`, `-`) that cannot be used in `{placeholder}` tokens; a thrown exception is caught by the framework and recorded as `Verdict.Fail` (never an unhandled crash). |
+
+## Engine contract
+
+This suite exercises the engine's SUT-configuration surface: `environment.services` with dual-role
+containers selected via the `ROLE` environment variable, and `${conn:<dependency>.<field>}` placeholder forms (`.host`, `.port`, `.username`, `.password`, `.database` for PostgreSQL; the bare `${conn:broker}` full-URL form for Kafka, which resolves to the internal `host:port`). Both container roles receive identical connection configuration but execute different code paths selected by the `ROLE` variable — a production pattern the suite proves end-to-end. All of it has been validated **live, end-to-end**, against the vouchfx engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) — the topology stands up, both `ledger-api` and `ledger-worker` containers receive their `env:` values and connection tokens, the custom runner loads the Community `rpc.json-rpc` provider alongside the Core providers, and all ten suite steps pass against the real containers.
 
 ## How to run
 
@@ -323,10 +341,29 @@ topology — useful to verify the custom runner wired both provider sets correct
 list should show 5 step kinds (4 Core + 1 Community) — a custom runner registers only what it
 explicitly references, demonstrating the minimal-bundle pattern for hub consumption.
 
+## Troubleshooting
+
+- **`Discovery root ... does not exist` when invoking the runner directly.** `dotnet run --project <p>` sets the spawned process's working directory to `<p>`'s own directory, not the invoking shell's cwd. Paths passed to the runner (the `<tests-dir>` argument, `--junit`, `--html`) are resolved relative to the runner project's directory, not the repo root. Use either: (a) `../tests` (relative from `runner/` up to the sibling `tests/` directory) as shown in this README, or (b) absolute paths — this is what CI does. Avoid paths relative to the repo root (e.g., `samples/ledger-jsonrpc/tests`) as they silently resolve to a nonsense nested path under `runner/` and fail.
+
+- **`rpc.json-rpc` step times out or returns `Inconclusive`.** Confirm the `ledger-api` container is healthy (check `docker logs ledger-api` for startup errors), the container's port is reachable (manually curl `http://localhost:8080/` if you know the mapped port), and the `url:` field exactly matches the discovered service's base URL. The `bridge-ledger-url` step (step 1) must execute before any `rpc.json-rpc` step; if step 1 fails, later steps that reference `{ledger_url}` are starved of a valid value.
+
+- **`assert-balance-after-adjustment` (step 8) times out despite the worker appearing healthy.** This step polls a fresh consumer group joining a broker that only just became healthy (step 7 injected the message onto `ledger-adjustments`). Use `docker logs ledger-worker` to confirm the Kafka consumer is actually connected and the message is being consumed — a connection timeout or consumer group lag would cause this step to timeout even if the database write eventually succeeds. The 90-second budget exists precisely because this step is the most likely to need real polling headroom; if it still times out, check Kafka broker logs (`docker logs broker` or similar) for errors.
+
+- **`mq-expect.kafka` (step 5) or `mq-publish.kafka` (step 7) fails with a topic-not-found error.** The app's Kafka setup must create both the `ledger-events` (for publishing and consuming `funds.deposited` events) and `ledger-adjustments` (for step 7's injected message) topics before any step runs. Check `app/src/kafka.js` to confirm both topics are declared on startup; if either is missing, the app's readiness probe should stay at `503` until Kafka is healthy, and the vouchfx health gate should timeout and report EnvironmentError before any step runs.
+
+- **Script step (step 1 or 10) throws an exception but the suite continues instead of failing.** The `script.csharp` provider catches thrown exceptions and records them as `Verdict.Fail`, which does not by itself stop subsequent steps — continuity is controlled by `continueOnFailure` (defaults to false, so a Fail should stop the suite unless that step explicitly allows continuation). Check that step 1 (`bridge-ledger-url`) actually succeeds; if it throws an exception (e.g., `Vars["svc::ledger-api"]` is null), that exception becomes the step's verdict. If step 1 throws `Fail`, verify the orchestrator actually staged `Vars["svc::ledger-api"]` before any step ran (it should; this is standard engine behaviour — check the engine's `ScenarioRunner.cs` if doubting).
+
+- **`script.csharp` with `file:` field fails with a path error.** The `file:` path is relative to the `.e2e.yaml` file's own directory. If your invocation cwd differs from the .yaml's directory, use an absolute path or a path relative from the .yaml's location. The `bridge-ledger-url` step (step 1) uses inline `code:` deliberately so this suite demonstrates both forms side by side; step 10's `file:` references `tests/scripts/assert-arithmetic-invariant.csx` (relative from `tests/ledger.e2e.yaml`'s location). Verify the file exists at the resolved path before running.
+
+- **`GET /` returns `503 {"status":"starting"}` for both containers indefinitely.** One of the dependencies (Postgres or Kafka) never became reachable within the retry window, or a role-specific startup path failed. Check `docker logs ledger-api` and `docker logs ledger-worker` for connection errors; common causes are wrong hostname/port env vars, a dependency container still pulling its image, or a firewalled Docker network. The vouchfx health gate will timeout and report EnvironmentError if any service stays not-ready beyond 120 seconds.
+
+- **Custom runner build fails: `ProjectReference ... does not exist`.** The runner project references the engine's internal source tree under `.vouchfx-src/`. If that directory is missing or stale, run `./scripts/bootstrap.sh` or `.\scripts\bootstrap.ps1` first to fetch and build the pinned engine commit. The runner's `packages.lock.json` is generated from a specific engine tree state; advancing the `ENGINE_PIN` without regenerating the lock may break the build (run `dotnet restore` on the runner to regenerate).
+
+- **`--list` command shows fewer than 5 step kinds.** The custom runner registers only the step kinds it explicitly references (the minimal-bundle pattern). If a provider is not being discovered, check that the runner's source code actually holds a `new StepKindRegistry().With(...)` call for each provider, and that each provider's NuGet package reference is present in the runner's `.csproj` file. The base engine provides the 4 Core providers; only the Community `rpc.json-rpc` needs an explicit reference to `Vouchfx.Community.JsonRpc`.
+
 ## Key documents
 
-- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — Community
-  and Verified provider listings; `rpc.json-rpc` source code
+- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — Community provider listings and the Vouched badge; `rpc.json-rpc` source code
 - **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)**
   — the five-layer design, memory model, §5.8 provider contract (frozen for v1.x)
 - **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)**

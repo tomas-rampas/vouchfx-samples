@@ -138,7 +138,16 @@ reference scenario** (`examples/reference/reference.e2e.yaml`, step `webhook-tri
   new one) minimises the odds of a path-matching mismatch that can only be caught once the
   orchestrator actually runs this suite.
 
-### Exact provider fields used, and where each was verified
+## Provider table
+
+| Family | Provider | Tier | Package (version) | Reference |
+| --- | --- | --- | --- | --- |
+| `http` | `rest` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `postgres` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `kafka` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `webhook-listen` | `http` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+
+## Exact provider fields used, and where each was verified
 
 Every field below was checked against the actual provider source in the vouchfx engine repo
 (`src/Providers/Core/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually
@@ -188,6 +197,17 @@ docker build -t vouchfx-samples-orders-dotnet:local samples/orders-dotnet/app
 vouchfx run samples/orders-dotnet/tests/orders.e2e.yaml
 ```
 
+## Expected output
+
+The full suite (`tests/orders.e2e.yaml`) contains 5 steps, all expected to pass:
+`place-order` → `assert-order-row` → `assert-order-event` → `assert-webhook-callback` → `refetch-order`.
+
+Successful run output: **5 passed steps**, typically completing within a minute end-to-end (topology startup dominates the wall-clock).
+
+Artefact paths (when run via the sample runner):
+- `out/orders-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/orders-results.xml` — JUnit XML for IDE/CI integrations
+
 ## Troubleshooting
 
 - **Kafka produce failures do not fail the order.** `POST /orders` awaits `ProduceAsync` so the
@@ -221,3 +241,10 @@ vouchfx run samples/orders-dotnet/tests/orders.e2e.yaml
   agree — see "Design decision: webhook path matching" above — and that `{orderId}` was actually
   captured in step 1 (a capture miss surfaces as `Inconclusive` on `place-order`, not as a
   failure on the webhook step).
+
+## Key documents
+
+- **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
+- **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
+- **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract
+- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — community provider listings and the Vouched badge

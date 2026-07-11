@@ -184,6 +184,15 @@ vouchfx engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) — the t
 SQL Server, NATS, and Mailpit, `payments-api` receives its `env:` values and per-field
 connection tokens, and all four suite steps pass against the real containers.
 
+## Provider table
+
+| Family | Provider | Tier | Package (version) | Reference |
+| --- | --- | --- | --- | --- |
+| `http` | `rest` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `sqlserver` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `nats` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mail-expect` | `smtp` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+
 ## Running
 
 Via the repository's sample runner:
@@ -211,13 +220,16 @@ docker build -t vouchfx-samples-payments-java:local samples/payments-java/app
 vouchfx run samples/payments-java/tests/payments.e2e.yaml
 ```
 
-### Validated live
+## Expected output
 
-The full suite (`tests/payments.e2e.yaml`) has been run against a real container topology through
-the vouchfx engine and passed: `create-payment` → `assert-payment-row` → `assert-authorised-event`
-→ `assert-receipt-email`, all green — the SQL Server row, the JetStream event, and the Mailpit
-receipt e-mail were each independently confirmed by the engine's own provider assertions, not by a
-hand-wired smoke test standing in for them. `docker build` also passes standalone.
+The full suite (`tests/payments.e2e.yaml`) contains 4 steps, all expected to pass:
+`create-payment` → `assert-payment-row` → `assert-authorised-event` → `assert-receipt-email`.
+
+Successful run output: **4 passed steps**; end-to-end wall-clock is dominated by topology startup (SQL Server container initialisation in particular, which can take a minute or more on first pull).
+
+Artefact paths (when run via the sample runner):
+- `out/payments-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/payments-results.xml` — JUnit XML for IDE/CI integrations
 
 ## Troubleshooting
 
@@ -250,3 +262,10 @@ hand-wired smoke test standing in for them. `docker build` also passes standalon
   returns for that column — this suite only asserts on `status` (a plain `nvarchar`) for exactly
   this reason; if you extend the query to assert on `amount` (a `decimal(12,2)`), expect the
   driver's default numeric-to-string formatting to matter.
+
+## Key documents
+
+- **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
+- **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
+- **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract
+- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — community provider listings and the Vouched badge
