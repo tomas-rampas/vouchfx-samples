@@ -174,6 +174,8 @@ def fetch_facts() -> dict[str, str]:
         if token:
             gh_headers["Authorization"] = f"Bearer {token}"
         releases = _fetch_json("https://api.github.com/repos/tomas-rampas/vouchfx/releases", gh_headers)
+        # Deliberately keeps pre-releases (the whole alpha series IS the release
+        # line today); only drafts are skipped. Do not add a prerelease filter.
         facts["engine_release"] = next(r["tag_name"] for r in releases if not r.get("draft"))
         live.append("engine_release")
     except Exception:
@@ -197,6 +199,8 @@ def fetch_facts() -> dict[str, str]:
         data = _fetch_json(
             "https://raw.githubusercontent.com/tomas-rampas/vouchfx-providers/main/registry/community-providers.json"
         )
+        if not isinstance(data, list):
+            raise ValueError("registry JSON is no longer a top-level array")
         facts["community_provider_count"] = str(len(data))
         live.append("community_provider_count")
     except Exception:
