@@ -54,3 +54,7 @@ By contributing, you agree your contribution is licensed under this repository's
 ---
 
 Thank you for contributing to vouchfx-samples — real, working samples are what make the engine's promise (topological parity across local/SaaS/CI) tangible to a first-time reader.
+
+## Volatile facts on the documentation site
+
+Version numbers and registry counts shown on the rendered site are resolved at build time via `{{fact:...}}` tokens in `scripts/build_site.py` (with a checked-in fallback in `site/facts-fallback.json`). When writing documentation prose, do not hard-code the current engine or package version — reference the mechanism (a pin file, "the current release") or use a fact token, so pages cannot silently rot. Sibling repos trigger a rebuild here through the `repository_dispatch` trigger in `.github/workflows/pages.yml` (the workflow's `notify` job is the outbound half — it tells the siblings when this repo's own docs change).
