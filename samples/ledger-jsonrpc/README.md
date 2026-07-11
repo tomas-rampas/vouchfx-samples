@@ -364,7 +364,7 @@ explicitly references, demonstrating the minimal-bundle pattern for hub consumpt
 
 ## Key documents
 
-- **[vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/)** — Community provider listings and the Vouched badge; consuming guide with custom runner patterns
+- **[vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/)** — Community provider listings and the Vouched badge; see its [consuming-a-provider guide](https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html) for the packaging and pinning rules
 - **[Engine blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)**
   — the five-layer design, memory model, §13 provider contract (frozen for v1.x)
 - **[YAML DSL specification](https://tomas-rampas.github.io/vouchfx/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.html)**

@@ -1,6 +1,6 @@
 # Consuming Community Providers: The Custom Runner Recipe
 
-When a vouchfx suite needs a **Community-tier provider** from the [vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html), the engine's stock CLI cannot run it — the CLI ships only the 25 frozen Core providers at build time. This page explains the custom-runner pattern, which lets you consume Community providers today by bundling them directly into a thin executable.
+When a vouchfx suite needs a **Community-tier provider** from the [vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/) (see its [consuming-a-provider guide](https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html)), the engine's stock CLI cannot run it — the CLI ships only the 25 frozen Core providers at build time. This page explains the custom-runner pattern, which lets you consume Community providers today by bundling them directly into a thin executable.
 
 ## Why a custom runner exists
 
