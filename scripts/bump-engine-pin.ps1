@@ -49,6 +49,16 @@ function Write-Fail {
     exit 1
 }
 
+function Resolve-EngineRef {
+    # Resolves ONE explicit ref pattern to the SHA in its first matching
+    # line's first field, or $null if nothing matched. Explicit refs/tags/...
+    # / refs/heads/... patterns (never a bare ref name) so this can never
+    # ambiguously match more than one ref namespace of the same name.
+    param([string]$Pattern)
+    $line = git ls-remote $EngineRepoUrl $Pattern 2>$null | Select-Object -First 1
+    if ($line) { ($line -split '\s+')[0] } else { $null }
+}
+
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Fail "git is not installed or not on PATH."
 }
@@ -68,20 +78,19 @@ if ($Ref -match '^[0-9a-fA-F]{40}$') {
 } else {
     Write-BumpLog "Resolving '$Ref' against $EngineRepoUrl ..."
 
-    # Try an ANNOTATED tag first: refs/tags/<Ref>^{} peels to the commit the
-    # tag points at (not the tag object's own SHA, which ENGINE_PIN must
-    # never hold).
-    $peeledLine = git ls-remote --tags $EngineRepoUrl "refs/tags/$Ref^{}" 2>$null | Select-Object -First 1
-    if ($peeledLine) {
-        $newSha = ($peeledLine -split '\s+')[0]
-    } else {
-        # Fall back to a lightweight tag or branch name (branches are
-        # discouraged as a lasting pin per ENGINE_PIN's own rationale, but
-        # resolving one here is still useful for a one-off lookup).
-        $plainLine = git ls-remote $EngineRepoUrl $Ref 2>$null | Select-Object -First 1
-        if ($plainLine) {
-            $newSha = ($plainLine -split '\s+')[0]
-        }
+    # 1. ANNOTATED tag, peeled (^{}) to the COMMIT it points at -- never the
+    #    tag object's own SHA, which ENGINE_PIN must never hold.
+    $newSha = Resolve-EngineRef "refs/tags/$Ref^{}"
+
+    # 2. LIGHTWEIGHT tag -- ls-remote already returns the commit SHA directly.
+    if (-not $newSha) {
+        $newSha = Resolve-EngineRef "refs/tags/$Ref"
+    }
+
+    # 3. Branch (discouraged as a LASTING pin per ENGINE_PIN's own rationale,
+    #    but still useful for a one-off lookup).
+    if (-not $newSha) {
+        $newSha = Resolve-EngineRef "refs/heads/$Ref"
     }
 }
 
@@ -105,11 +114,14 @@ $today = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
 $lines = Get-Content $EnginePinFile
 $lines[0] = $newSha
 
-$historyIndex = ($lines | Select-String -Pattern '^# Pin history$' -SimpleMatch:$false).LineNumber
-if (-not $historyIndex) {
+$historyMatch = $lines | Select-String -Pattern '^# Pin history$' -SimpleMatch:$false | Select-Object -First 1
+if (-not $historyMatch) {
     Write-Fail "Could not find the '# Pin history' heading in ENGINE_PIN -- has its format changed?"
 }
-# Select-String LineNumber is 1-based; the separator line follows immediately.
+# Select-Object -First 1 above keeps this a scalar even if the pattern somehow
+# matched more than one line; LineNumber is 1-based, so the separator line
+# follows immediately.
+$historyIndex = $historyMatch.LineNumber
 $insertAt = $historyIndex + 1
 $newEntry = @(
     "# $today`: advanced to $($newSha.Substring(0,8)) — $Reason.",

@@ -63,19 +63,31 @@ if [[ "$REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
 else
   log "Resolving '${REF}' against ${ENGINE_REPO_URL} ..."
 
-  # Try an ANNOTATED tag first: refs/tags/<REF>^{} peels to the commit the
-  # tag points at (not the tag object's own SHA, which ENGINE_PIN must never
-  # hold — bootstrap.sh checks out the pin with a plain commit fetch).
-  PEELED="$(git ls-remote --tags "$ENGINE_REPO_URL" "refs/tags/${REF}^{}" 2>/dev/null | awk '{print $1}')"
+  # Resolves ONE explicit ref pattern to the SHA in its first matching line's
+  # first field. `2>/dev/null` plus the `|| true` at each call site keeps a
+  # git failure (network down, bad URL) from tripping `set -e` before we reach
+  # the friendly `fail` check below; `exit` in the awk program takes only the
+  # first line defensively, though an exact refs/tags/<ref> or refs/heads/<ref>
+  # pattern should never match more than one ref.
+  resolve_ref() {
+    git ls-remote "$ENGINE_REPO_URL" "$1" 2>/dev/null | awk '{print $1; exit}'
+  }
 
-  if [[ -n "$PEELED" ]]; then
-    NEW_SHA="$PEELED"
-  else
-    # Fall back to a lightweight tag, or a branch name (branches are
-    # discouraged as a lasting pin per ENGINE_PIN's own rationale, but
-    # resolving one here is still useful to seed a one-off lookup).
-    PLAIN="$(git ls-remote "$ENGINE_REPO_URL" "$REF" 2>/dev/null | awk '{print $1}' | head -n1)"
-    [[ -n "$PLAIN" ]] && NEW_SHA="$PLAIN"
+  # 1. ANNOTATED tag, peeled (^{}) to the COMMIT it points at — never the tag
+  #    object's own SHA, which ENGINE_PIN must never hold.
+  NEW_SHA="$(resolve_ref "refs/tags/${REF}^{}")" || true
+
+  # 2. LIGHTWEIGHT tag — ls-remote already returns the commit SHA directly.
+  if [[ -z "$NEW_SHA" ]]; then
+    NEW_SHA="$(resolve_ref "refs/tags/${REF}")" || true
+  fi
+
+  # 3. Branch (discouraged as a LASTING pin per ENGINE_PIN's own rationale,
+  #    but still useful for a one-off lookup). Explicit refs/heads/<ref> (not
+  #    a bare "$REF" pattern) so this can never ambiguously also match a tag
+  #    of the same name.
+  if [[ -z "$NEW_SHA" ]]; then
+    NEW_SHA="$(resolve_ref "refs/heads/${REF}")" || true
   fi
 fi
 
