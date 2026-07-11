@@ -1,4 +1,4 @@
-a24a3f5beae0ff78ba97b69ab1f2fefa4d7eff99
+072acf57d27e941d138bd25b95baded8099ab29a
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -39,6 +39,26 @@ a24a3f5beae0ff78ba97b69ab1f2fefa4d7eff99
 #
 # How to advance it
 # ------------------
+#   0. EASIEST: scripts/bump-engine-pin.{sh,ps1} <tag-or-branch-or-sha> ["reason"]
+#      resolves a tag/branch to its full commit SHA (no local clone needed)
+#      and rewrites this file's first line + a new dated "Pin history" entry
+#      for you — steps 1-2 below, done correctly in one command. It does NOT
+#      do steps 3-4; those remain a deliberate, reviewed action.
+#
+#      If doing it by hand instead, two easy ways to find the commit SHA for
+#      a given tag/release WITHOUT cloning:
+#        - GitHub: open the release/tag page (e.g.
+#          github.com/tomas-rampas/vouchfx/releases/tag/v1.0.0-alpha.5) and
+#          click the short-SHA link under the tag name to reach the full SHA.
+#        - `git ls-remote --tags https://github.com/tomas-rampas/vouchfx <tag>`
+#          — GOTCHA: for an ANNOTATED tag (this project's tags are annotated)
+#          this prints TWO lines: `refs/tags/<tag>` (the tag OBJECT's own
+#          SHA) and `refs/tags/<tag>^{}` (the COMMIT it points at, "peeled").
+#          Always take the `^{}` line — ENGINE_PIN must hold the commit SHA,
+#          never the tag object's SHA. (`gh api repos/tomas-rampas/vouchfx/commits/<tag>
+#          --jq .sha` sidesteps this entirely by resolving straight to the
+#          commit.) scripts/bump-engine-pin.* does this peeling for you.
+#
 #   1. Pick the new engine commit (a merge commit on tomas-rampas/vouchfx main
 #      is usually the right choice — record its full 40-char SHA, not a
 #      branch name).
@@ -59,6 +79,8 @@ a24a3f5beae0ff78ba97b69ab1f2fefa4d7eff99
 #
 # Pin history
 # ------------
+# 2026-07-11: advanced to 072acf57 — script.csharp file field (engine PR #194) so the ledger-jsonrpc sample's file: step validates.
+# Prior pin: a24a3f5b.
 # 2026-07-10: advanced to a24a3f5b — the engine's v1.0.0-alpha.4 tag commit,
 # the Platform.* → Vouchfx.* rebrand (identifier space rename across the
 # engine's namespaces/assemblies; 25 Core providers across 11 families).

@@ -257,6 +257,13 @@ The final C# assertion: parse `closing_balance` (a JSON text capture, not a nati
 verify it equals `500 - 25 == 475`. A thrown exception is caught by the framework and recorded
 as `Verdict.Fail` (never an unhandled crash).
 
+This step uses `script.csharp`'s `file` field instead of inline `code:` — the body lives in
+[`tests/scripts/assert-arithmetic-invariant.csx`](tests/scripts/assert-arithmetic-invariant.csx),
+resolved relative to `ledger.e2e.yaml`'s own directory and read once at compile time. Step 1
+(`bridge-ledger-url`, above) deliberately keeps its short body inline via `code:`, so the suite
+demonstrates both forms side by side. **Note:** `file` requires vouchfx v1.0.0-alpha.5 or later;
+this repo's `ENGINE_PIN` (see that file's header) is pinned at or past that commit.
+
 ## Provider table
 
 | Family | Provider | Technology | Version | Hub Link |

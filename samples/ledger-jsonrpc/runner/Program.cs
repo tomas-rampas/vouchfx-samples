@@ -148,6 +148,15 @@ if (parsed.Count > 0)
 
     var appHostAssemblyName = Assembly.GetExecutingAssembly().GetName().Name;
 
+    // Base directory for relative paths in step/seed fields (e.g. script.csharp's
+    // `file`, environment.seed fixtures) — the first scenario's own directory, NOT
+    // Directory.GetCurrentDirectory() (which `dotnet run --project ../runner` sets
+    // to the runner's OWN project directory — see the file-header GOTCHA note in
+    // ledger.e2e.yaml). Mirrors Vouchfx.Cli's RunCommand.cs fix for the identical
+    // gap in the stock CLI. All scenarios in a suite share one `environment` block
+    // (ScenarioRunner enforces this), so one base directory is correct here too.
+    var suiteBaseDirectory = Path.GetDirectoryName(parsed[0].Path);
+
     // Same interactive-TTY + NO_COLOR gate the CLI computes before rendering
     // (S10-G-03a) — decoration is purely additive, never load-bearing.
     var decorate = !Console.IsOutputRedirected
@@ -160,7 +169,7 @@ if (parsed.Count > 0)
         ProviderAssemblies(),
         appHostAssemblyName,
         Console.Out,
-        seedBaseDirectory: null,
+        seedBaseDirectory: suiteBaseDirectory,
         htmlReportPath: htmlPath,
         junitReportPath: junitPath,
         eventsReportPath: null,
