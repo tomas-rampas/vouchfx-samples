@@ -399,7 +399,7 @@ PORTAL = """<!DOCTYPE html>
     <div class="doc-cards">
       <a class="doc-card" href="https://tomas-rampas.github.io/vouchfx/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">ENGINE</span><h3>vouchfx project site</h3><p>The architecture blueprint, the YAML DSL specification, and the language reference.</p></a>
       <a class="doc-card" href="https://tomas-rampas.github.io/vouchfx-providers/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">HUB</span><h3>Provider hub</h3><p>The community provider registry — including rpc.json-rpc, consumed by the ledger-jsonrpc sample.</p></a>
-      <a class="doc-card" href="https://github.com/tomas-rampas/vouchfx-telemetry-backend" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">TELEMETRY</span><h3>Telemetry backend</h3><p>The optional, privacy-allowlisted run-metadata aggregation service.</p></a>
+      <a class="doc-card" href="https://tomas-rampas.github.io/vouchfx-telemetry-backend/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">TELEMETRY</span><h3>Telemetry backend</h3><p>The optional, privacy-allowlisted run-metadata aggregation service.</p></a>
     </div>
   </section>
 </div>

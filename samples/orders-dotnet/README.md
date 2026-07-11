@@ -244,7 +244,7 @@ Artefact paths (when run via the sample runner):
 
 ## Key documents
 
-- **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
-- **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
-- **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract
-- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — community provider listings and the Vouched badge
+- **[Engine blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
+- **[YAML DSL specification](https://tomas-rampas.github.io/vouchfx/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.html)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
+- **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract (source)
+- **[vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/)** — community provider listings and the Vouched badge
