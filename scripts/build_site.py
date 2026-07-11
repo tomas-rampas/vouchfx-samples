@@ -210,7 +210,7 @@ def fetch_facts() -> dict[str, str]:
 def apply_facts(text: str) -> str:
     """Substitute {{fact:KEY}} tokens. Called on site/ HTML right after it is
     copied, and on every rendered page's HTML before it is written."""
-    return FACT_TOKEN.sub(lambda m: html.escape(FACTS.get(m.group(1), "")), text)
+    return FACT_TOKEN.sub(lambda m: html.escape(FACTS[m.group(1)]) if m.group(1) in FACTS else m.group(0), text)
 
 
 PAGE = """<!DOCTYPE html>
