@@ -261,9 +261,8 @@ This step uses `script.csharp`'s `file` field instead of inline `code:` — the 
 [`tests/scripts/assert-arithmetic-invariant.csx`](tests/scripts/assert-arithmetic-invariant.csx),
 resolved relative to `ledger.e2e.yaml`'s own directory and read once at compile time. Step 1
 (`bridge-ledger-url`, above) deliberately keeps its short body inline via `code:`, so the suite
-demonstrates both forms side by side. **Note:** `file` requires a newer engine commit than this
-repo's current `ENGINE_PIN` — see that file's header and the note in `ledger.e2e.yaml` for the
-pin-bump this step needs before the suite passes CI again.
+demonstrates both forms side by side. **Note:** `file` requires vouchfx v1.0.0-alpha.5 or later;
+this repo's `ENGINE_PIN` (see that file's header) is pinned at or past that commit.
 
 ## Provider table
 

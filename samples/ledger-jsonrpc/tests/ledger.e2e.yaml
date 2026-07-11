@@ -54,12 +54,10 @@
 #      (an external .csx reference, mutually exclusive with inline `code:`) — see
 #      tests/scripts/assert-arithmetic-invariant.csx.
 #
-# ENGINE PIN NOTE (step 10's `file:` field): `file` is a newer script.csharp capability
-# than the ENGINE_PIN commit this repo currently builds against (see ../../../ENGINE_PIN).
-# This suite will not pass CI until that pin is advanced to (or past) the vouchfx commit
-# that adds `file` support — a deliberate, separate pin-bump PR per ENGINE_PIN's own
-# documented process. Step 1 continues to use inline `code:` deliberately, so this suite
-# still demonstrates both forms side by side once the pin catches up.
+# ENGINE PIN NOTE (step 10's `file:` field): script.csharp's `file` field requires
+# vouchfx v1.0.0-alpha.5 or later (ENGINE_PIN, see ../../../ENGINE_PIN, is pinned at
+# or past that commit). Step 1 continues to use inline `code:` deliberately, so this
+# suite demonstrates both forms side by side.
 #
 # WART (read before touching step 1): the engine stages each service's discovered base
 # URL at Vars["svc::<serviceName>"] (VarKeys.Service, Vouchfx.Engine.Abstractions/

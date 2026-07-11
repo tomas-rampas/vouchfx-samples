@@ -90,9 +90,18 @@ fi
 log "Old pin: ${OLD_SHA}"
 log "New pin: ${NEW_SHA}  (resolved from '${REF}')"
 
+# Fail before touching anything if the "Pin history" heading is missing or was
+# renamed: without this, the awk insertion below would silently no-op (the SHA
+# still gets rewritten, but the audit-trail entry is dropped) while reporting
+# success. Mirrors bump-engine-pin.ps1's Write-Fail on a missing $historyIndex.
+grep -q '^# Pin history$' "$ENGINE_PIN_FILE" \
+  || fail "Could not find the '# Pin history' heading in ENGINE_PIN -- has its format changed?"
+
 # ── Rewrite ENGINE_PIN ────────────────────────────────────────────────────────
 TODAY="$(date -u +%Y-%m-%d)"
-TMP_FILE="$(mktemp)"
+# A template is required: BSD/macOS mktemp (unlike GNU mktemp) errors on a
+# bare `mktemp` with no template argument.
+TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/bump-engine-pin.XXXXXXXX")"
 
 {
   echo "$NEW_SHA"
@@ -100,7 +109,8 @@ TMP_FILE="$(mktemp)"
 } > "$TMP_FILE"
 
 # Append the new history entry directly under the "Pin history" heading so
-# newest-first ordering matches every existing entry in the file.
+# newest-first ordering matches every existing entry in the file. The heading
+# is guaranteed present (checked above), so this always matches.
 awk -v today="$TODAY" -v new_sha="${NEW_SHA:0:8}" -v old_sha="${OLD_SHA:0:8}" -v reason="$REASON" '
   { print }
   /^# Pin history$/ { getline sep; print sep; print "# " today ": advanced to " new_sha " — " reason "."; print "# Prior pin: " old_sha "."; next }
