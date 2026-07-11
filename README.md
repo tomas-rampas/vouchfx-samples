@@ -72,7 +72,7 @@ The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` to
 
 ## What "Proven" Means
 
-The vouchfx engine separates **four** distinct verdicts — this is deliberate and is the single most important thing to understand when reading a test result. The full taxonomy, with exit-code mappings and what each verdict means for your product, is documented in the engine's [`docs/01`](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md) § 12.1. In brief:
+The vouchfx engine separates **four** distinct verdicts — this is deliberate and is the single most important thing to understand when reading a test result. The full taxonomy, with exit-code mappings and what each verdict means for your product, is documented in the engine's [blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html) § 12.1. In brief:
 
 - **Pass** — every assertion held; the system works as built.
 - **Fail** — an assertion failed; a genuine defect exists in the code.
@@ -139,13 +139,13 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 - **[Engine GitHub Repository](https://github.com/tomas-rampas/vouchfx)** — the system under test
 - **[Project Website](https://tomas-rampas.github.io/vouchfx/)** — getting started guide, language reference, recipes, and architecture overview
 - **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to write a new provider
-- **[Technical Architecture & Blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)** — the five-layer design, memory model, Aspire integration, verdict taxonomy, provider contract
-- **[YAML DSL Specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)** — the `.e2e.yaml` grammar, step families, capture/placeholder syntax
+- **[Technical Architecture & Blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)** — the five-layer design, memory model, Aspire integration, verdict taxonomy, provider contract
+- **[YAML DSL Specification](https://tomas-rampas.github.io/vouchfx/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.html)** — the `.e2e.yaml` grammar, step families, capture/placeholder syntax
 
 ### Related Repositories
 
-- **[vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)** — the community provider hub: the registry of community providers and hub-hosted provider source. Providers can earn the maintainer-awarded Vouched badge after rubric review.
-- **[vouchfx-telemetry-backend](https://github.com/tomas-rampas/vouchfx-telemetry-backend)** — the optional telemetry aggregation service (aggregate run-metadata only: verdict counts, timings, tool/engine versions, under a privacy allowlist with 90-day retention default).
+- **[vouchfx-providers](https://tomas-rampas.github.io/vouchfx-providers/)** — the community provider hub: the registry of community providers and hub-hosted provider source. Providers can earn the maintainer-awarded Vouched badge after rubric review.
+- **[vouchfx-telemetry-backend](https://tomas-rampas.github.io/vouchfx-telemetry-backend/)** — the optional telemetry aggregation service (aggregate run-metadata only: verdict counts, timings, tool/engine versions, under a privacy allowlist with 90-day retention default).
 
 ## Status
 

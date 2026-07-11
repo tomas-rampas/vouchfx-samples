@@ -1,10 +1,10 @@
 # Consuming Community Providers: The Custom Runner Recipe
 
-When a vouchfx suite needs a **Community-tier provider** from the [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers) hub, the engine's stock CLI cannot run it — the CLI ships only the 25 frozen Core providers at build time. This page explains the custom-runner pattern, which lets you consume Community providers today by bundling them directly into a thin executable.
+When a vouchfx suite needs a **Community-tier provider** from the [vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/) (see its [consuming-a-provider guide](https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html)), the engine's stock CLI cannot run it — the CLI ships only the 25 frozen Core providers at build time. This page explains the custom-runner pattern, which lets you consume Community providers today by bundling them directly into a thin executable.
 
 ## Why a custom runner exists
 
-Providers in vouchfx are **compile-time, source-level plugins** (§13 of the [engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)). The registry of available step types is frozen when the engine builds, by reflecting over a fixed set of assemblies:
+Providers in vouchfx are **compile-time, source-level plugins** (§13 of the [engine blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)). The registry of available step types is frozen when the engine builds, by reflecting over a fixed set of assemblies:
 
 - The stock `vouchfx` CLI hard-codes its 25 Core provider assemblies.
 - Community providers are published as independent NuGet packages, unknown to the CLI.
@@ -119,7 +119,7 @@ SuiteResult result = await ScenarioRunner.RunSuiteAsync(
     cancellationToken: CancellationToken.None).ConfigureAwait(false);
 ```
 
-**Critical:** `appHostAssemblyName` must be the name of YOUR executable's assembly, not the engine's. This is because the Aspire `AppHost.Sdk` embeds DCP binary paths as metadata onto the assembly that carries `<IsAspireHost>true` in its `.csproj` — and that assembly is your custom runner, not the engine library. See the [engine blueprint §4](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md) for details.
+**Critical:** `appHostAssemblyName` must be the name of YOUR executable's assembly, not the engine's. This is because the Aspire `AppHost.Sdk` embeds DCP binary paths as metadata onto the assembly that carries `<IsAspireHost>true` in its `.csproj` — and that assembly is your custom runner, not the engine library. See the [engine blueprint §4](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html) for details.
 
 (See [Program.cs lines 149–177](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L149-L177) — abridged and annotated for readability.)
 
@@ -240,7 +240,7 @@ This is a **registry smoke test** safe to run without Docker. The same assembly 
 
 ## Relationship to the provider hub
 
-The [vouchfx-providers repository](https://github.com/tomas-rampas/vouchfx-providers) hosts the Community provider index and (soon) will publish a comprehensive "implementing a provider" guide that covers packaging, registry policy, and versioning strategies. This page owns the **runnable code walkthrough** for how to integrate a Community provider into a test suite; the hub owns the provider authoring and publishing contract.
+The [vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/) hosts the Community provider index and publishes comprehensive guides on consuming and implementing providers. This page owns the **runnable code walkthrough** for how to integrate a Community provider into a test suite; the hub owns the provider authoring and publishing contract.
 
 For real-world examples, see:
 - [ledger-jsonrpc sample README](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/README.md) — end-to-end walkthrough of the custom runner
