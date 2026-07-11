@@ -37,21 +37,23 @@ static Assembly[] ProviderAssemblies() =>
 ];
 ```
 
-(See [Program.cs line 194–201](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L194-L201) for the actual ledger-jsonrpc implementation.)
+(See [Program.cs lines 194–201](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L194-L201) — abridged and annotated for readability.)
 
 **Key point:** The same assembly set is used everywhere — step discovery, validation, and execution. When you run `--list` (see below), the runner displays only the step kinds these assemblies export.
 
 ### Step 2: Discover and parse `.e2e.yaml` files
 
-Your runner needs to find and parse every test suite under a root directory. Failures are recorded as `Inconclusive` verdicts rather than crashing the discovery:
+Your runner needs to find and parse every test suite under a root directory. Failures are recorded as `Inconclusive` verdicts rather than crashing the discovery (abridged and annotated for readability):
 
 ```csharp
 static List<ParsedFile> DiscoverAndParse(string root, StepKindRegistry stepKindRegistry)
 {
     var fullRoot = Path.GetFullPath(root);
     if (!Directory.Exists(fullRoot))
+    {
         throw new DirectoryNotFoundException(
             $"Discovery root '{root}' does not exist (resolved to '{fullRoot}').");
+    }
 
     var files = Directory
         .EnumerateFiles(fullRoot, "*.e2e.yaml", SearchOption.AllDirectories)
@@ -71,7 +73,7 @@ static ParsedFile ParseFile(string absolutePath, StepKindRegistry stepKindRegist
     }
     catch (IOException ex)
     {
-        return new ParsedFile(absolutePath, string.Empty, null, 
+        return new ParsedFile(absolutePath, string.Empty, null,
             $"Could not read file: {ex.Message}");
     }
 
@@ -91,11 +93,11 @@ static ParsedFile ParseFile(string absolutePath, StepKindRegistry stepKindRegist
 
 **Parse failures map to `Inconclusive`** verdicts (§12.1 verdict taxonomy). A malformed YAML file in the suite directory causes that scenario to be recorded as `Inconclusive` (authoring error, never ran), not a crash or silent skip.
 
-(See [Program.cs lines 205–248](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L205-L248).)
+(See [Program.cs lines 205–248](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L205-L248) — abridged and annotated for readability.)
 
 ### Step 3: Execute the suite against the discovered topology
 
-Once scenarios are parsed, hand them to the engine's public `ScenarioRunner.RunSuiteAsync` API:
+Once scenarios are parsed, hand them to the engine's public `ScenarioRunner.RunSuiteAsync` API (abridged and annotated for readability):
 
 ```csharp
 var appHostAssemblyName = Assembly.GetExecutingAssembly().GetName().Name;
@@ -106,8 +108,8 @@ SuiteResult result = await ScenarioRunner.RunSuiteAsync(
     asts,
     names,
     yamlTexts,
-    ProviderAssemblies(),  // ← same assembly set as discovery
-    appHostAssemblyName,   // ← YOUR executable's assembly name (for DCP metadata)
+    ProviderAssemblies(),
+    appHostAssemblyName,
     Console.Out,
     seedBaseDirectory: suiteBaseDirectory,
     htmlReportPath: htmlPath,
@@ -119,7 +121,7 @@ SuiteResult result = await ScenarioRunner.RunSuiteAsync(
 
 **Critical:** `appHostAssemblyName` must be the name of YOUR executable's assembly, not the engine's. This is because the Aspire `AppHost.Sdk` embeds DCP binary paths as metadata onto the assembly that carries `<IsAspireHost>true` in its `.csproj` — and that assembly is your custom runner, not the engine library. See the [engine blueprint §4](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md) for details.
 
-(See [Program.cs lines 149–177](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L149-L177).)
+(See [Program.cs lines 149–177](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L149-L177) — abridged and annotated for readability.)
 
 ### Step 4: Aggregate verdicts and map to exit codes
 
@@ -147,7 +149,7 @@ static int ExitCodeFor(Verdict verdict) => verdict switch
 };
 ```
 
-Exit codes `0/1/3/4` match the verdict taxonomy (§12.1 of the engine blueprint). The stock CLI offers opt-out flags (`--fail-on-env-error`, `--fail-on-inconclusive`); a custom runner typically enforces all non-Pass verdicts as failures for CI.
+Exit codes `0/1/3/4` match the verdict taxonomy (§12.1 of the engine blueprint). The stock CLI treats `EnvironmentError` and `Inconclusive` as success (exit `0`) by default; the flags `--fail-on-env-error` and `--fail-on-inconclusive` are opt-in escalations that make these verdicts exit `3` and `4` respectively. A custom runner typically enforces all non-Pass verdicts as failures for CI (matching the behaviour of the CLI with both flags enabled), as this repository's samples do.
 
 (See [Program.cs lines 273–295](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L273-L295).)
 
@@ -194,7 +196,7 @@ When your Community provider is in pre-release (e.g. `1.0.0-alpha.1`), pin it ex
 <PackageReference Include="Vouchfx.Community.JsonRpc" Version="1.0.0-alpha.1" />
 ```
 
-The engine enforces the **NU5104 rule** (§13 of the blueprint): when the engine's SDK is pre-release (`1.0.0-alpha.x`), all provider packages referencing it must also be pre-release. This prevents a stable consumer package from accidentally pinning an unstable engine.
+**NU5104** is NuGet's pack warning: a stable (released) package must not depend on pre-release packages. When the engine's SDK is pre-release (`1.0.0-alpha.x`), any provider package referencing it must also be pre-release (or pack will warn). This prevents downstream consumers from accidentally landing on an unstable engine.
 
 ## Reporting: identical to the stock CLI
 
@@ -234,7 +236,7 @@ static void PrintRegistry(StepKindRegistry stepKindRegistry, TextWriter output)
 
 This is a **registry smoke test** safe to run without Docker. The same assembly set feeds `--list` and the actual run, so the list can never drift from what a suite execution will see.
 
-(See [Program.cs lines 297–309](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L297-L309).)
+(See [Program.cs lines 109–113](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L109-L113) for the `if (listOnly)` branch and [lines 297–309](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs#L297-L309) for the `PrintRegistry` implementation.)
 
 ## Relationship to the provider hub
 
@@ -242,4 +244,4 @@ The [vouchfx-providers repository](https://github.com/tomas-rampas/vouchfx-provi
 
 For real-world examples, see:
 - [ledger-jsonrpc sample README](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/README.md) — end-to-end walkthrough of the custom runner
-- [LedgerRunner.cs](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs) — the reference implementation
+- [Program.cs](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/Program.cs) — the reference implementation

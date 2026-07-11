@@ -159,7 +159,16 @@ Four steps, one narrative — "a customer pays, and everything downstream reacts
    `expect.count` is set, so the step passes on at least one matching message rather than
    asserting an exact count.
 
-### Exact provider fields used, and where each was verified
+## Provider table
+
+| Family | Provider | Tier | Package (version) | Reference |
+| --- | --- | --- | --- | --- |
+| `http` | `rest` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `sqlserver` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `nats` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mail-expect` | `smtp` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+
+## Exact provider fields used, and where each was verified
 
 Every field below was checked against the actual provider source in the vouchfx engine repo
 (`src/Providers/Core/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually enforced)
@@ -174,7 +183,7 @@ suites (those are validated separately by the engine's own examples-compile CI g
 | `mq-expect.nats` | `target`, `subject`, `stream`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Nats/MqExpectNatsModel.cs` + `MqExpectNatsProvider.cs` — the emitted helper creates an **ephemeral ordered consumer** (`DeliverPolicy.All`, scanning from the start of the retained log) per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout); the provider's own `CreateStreamAsync` call is idempotent and tolerates NATS API error code 10058 ("stream name already in use") — the same code this sample's `NatsPublisher` tolerates. |
 | `mail-expect.smtp` | `target`, `expect.match.to`, `expect.match.subject-contains` | `Vouchfx.Steps.MailExpect.Smtp/MailExpectSmtpModel.cs` + `MailExpectSmtpProvider.cs` — queries Mailpit's HTTP API (`GET /api/v1/messages?limit=100`, then `GET /api/v1/message/{ID}` only if `body-contains` is set, which this suite does not use), matches `to` case-insensitively against each address in the message's `To` list, and `subject-contains` ordinally; passes on `matched >= 1` when `expect.count` is absent (as here). |
 
-### Engine contract
+## Engine contract
 
 This suite exercises the engine's SUT-configuration surface: `environment.services.<name>.env`
 (the `env:` block on `payments-api`) and the `${conn:<dependency>.<field>}` placeholder forms
@@ -184,16 +193,7 @@ vouchfx engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) — the t
 SQL Server, NATS, and Mailpit, `payments-api` receives its `env:` values and per-field
 connection tokens, and all four suite steps pass against the real containers.
 
-## Provider table
-
-| Family | Provider | Tier | Package (version) | Reference |
-| --- | --- | --- | --- | --- |
-| `http` | `rest` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `db-assert` | `sqlserver` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-expect` | `nats` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mail-expect` | `smtp` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-
-## Running
+## How to run
 
 Via the repository's sample runner:
 

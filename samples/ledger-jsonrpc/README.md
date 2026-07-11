@@ -103,7 +103,7 @@ by the `ROLE` environment variable — a production pattern the suite proves end
 The vouchfx engine CLI ships with 25 **Core providers** (frozen at build time for v1.x). The
 `rpc.json-rpc` provider in the vouchfx-providers hub is **Community-tier** — maintained outside
 the engine, published as an independent NuGet package. Providers are compile-time plugins
-(§5.8 of the [engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)),
+(§13 of the [engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)),
 not runtime-loaded extensions. The stock CLI has no seam to discover or load Community providers.
 
 **The workaround (today's state):** build a custom runner. This project's `runner/` is exactly
@@ -269,10 +269,10 @@ this repo's `ENGINE_PIN` (see that file's header) is pinned at or past that comm
 | Family | Provider | Tier | Package (version) | Reference |
 |--------|----------|------|-------------------|-----------|
 | `rpc` | `json-rpc` | Community | `Vouchfx.Community.JsonRpc` 1.0.0-alpha.1 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
-| `db-assert` | `postgres` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-publish` | `kafka` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-expect` | `kafka` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `script` | `csharp` | Core | Engine-shipped (commit `ENGINE_PIN`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `postgres` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-publish` | `kafka` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `kafka` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `script` | `csharp` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 
 ## Exact provider fields used, and where each was verified
 
@@ -323,14 +323,15 @@ dotnet run --project samples/ledger-jsonrpc/runner -c Release -- `
   --junit out\ledger-results.xml
 ```
 
-**Expected output:** 10 passed steps in ~40 seconds (depending on topology startup time, which
-dominates). Reports land in `out/`:
+## Expected output
 
+All 10 steps expected to pass in ~40 seconds (depending on topology startup time, which dominates).
+
+Artefact paths (when run via the sample runner or custom runner directly):
 - `out/ledger-results.xml` — JUnit XML for IDE/CI integrations
-- `out/ledger-report.html` — interactive HTML report with step-by-step timeline, captures,
-  assertions, and error details
+- `out/ledger-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
 
-**Diagnostic: list registered step kinds**
+### Diagnostic: list registered step kinds
 
 ```bash
 dotnet run --project samples/ledger-jsonrpc/runner --list
@@ -351,13 +352,13 @@ explicitly references, demonstrating the minimal-bundle pattern for hub consumpt
 
 - **`mq-expect.kafka` (step 5) or `mq-publish.kafka` (step 7) fails with a topic-not-found error.** The app's Kafka setup must create both the `ledger-events` (for publishing and consuming `funds.deposited` events) and `ledger-adjustments` (for step 7's injected message) topics before any step runs. Check `app/src/kafka.js` to confirm both topics are declared on startup; if either is missing, the app's readiness probe should stay at `503` until Kafka is healthy, and the vouchfx health gate should timeout and report EnvironmentError before any step runs.
 
-- **Script step (step 1 or 10) throws an exception but the suite continues instead of failing.** The `script.csharp` provider catches thrown exceptions and records them as `Verdict.Fail`, which does not by itself stop subsequent steps — continuity is controlled by `continueOnFailure` (defaults to false, so a Fail should stop the suite unless that step explicitly allows continuation). Check that step 1 (`bridge-ledger-url`) actually succeeds; if it throws an exception (e.g., `Vars["svc::ledger-api"]` is null), that exception becomes the step's verdict. If step 1 throws `Fail`, verify the orchestrator actually staged `Vars["svc::ledger-api"]` before any step ran (it should; this is standard engine behaviour — check the engine's `ScenarioRunner.cs` if doubting).
+- **Script step (step 1 or 10) throws an exception but the suite continues instead of failing.** The `script.csharp` provider catches thrown exceptions and records them as `Verdict.Fail`. Every step always runs regardless of prior verdicts in the current engine; `continueOnFailure` is parsed from the YAML but not yet enforced at execution time. Check that step 1 (`bridge-ledger-url`) actually succeeds; if it throws an exception (e.g., `Vars["svc::ledger-api"]` is null), that exception becomes the step's verdict. If step 1 throws `Fail`, verify the orchestrator actually staged `Vars["svc::ledger-api"]` before any step ran (it should; this is standard engine behaviour — check the engine's `ScenarioRunner.cs` if doubting).
 
 - **`script.csharp` with `file:` field fails with a path error.** The `file:` path is relative to the `.e2e.yaml` file's own directory. If your invocation cwd differs from the .yaml's directory, use an absolute path or a path relative from the .yaml's location. The `bridge-ledger-url` step (step 1) uses inline `code:` deliberately so this suite demonstrates both forms side by side; step 10's `file:` references `tests/scripts/assert-arithmetic-invariant.csx` (relative from `tests/ledger.e2e.yaml`'s location). Verify the file exists at the resolved path before running.
 
 - **`GET /` returns `503 {"status":"starting"}` for both containers indefinitely.** One of the dependencies (Postgres or Kafka) never became reachable within the retry window, or a role-specific startup path failed. Check `docker logs ledger-api` and `docker logs ledger-worker` for connection errors; common causes are wrong hostname/port env vars, a dependency container still pulling its image, or a firewalled Docker network. The vouchfx health gate will timeout and report EnvironmentError if any service stays not-ready beyond 120 seconds.
 
-- **Custom runner build fails: `ProjectReference ... does not exist`.** The runner project references the engine's internal source tree under `.vouchfx-src/`. If that directory is missing or stale, run `./scripts/bootstrap.sh` or `.\scripts\bootstrap.ps1` first to fetch and build the pinned engine commit. The runner's `packages.lock.json` is generated from a specific engine tree state; advancing the `ENGINE_PIN` without regenerating the lock may break the build (run `dotnet restore` on the runner to regenerate).
+- **Custom runner build fails: `ProjectReference ... does not exist`.** The runner project references the engine's internal source tree under `.vouchfx-src/`. If that directory is missing or stale, run `./scripts/bootstrap.sh` or `.\scripts\bootstrap.ps1` first to fetch and build the pinned engine commit. The runner's `packages.lock.json` is a recorded manifest (RestoreLockedMode is deliberately not enabled); if it drifts from the actual resolved graph on `dotnet restore`, the lock silently regenerates rather than breaking the build. The real risk when advancing `ENGINE_PIN` is a source-level API mismatch in the ProjectReferences — if the engine tree reorganises, the runner's project paths may no longer exist.
 
 - **`--list` command shows fewer than 5 step kinds.** The custom runner registers only the step kinds it explicitly references (the minimal-bundle pattern). If a provider is not being discovered, check that the runner's source code actually holds a `new StepKindRegistry().With(...)` call for each provider, and that each provider's NuGet package reference is present in the runner's `.csproj` file. The base engine provides the 4 Core providers; only the Community `rpc.json-rpc` needs an explicit reference to `Vouchfx.Community.JsonRpc`.
 
@@ -365,7 +366,7 @@ explicitly references, demonstrating the minimal-bundle pattern for hub consumpt
 
 - **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — Community provider listings and the Vouched badge; `rpc.json-rpc` source code
 - **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)**
-  — the five-layer design, memory model, §5.8 provider contract (frozen for v1.x)
+  — the five-layer design, memory model, §13 provider contract (frozen for v1.x)
 - **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)**
   — `.e2e.yaml` grammar, step families, capture/placeholder syntax
 - **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)**

@@ -107,10 +107,10 @@ slow-to-schedule dependency container is a startup delay, not a hard failure.
 
 | Family | Provider | Tier | Package (version) | Reference |
 | --- | --- | --- | --- | --- |
-| `http` | `rest` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `db-assert` | `mysql` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `cache-assert` | `redis` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-expect` | `rabbitmq` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `http` | `rest` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `mysql` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `cache-assert` | `redis` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `rabbitmq` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 
 ## Exact provider fields used, and where each was verified
 

@@ -142,10 +142,10 @@ reference scenario** (`examples/reference/reference.e2e.yaml`, step `webhook-tri
 
 | Family | Provider | Tier | Package (version) | Reference |
 | --- | --- | --- | --- | --- |
-| `http` | `rest` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `db-assert` | `postgres` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `mq-expect` | `kafka` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
-| `webhook-listen` | `http` | Core | Engine-shipped (commit `072acf57`) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `http` | `rest` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `postgres` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `kafka` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `webhook-listen` | `http` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 
 ## Exact provider fields used, and where each was verified
 
@@ -160,7 +160,7 @@ enforced) and its emitted-CSX `Emit`/helper logic — not just `docs/language-re
 | `mq-expect.kafka` | `target`, `topic`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Kafka/MqExpectKafkaProvider.cs` — this is the plain-JSON (non-Avro) path; the emitted helper performs one idempotent poll per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout). |
 | `webhook-listen.http` | `listener`, `verifyMode: RETRY`, `timeout`, `match.method`, `match.path` | `Vouchfx.Steps.WebhookListen.Http/WebhookListenHttpProvider.cs` + `Vouchfx.Engine.Orchestration/HostResources/WebhookListener.cs` — confirms the token-stripped `path` semantics described above; the provider's own doc comment explicitly calls captured request bodies/headers "untrusted... outside SecretString redaction", which is why this suite does not attempt to assert on the callback body. |
 
-### Engine contract
+## Engine contract
 
 This suite exercises the engine's SUT-configuration surface: `environment.services.<name>.env`
 (the `env:` block on `orders-api`) and the `${conn:<dependency>}` / `{<listener>_container}`
@@ -170,7 +170,7 @@ it has been validated **live, end-to-end**, against the vouchfx engine commit pi
 values and connection strings, and the webhook listener's `{cb_container}` URL is reachable from
 inside the container network.
 
-## Running
+## How to run
 
 Via the repository's sample runner:
 
