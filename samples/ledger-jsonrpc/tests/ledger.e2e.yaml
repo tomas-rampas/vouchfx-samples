@@ -50,7 +50,16 @@
 #   9. rpc.json-rpc getAccount -> capture the closing balance over the SAME JSON-RPC
 #      surface that started the transaction, closing the loop.
 #  10. script.csharp asserts the arithmetic invariant (500 - 25 == 475) from captured
-#      Vars, throwing (-> Verdict.Fail) on any mismatch.
+#      Vars, throwing (-> Verdict.Fail) on any mismatch. Demonstrates the `file` field
+#      (an external .csx reference, mutually exclusive with inline `code:`) — see
+#      tests/scripts/assert-arithmetic-invariant.csx.
+#
+# ENGINE PIN NOTE (step 10's `file:` field): `file` is a newer script.csharp capability
+# than the ENGINE_PIN commit this repo currently builds against (see ../../../ENGINE_PIN).
+# This suite will not pass CI until that pin is advanced to (or past) the vouchfx commit
+# that adds `file` support — a deliberate, separate pin-bump PR per ENGINE_PIN's own
+# documented process. Step 1 continues to use inline `code:` deliberately, so this suite
+# still demonstrates both forms side by side once the pin catches up.
 #
 # WART (read before touching step 1): the engine stages each service's discovered base
 # URL at Vars["svc::<serviceName>"] (VarKeys.Service, Vouchfx.Engine.Abstractions/
@@ -284,10 +293,4 @@ steps:
   - id: assert-arithmetic-invariant
     type: script.csharp
     description: "500 (deposit) - 25 (chargeback) must equal the JSON-RPC-reported closing balance (475)."
-    code: |
-      var closingBalance = int.Parse((string)Vars["closing_balance"]);
-      const int expectedBalance = 500 - 25;
-      if (closingBalance != expectedBalance)
-      {
-          throw new Exception($"arithmetic invariant violated: expected closing balance {expectedBalance} (500 deposit - 25 chargeback), got {closingBalance}");
-      }
+    file: scripts/assert-arithmetic-invariant.csx
