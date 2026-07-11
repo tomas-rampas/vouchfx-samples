@@ -103,6 +103,35 @@ slow-to-schedule dependency container is a startup delay, not a hard failure.
 | `assert-stock-event` | `mq-expect.rabbitmq` | A `stock-changed` event for the captured `sku` reached the durable `stock-events` queue, polling with `verifyMode: RETRY` because the publish happens after the HTTP response returns. **Assumption**: the app declares the queue durable at startup (`app/mq.py::declare_queue`, called from the FastAPI lifespan) — the suite itself does not declare it. |
 | `get-item` | `http.rest` | `GET /items/{sku}` returns `200`, proving the Redis read-through path actually serves the second read. |
 
+## Provider table
+
+| Family | Provider | Tier | Package (version) | Reference |
+| --- | --- | --- | --- | --- |
+| `http` | `rest` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `mysql` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `cache-assert` | `redis` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `rabbitmq` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+
+## Exact provider fields used, and where each was verified
+
+Every field below was checked against the actual provider source in the vouchfx engine repo
+(`src/Providers/Core/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually
+enforced) and its emitted-CSX `Emit`/helper logic — not just `docs/language-reference.md`:
+
+| Step type | Fields used | Verified against |
+| --- | --- | --- |
+| `http.rest` | `target`, `method`, `path`, `body`, `expect.status`, `capture` (JSONPath) | `Vouchfx.Steps.Core.HttpRest/HttpRestProvider.cs` — `path` must be rooted (`/...`); `body` given as inline YAML is JSON-serialised at bind time and `{placeholder}` tokens inside it survive to be resolved at execution time; JSONPath capture writes `Inconclusive` (not `Fail`) on a miss. |
+| `db-assert.mysql` | `target`, `query`, `parameters`, `expect.rowCount`, `expect.row` | `Vouchfx.Steps.DbAssert.Mysql/DbAssertMysqlProvider.cs` — parameter values are bound as parameterised string parameters; `expect.row` values are compared via `.ToString()` (ordinal) against the first row only; the query TEXT itself does not support identifier substitution (unlike some other database providers). |
+| `cache-assert.redis` | `target`, `key`, `operation`, `expect.exists` | `Vouchfx.Steps.CacheAssert.Redis/CacheAssertRedisProvider.cs` — this provider supports only exact string equality (`expect.value`, for get/hget) or boolean presence (`expect.exists`); there is no JSONPath or substring matching against cached values; `operation: exists` checks key presence without coupling to the cached value's serialisation. |
+| `mq-expect.rabbitmq` | `target`, `queue`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Rabbitmq/MqExpectRabbitmqProvider.cs` — the emitted helper consumes (nacks, does not ack) one message per RETRY attempt via the queue's durable consumer group; the provider never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout). **Assumption:** the app declares the queue durable at startup (not by this suite). |
+
+## Engine contract
+
+This suite exercises the engine's SUT-configuration surface: `environment.services.<name>.env`
+(the `env:` block on `inventory-api`) and the `${conn:<dependency>.<field>}` placeholder forms
+(`.host`, `.port`, `.username`, `.password`, `.database` for MySQL; `.host`, `.port`, `.password` for Redis; the bare `${conn:mq}` full-URL form for RabbitMQ). All of it has been validated **live, end-to-end**, against the vouchfx engine commit pinned in
+[`../../ENGINE_PIN`](../../ENGINE_PIN) — the topology stands up, `inventory-api` receives its `env:` values and connection tokens, and all five suite steps pass against the real containers.
+
 ## How to run
 
 This sample is driven by the repo-level runner, not directly:
@@ -151,6 +180,17 @@ docker rm -f inv-api inv-mysql inv-redis inv-rabbitmq
 docker network rm inv-dev
 ```
 
+## Expected output
+
+The full suite (`tests/inventory.e2e.yaml`) contains 5 steps, all expected to pass:
+`create-item` → `assert-mysql-row` → `assert-redis-key` → `assert-stock-event` → `get-item`.
+
+Successful run output: **5 passed steps**, typically completing within a minute end-to-end (topology startup dominates the wall-clock).
+
+Artefact paths (when run via the sample runner):
+- `out/inventory-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/inventory-results.xml` — JUnit XML for IDE/CI integrations
+
 ## Troubleshooting
 
 - **`RuntimeError: 'cryptography' package is required for sha256_password or
@@ -180,3 +220,10 @@ docker network rm inv-dev
 - **Redis shows the old value after changing `stock`** — `POST /items` is an
   upsert; posting the same `sku` again with different fields is expected to
   update MySQL, Redis, and publish a new event, not append a new row.
+
+## Key documents
+
+- **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
+- **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
+- **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract
+- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — community provider listings and the Vouched badge

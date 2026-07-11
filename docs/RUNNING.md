@@ -92,7 +92,8 @@ dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \
 
 The runner produces the same JUnit XML and HTML reports as the stock CLI, and the exit codes
 remain identical (0 = Pass, 1 = Fail, 3 = EnvironmentError, 4 = Inconclusive). See
-[`samples/ledger-jsonrpc/README.md`](../samples/ledger-jsonrpc/README.md) for details.
+[`samples/ledger-jsonrpc/README.md`](../samples/ledger-jsonrpc/README.md) for details, or
+[`docs/custom-runner.md`](custom-runner.md) for the detailed code recipe and design rationale.
 
 ## Why samples don't run concurrently on one machine
 

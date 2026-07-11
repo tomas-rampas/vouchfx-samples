@@ -159,7 +159,16 @@ Four steps, one narrative — "a customer pays, and everything downstream reacts
    `expect.count` is set, so the step passes on at least one matching message rather than
    asserting an exact count.
 
-### Exact provider fields used, and where each was verified
+## Provider table
+
+| Family | Provider | Tier | Package (version) | Reference |
+| --- | --- | --- | --- | --- |
+| `http` | `rest` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `db-assert` | `sqlserver` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mq-expect` | `nats` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+| `mail-expect` | `smtp` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
+
+## Exact provider fields used, and where each was verified
 
 Every field below was checked against the actual provider source in the vouchfx engine repo
 (`src/Providers/Core/**/*Provider.cs`) — its `SchemaFragment` (the JSON Schema actually enforced)
@@ -174,7 +183,7 @@ suites (those are validated separately by the engine's own examples-compile CI g
 | `mq-expect.nats` | `target`, `subject`, `stream`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Nats/MqExpectNatsModel.cs` + `MqExpectNatsProvider.cs` — the emitted helper creates an **ephemeral ordered consumer** (`DeliverPolicy.All`, scanning from the start of the retained log) per RETRY attempt and never itself writes `Inconclusive` (the engine's RetryRunner converts a sustained `Fail` to `Inconclusive` on timeout); the provider's own `CreateStreamAsync` call is idempotent and tolerates NATS API error code 10058 ("stream name already in use") — the same code this sample's `NatsPublisher` tolerates. |
 | `mail-expect.smtp` | `target`, `expect.match.to`, `expect.match.subject-contains` | `Vouchfx.Steps.MailExpect.Smtp/MailExpectSmtpModel.cs` + `MailExpectSmtpProvider.cs` — queries Mailpit's HTTP API (`GET /api/v1/messages?limit=100`, then `GET /api/v1/message/{ID}` only if `body-contains` is set, which this suite does not use), matches `to` case-insensitively against each address in the message's `To` list, and `subject-contains` ordinally; passes on `matched >= 1` when `expect.count` is absent (as here). |
 
-### Engine contract
+## Engine contract
 
 This suite exercises the engine's SUT-configuration surface: `environment.services.<name>.env`
 (the `env:` block on `payments-api`) and the `${conn:<dependency>.<field>}` placeholder forms
@@ -184,7 +193,7 @@ vouchfx engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) — the t
 SQL Server, NATS, and Mailpit, `payments-api` receives its `env:` values and per-field
 connection tokens, and all four suite steps pass against the real containers.
 
-## Running
+## How to run
 
 Via the repository's sample runner:
 
@@ -211,13 +220,16 @@ docker build -t vouchfx-samples-payments-java:local samples/payments-java/app
 vouchfx run samples/payments-java/tests/payments.e2e.yaml
 ```
 
-### Validated live
+## Expected output
 
-The full suite (`tests/payments.e2e.yaml`) has been run against a real container topology through
-the vouchfx engine and passed: `create-payment` → `assert-payment-row` → `assert-authorised-event`
-→ `assert-receipt-email`, all green — the SQL Server row, the JetStream event, and the Mailpit
-receipt e-mail were each independently confirmed by the engine's own provider assertions, not by a
-hand-wired smoke test standing in for them. `docker build` also passes standalone.
+The full suite (`tests/payments.e2e.yaml`) contains 4 steps, all expected to pass:
+`create-payment` → `assert-payment-row` → `assert-authorised-event` → `assert-receipt-email`.
+
+Successful run output: **4 passed steps**; end-to-end wall-clock is dominated by topology startup (SQL Server container initialisation in particular, which can take a minute or more on first pull).
+
+Artefact paths (when run via the sample runner):
+- `out/payments-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/payments-results.xml` — JUnit XML for IDE/CI integrations
 
 ## Troubleshooting
 
@@ -250,3 +262,10 @@ hand-wired smoke test standing in for them. `docker build` also passes standalon
   returns for that column — this suite only asserts on `status` (a plain `nvarchar`) for exactly
   this reason; if you extend the query to assert on `amount` (a `decimal(12,2)`), expect the
   driver's default numeric-to-string formatting to matter.
+
+## Key documents
+
+- **[Engine blueprint](https://github.com/tomas-rampas/vouchfx/blob/main/docs/01_Technical_Architecture_and_Engineering_Blueprint.md)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
+- **[YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
+- **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract
+- **[vouchfx-providers hub](https://github.com/tomas-rampas/vouchfx-providers)** — community provider listings and the Vouched badge
