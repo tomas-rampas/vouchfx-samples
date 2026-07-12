@@ -29,7 +29,7 @@ flowchart TB
     Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
     SuiteStart["vouchfx suite<br/>(compiled CSX)"]
     
-    Orchestration -->|starts / health-gates| SuiteStart
+    Orchestration -->|"starts / health-gates"| SuiteStart
     
     SuiteStart -->|"1. POST /orders<br/>{sku, quantity, callbackUrl}"| API["<b>orders-api</b><br/>(this sample's app)"]
     API -->|"201 {id, sku,<br/>quantity, status}"| SuiteStart
@@ -41,7 +41,7 @@ flowchart TB
     API -->|"3. produce (app)"| MQ
     
     SuiteStart -->|"4. webhook-listen<br/>(RETRY)"| Webhook["<b>host-owned listener</b><br/>(listener: cb)"]
-    Webhook -->|"4. POST callbacks/{id}<br/>(app, background)"| SuiteStart
+    API -->|"4. POST callbacks/{id}<br/>(app, background)"| Webhook
     
     SuiteStart -->|"5. GET /orders/{id}<br/>(optional final sanity check)"| API
 ```

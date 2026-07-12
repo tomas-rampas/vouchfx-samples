@@ -44,19 +44,19 @@ flowchart TB
     Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
     Suite["vouchfx suite (CSX)<br/>via LedgerRunner"]
     
-    Orchestration -->|starts / health-gates| Suite
+    Orchestration -->|"starts / health-gates"| Suite
     
     LedgerApi["<b>ledger-api</b><br/>(Node.js, ROLE=api)<br/>● JSON-RPC 2.0<br/>● Publishes ledger-events<br/>(Kafka)"]
     LedgerWorker["<b>ledger-worker</b><br/>(Node.js, ROLE=worker)<br/>● Consumes ledger-adjustments<br/>● Applies transaction"]
     Postgres["<b>Postgres</b><br/>accounts<br/>adjustments tables"]
     Kafka["<b>Kafka</b><br/>ledger-events topic<br/>ledger-adjustments topic"]
     
-    Suite -->|"1. JSON-RPC<br/>createAccount"| LedgerApi
-    LedgerApi -->|"2. INSERT (Postgres)"| Postgres
+    Suite -->|"2. JSON-RPC<br/>createAccount"| LedgerApi
+    LedgerApi -->|"4. INSERT (Postgres)"| Postgres
     Suite -->|"4. db-assert.postgres<br/>(balance=500)"| Postgres
     
     Suite -->|"3. JSON-RPC<br/>deposit"| LedgerApi
-    LedgerApi -->|"Publishes deposit event"| Kafka
+    LedgerApi -->|"5. Publishes deposit event"| Kafka
     Suite -->|"5. mq-expect.kafka<br/>(RETRY)"| Kafka
     
     Suite -->|"6. JSON-RPC<br/>withdraw<br/>(expect error)"| LedgerApi
@@ -65,7 +65,7 @@ flowchart TB
     Kafka -->|"ledger-adjustments"| LedgerWorker
     
     Suite -->|"8. db-assert.postgres<br/>(RETRY)<br/>(balance=475)"| Postgres
-    LedgerWorker -->|"Applies adjustment"| Postgres
+    LedgerWorker -->|"8. Applies adjustment"| Postgres
     
     Suite -->|"9. JSON-RPC<br/>getAccount"| LedgerApi
     

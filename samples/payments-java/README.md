@@ -33,12 +33,12 @@ flowchart TB
     Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
     Suite["vouchfx suite<br/>(compiled CSX)"]
     
-    Orchestration -->|starts / health-gates| Suite
+    Orchestration -->|"starts / health-gates"| Suite
     
     Suite -->|"1. POST /payments<br/>{orderId, amount,<br/>customerEmail}"| API["<b>payments-api</b><br/>(this sample's app)"]
     API -->|"201 {id, orderId,<br/>amount, status}"| Suite
     
-    API -->|"2. INSERT INTO payments (…)"| DB["<b>SQL Server</b><br/>(paydbdb)<br/>payments table"]
+    API -->|"2. INSERT INTO payments (…)"| DB["<b>SQL Server</b><br/>(paydb)<br/>payments table"]
     Suite -->|"2. db-assert.sqlserver"| DB
     
     Suite -->|"3. mq-expect.nats<br/>(RETRY)"| NATS["<b>NATS JetStream</b><br/>payments.authorised<br/>stream: PAYMENTS_AUTHORISED"]
