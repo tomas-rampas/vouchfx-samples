@@ -25,22 +25,20 @@ end to end.
 ## Architecture
 
 ```mermaid
-flowchart TB
-    Suite["vouchfx suite<br/>(tests/inventory.e2e.yaml)"]
-    API["<b>inventory-api (8080)</b><br/>Python 3.12 / FastAPI<br/><br/>GET /<br/>POST /items<br/>GET /items/{sku}"]
-    
-    Suite -->|"1. POST /items"| API
-    
-    API -->|"2. upsert row"| MySQL["<b>MySQL</b><br/>invdb<br/>items table"]
-    Suite -->|"2. db-assert.mysql<br/>(row exists)"| MySQL
-    
-    API -->|"3. cache write"| Redis["<b>Redis</b><br/>item:&lt;sku&gt;"]
-    Suite -->|"3. cache-assert.redis<br/>(key exists)"| Redis
-    
-    API -->|"4. publish<br/>stock-changed"| RabbitMQ["<b>RabbitMQ</b><br/>stock-events<br/>(durable)"]
-    Suite -->|"4. mq-expect.rabbitmq<br/>(event matched)"| RabbitMQ
-    
-    Suite -->|"5. GET /items/{sku}<br/>— 200, served from cache<br/>(read-through proof)"| API
+sequenceDiagram
+    participant Suite as vouchfx suite<br/>(tests/inventory.e2e.yaml)
+    participant API as inventory-api (8080)<br/>Python 3.12 / FastAPI
+    participant MySQL as MySQL<br/>(invdb, items table)
+    participant Redis as Redis cache
+    participant MQ as RabbitMQ<br/>(stock-events, durable)
+    Suite->>API: 1. POST /items
+    API->>MySQL: upsert row
+    API->>Redis: cache write (key item:{sku})
+    API--)MQ: publish stock-changed
+    Suite->>MySQL: 2. db-assert.mysql — the row exists
+    Suite->>Redis: 3. cache-assert.redis — the key exists
+    Suite->>MQ: 4. mq-expect.rabbitmq — event matched (RETRY)
+    Suite->>API: 5. GET /items/{sku} — 200, served from cache (read-through proof)
 ```
 
 The suite itself never talks to MySQL/Redis/RabbitMQ directly except through

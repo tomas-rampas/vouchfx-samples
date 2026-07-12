@@ -25,25 +25,22 @@ speaks HTTP — cannot see any of that. This sample exists to prove vouchfx can:
 ## Architecture
 
 ```mermaid
-flowchart TB
-    Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
-    SuiteStart["vouchfx suite<br/>(compiled CSX)"]
-    
-    Orchestration -->|"starts / health-gates"| SuiteStart
-    
-    SuiteStart -->|"1. POST /orders<br/>{sku, quantity, callbackUrl}"| API["<b>orders-api</b><br/>(this sample's app)"]
-    API -->|"201 {id, sku,<br/>quantity, status}"| SuiteStart
-    
-    API -->|"2. INSERT INTO orders (…)"| DB["<b>Postgres</b><br/>(ordersdb)<br/>orders table"]
-    SuiteStart -->|"2. db-assert.postgres"| DB
-    
-    SuiteStart -->|"3. mq-expect.kafka<br/>(RETRY)"| MQ["<b>Kafka</b><br/>order-events topic"]
-    API -->|"3. produce (app)"| MQ
-    
-    SuiteStart -->|"4. webhook-listen<br/>(RETRY)"| Webhook["<b>host-owned listener</b><br/>(listener: cb)"]
-    API -->|"4. POST callbacks/{id}<br/>(app, background)"| Webhook
-    
-    SuiteStart -->|"5. GET /orders/{id}<br/>(optional final sanity check)"| API
+sequenceDiagram
+    participant Suite as vouchfx suite<br/>(compiled CSX)
+    participant API as orders-api<br/>(this sample's app)
+    participant DB as Postgres<br/>(ordersdb, orders table)
+    participant MQ as Kafka<br/>(order-events topic)
+    participant WH as host-owned listener<br/>(listener: cb)
+    Note over Suite,API: the Aspire topology is started and health-gated before step 1
+    Suite->>API: 1. POST /orders {sku, quantity, callbackUrl}
+    API->>DB: INSERT INTO orders (…)
+    API-->>Suite: 201 {id, sku, quantity, status}
+    Suite->>DB: 2. db-assert.postgres — the row exists
+    API--)MQ: produce order-event (app)
+    Suite->>MQ: 3. mq-expect.kafka (RETRY)
+    API--)WH: POST callbacks/{id} (app, background)
+    Suite->>WH: 4. webhook-listen.http (RETRY)
+    Suite->>API: 5. GET /orders/{id} (optional final sanity check)
 ```
 
 `orders-api` runs as an ordinary container (`environment.services.orders-api`); Postgres and
