@@ -52,10 +52,11 @@ flowchart TB
     Kafka["<b>Kafka</b><br/>ledger-events topic<br/>ledger-adjustments topic"]
     
     Suite -->|"2. JSON-RPC<br/>createAccount"| LedgerApi
-    LedgerApi -->|"4. INSERT (Postgres)"| Postgres
-    Suite -->|"4. db-assert.postgres<br/>(balance=500)"| Postgres
+    LedgerApi -->|"INSERT account<br/>(balance 0)"| Postgres
     
     Suite -->|"3. JSON-RPC<br/>deposit"| LedgerApi
+    LedgerApi -->|"4. UPDATE balance<br/>(+500)"| Postgres
+    Suite -->|"4. db-assert.postgres<br/>(balance=500)"| Postgres
     LedgerApi -->|"5. Publishes deposit event"| Kafka
     Suite -->|"5. mq-expect.kafka<br/>(RETRY)"| Kafka
     

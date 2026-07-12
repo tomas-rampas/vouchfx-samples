@@ -27,7 +27,7 @@ end to end.
 ```mermaid
 flowchart TB
     Suite["vouchfx suite<br/>(tests/inventory.e2e.yaml)"]
-    API["<b>inventory-api (8080)</b><br/>Python 3.12 / FastAPI<br/><br/>GET /<br/>POST /items<br/>GET  /items/{sku}"]
+    API["<b>inventory-api (8080)</b><br/>Python 3.12 / FastAPI<br/><br/>GET /<br/>POST /items<br/>GET /items/{sku}"]
     
     Suite -->|"1. POST /items"| API
     
