@@ -39,58 +39,38 @@ the whole story end-to-end.
 
 ## Architecture
 
-```
-                                ┌─────────────────────────────┐
-                                │   vouchfx orchestration      │
-                                │   (.NET Aspire topology)     │
-                                └──────────────┬────────────────┘
-                                               │ starts / health-gates
-                                               ▼
-  ┌──────────────┐                 ┌──────────────────────┐
-  │ vouchfx      │                 │  ledger-api          │
-  │ suite (CSX)  │  1. JSON-RPC   │  (Node.js, ROLE=api) │
-  │              │  createAccount  │  ● JSON-RPC 2.0      │
-  │   via        │◄───────────────►│  ● Publishes         │
-  │ LedgerRunner │                 │    ledger-events     │
-  │              │  3. JSON-RPC   │    (Kafka)           │
-  │              │  deposit        │                      │
-  │              │  ●─────────────→│                      │
-  │              │                 └────────┬──────────┬──┘
-  │              │                          │          │
-  │              │  4. db-assert            │          │ 2. INSERT (Postgres)
-  │              │  .postgres ──────────────┤          │
-  │              │  (balance=500)           ▼          │
-  │              │                   ┌──────────────┐  │
-  │              │  5. mq-expect     │   Postgres   │  │
-  │              │  .kafka (RETRY)   │   accounts   │◄─┘
-  │              │  (deposit event)  │ adjustments  │
-  │              │◄──────────────────┴──────┬───────┘
-  │              │                         │
-  │              │                 ┌───────▼───────┐
-  │              │  6. JSON-RPC    │    Kafka      │
-  │              │  withdraw       │  ledger-events│
-  │              │  (expect error) │  ledger-      │
-  │              │ ────────────────│  adjustments  │
-  │              │                 └───────┬───────┘
-  │              │                         │
-  │              │  7. mq-publish  ← ─ ─ ─┘ (Aspire provisioned)
-  │              │  .kafka (inject chargeback)
-  │              │  ─────────────────→ │
-  │              │                     │
-  │              │  8. db-assert       │
-  │              │  .postgres (RETRY)  │
-  │              │  (balance=475)      │
-  │              │  ──────────────→ ┌──▼──────────────┐
-  │              │                 │  ledger-worker  │
-  │              │  9. JSON-RPC    │  (Node.js,      │
-  │              │  getAccount     │  ROLE=worker)   │
-  │              │  ───────────────►│  ● Consumes     │
-  │              │                 │    ledger-      │
-  │              │  10.            │    adjustments  │
-  │              │  script.csharp  │  ● Applies      │
-  │              │  (assert        │    transaction  │
-  │              │  invariant)     └─────────────────┘
-  └──────────────┘
+```mermaid
+flowchart TB
+    Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
+    Suite["vouchfx suite (CSX)<br/>via LedgerRunner"]
+    
+    Orchestration -->|"starts / health-gates"| Suite
+    
+    LedgerApi["<b>ledger-api</b><br/>(Node.js, ROLE=api)<br/>● JSON-RPC 2.0<br/>● Publishes ledger-events<br/>(Kafka)"]
+    LedgerWorker["<b>ledger-worker</b><br/>(Node.js, ROLE=worker)<br/>● Consumes ledger-adjustments<br/>● Applies transaction"]
+    Postgres["<b>Postgres</b><br/>accounts<br/>adjustments tables"]
+    Kafka["<b>Kafka</b><br/>ledger-events topic<br/>ledger-adjustments topic"]
+    
+    Suite -->|"2. JSON-RPC<br/>createAccount"| LedgerApi
+    LedgerApi -->|"INSERT account<br/>(balance 0)"| Postgres
+    
+    Suite -->|"3. JSON-RPC<br/>deposit"| LedgerApi
+    LedgerApi -->|"4. UPDATE balance<br/>(+500)"| Postgres
+    Suite -->|"4. db-assert.postgres<br/>(balance=500)"| Postgres
+    LedgerApi -->|"5. Publishes deposit event"| Kafka
+    Suite -->|"5. mq-expect.kafka<br/>(RETRY)"| Kafka
+    
+    Suite -->|"6. JSON-RPC<br/>withdraw<br/>(expect error)"| LedgerApi
+    
+    Suite -->|"7. mq-publish.kafka<br/>(inject chargeback)"| Kafka
+    Kafka -->|"ledger-adjustments"| LedgerWorker
+    
+    Suite -->|"8. db-assert.postgres<br/>(RETRY)<br/>(balance=475)"| Postgres
+    LedgerWorker -->|"8. Applies adjustment"| Postgres
+    
+    Suite -->|"9. JSON-RPC<br/>getAccount"| LedgerApi
+    
+    Suite -->|"10. script.csharp<br/>(assert invariant)"| Suite
 ```
 
 Both `ledger-api` and `ledger-worker` run as ordinary containers (`environment.services`);

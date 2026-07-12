@@ -85,40 +85,40 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 ```
 .
-├── README.md                           (this file)
-├── CONTRIBUTING.md                     (how to add a new sample)
-├── LICENSE                             (Apache-2.0)
-├── ENGINE_PIN                          (the pinned vouchfx engine commit SHA)
-├── docs/
-│   ├── RUNNING.md                      (prerequisites, quick start, reading results)
-│   └── ...                             (other documentation)
-├── scripts/
-│   ├── bootstrap.sh / bootstrap.ps1    (fetch and build the pinned engine)
-│   ├── run-sample.sh / run-sample.ps1  (build a sample's image and run its suite)
-│   └── ...
-├── samples/
-│   ├── orders-dotnet/
-│   │   ├── app/                        (Dockerfile + ASP.NET Core service)
-│   │   ├── tests/orders.e2e.yaml       (the test suite)
-│   │   └── README.md                   (sample documentation)
-│   ├── inventory-python/
-│   │   ├── app/                        (Dockerfile + FastAPI service)
-│   │   ├── tests/inventory.e2e.yaml    (the test suite)
-│   │   └── README.md                   (sample documentation)
-│   ├── payments-java/
-│   │   ├── app/                        (Dockerfile + Spring Boot service)
-│   │   ├── tests/payments.e2e.yaml     (the test suite)
-│   │   └── README.md                   (sample documentation)
-│   ├── ledger-jsonrpc/
-│   │   ├── app/                        (Dockerfile + Node.js service, dual-role)
-│   │   ├── runner/                     (custom runner for Community providers)
-│   │   ├── tests/ledger.e2e.yaml       (the test suite)
-│   │   └── README.md                   (sample documentation)
-│   └── ...
-├── out/                                (test results: HTML, JUnit XML)
-│   └── (generated after running samples)
-└── .vouchfx-src/                       (pinned engine source, created by bootstrap.sh)
-    └── (generated, not committed)
+|-- README.md                           (this file)
+|-- CONTRIBUTING.md                     (how to add a new sample)
+|-- LICENSE                             (Apache-2.0)
+|-- ENGINE_PIN                          (the pinned vouchfx engine commit SHA)
+|-- docs/
+|   |-- RUNNING.md                      (prerequisites, quick start, reading results)
+|   `-- ...                             (other documentation)
+|-- scripts/
+|   |-- bootstrap.sh / bootstrap.ps1    (fetch and build the pinned engine)
+|   |-- run-sample.sh / run-sample.ps1  (build a sample's image and run its suite)
+|   `-- ...
+|-- samples/
+|   |-- orders-dotnet/
+|   |   |-- app/                        (Dockerfile + ASP.NET Core service)
+|   |   |-- tests/orders.e2e.yaml       (the test suite)
+|   |   `-- README.md                   (sample documentation)
+|   |-- inventory-python/
+|   |   |-- app/                        (Dockerfile + FastAPI service)
+|   |   |-- tests/inventory.e2e.yaml    (the test suite)
+|   |   `-- README.md                   (sample documentation)
+|   |-- payments-java/
+|   |   |-- app/                        (Dockerfile + Spring Boot service)
+|   |   |-- tests/payments.e2e.yaml     (the test suite)
+|   |   `-- README.md                   (sample documentation)
+|   |-- ledger-jsonrpc/
+|   |   |-- app/                        (Dockerfile + Node.js service, dual-role)
+|   |   |-- runner/                     (custom runner for Community providers)
+|   |   |-- tests/ledger.e2e.yaml       (the test suite)
+|   |   `-- README.md                   (sample documentation)
+|   `-- ...
+|-- out/                                (test results: HTML, JUnit XML)
+|   `-- (generated after running samples)
+`-- .vouchfx-src/                       (pinned engine source, created by bootstrap.sh)
+    `-- (generated, not committed)
 ```
 
 ## Key Documents
