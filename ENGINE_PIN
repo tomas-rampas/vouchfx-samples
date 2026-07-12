@@ -1,4 +1,4 @@
-072acf57d27e941d138bd25b95baded8099ab29a
+fb500bdeb93613fd54482626f2ee2c9328a5a859
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -71,14 +71,23 @@
 #
 # Role decision (2026-07-08): the vouchfx engine published v1.0.0-alpha
 # pre-releases to NuGet.org and GitHub. This file's role *deliberately* remains
-# "commit to build from source" — the packaged CLI embeds an absolute DCP
-# binary path resolved at NuGet-cache-time, so it only runs on machines with
+# "commit to build from source" — the packaged CLI embedded an absolute DCP
+# binary path resolved at NuGet-cache-time, so it only ran on machines with
 # a matching aspire.hosting.orchestration version already installed. Building
 # from source here ensures every CI run is self-sufficient and reproducible.
 # Revisit this decision at v1.0.0 GA when DCP portability is confirmed stable.
 #
+# Update (2026-07-12): v1.0.0-alpha.6 (engine PR #206) fixed the DCP path
+# issue — the packaged tool now resolves DCP from the executing machine's
+# NuGet cache. Confirmed at samples level: the three stock-CLI samples pass
+# under the packaged `vouchfx` 1.0.0-alpha.6 global tool. The source-build
+# decision stands unchanged (reproducibility of the pinned commit) until the
+# GA revisit above; the portability blocker is no longer part of the reason.
+#
 # Pin history
 # ------------
+# 2026-07-12: advanced to fb500bde — the v1.0.0-alpha.6 tag commit — packaged-tool DCP portability fix (engine PR #206).
+# Prior pin: 072acf57.
 # 2026-07-11: advanced to 072acf57 — script.csharp file field (engine PR #194) so the ledger-jsonrpc sample's file: step validates.
 # Prior pin: a24a3f5b.
 # 2026-07-10: advanced to a24a3f5b — the engine's v1.0.0-alpha.4 tag commit,
