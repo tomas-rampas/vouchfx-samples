@@ -29,23 +29,21 @@ that only speaks HTTP — cannot see any of that. This sample exists to prove vo
 ## Architecture
 
 ```mermaid
-flowchart TB
-    Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
-    Suite["vouchfx suite<br/>(compiled CSX)"]
-    
-    Orchestration -->|"starts / health-gates"| Suite
-    
-    Suite -->|"1. POST /payments<br/>{orderId, amount,<br/>customerEmail}"| API["<b>payments-api</b><br/>(this sample's app)"]
-    API -->|"201 {id, orderId,<br/>amount, status}"| Suite
-    
-    API -->|"2. INSERT INTO payments (…)"| DB["<b>SQL Server</b><br/>(paydb)<br/>payments table"]
-    Suite -->|"2. db-assert.sqlserver"| DB
-    
-    Suite -->|"3. mq-expect.nats<br/>(RETRY)"| NATS["<b>NATS JetStream</b><br/>payments.authorised<br/>stream: PAYMENTS_AUTHORISED"]
-    API -->|"3. JetStream publish (app)"| NATS
-    
-    Suite -->|"4. mail-expect.smtp<br/>(RETRY)"| Mail["<b>Mailpit</b><br/>(SMTP capture)"]
-    API -->|"4. SMTP send (app)"| Mail
+sequenceDiagram
+    participant Suite as vouchfx suite<br/>(compiled CSX)
+    participant API as payments-api<br/>(this sample's app)
+    participant DB as SQL Server<br/>(paydb, payments table)
+    participant NATS as NATS JetStream<br/>(payments.authorised,<br/>stream PAYMENTS_AUTHORISED)
+    participant Mail as Mailpit<br/>(SMTP capture)
+    Note over Suite,API: the Aspire topology is started and health-gated before step 1
+    Suite->>API: 1. POST /payments {orderId, amount, customerEmail}
+    API->>DB: INSERT INTO payments (…)
+    API-->>Suite: 201 {id, orderId, amount, status}
+    Suite->>DB: 2. db-assert.sqlserver — the row exists
+    API--)NATS: JetStream publish (app)
+    Suite->>NATS: 3. mq-expect.nats (RETRY)
+    API--)Mail: SMTP send (app)
+    Suite->>Mail: 4. mail-expect.smtp (RETRY)
 ```
 
 `payments-api` runs as an ordinary container (`environment.services.payments-api`); SQL Server,

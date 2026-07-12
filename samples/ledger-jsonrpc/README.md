@@ -40,37 +40,27 @@ the whole story end-to-end.
 ## Architecture
 
 ```mermaid
-flowchart TB
-    Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
-    Suite["vouchfx suite (CSX)<br/>via LedgerRunner"]
-    
-    Orchestration -->|"starts / health-gates"| Suite
-    
-    LedgerApi["<b>ledger-api</b><br/>(Node.js, ROLE=api)<br/>● JSON-RPC 2.0<br/>● Publishes ledger-events<br/>(Kafka)"]
-    LedgerWorker["<b>ledger-worker</b><br/>(Node.js, ROLE=worker)<br/>● Consumes ledger-adjustments<br/>● Applies transaction"]
-    Postgres["<b>Postgres</b><br/>accounts<br/>adjustments tables"]
-    Kafka["<b>Kafka</b><br/>ledger-events topic<br/>ledger-adjustments topic"]
-    
-    Suite -->|"2. JSON-RPC<br/>createAccount"| LedgerApi
-    LedgerApi -->|"INSERT account<br/>(balance 0)"| Postgres
-    
-    Suite -->|"3. JSON-RPC<br/>deposit"| LedgerApi
-    LedgerApi -->|"4. UPDATE balance<br/>(+500)"| Postgres
-    Suite -->|"4. db-assert.postgres<br/>(balance=500)"| Postgres
-    LedgerApi -->|"5. Publishes deposit event"| Kafka
-    Suite -->|"5. mq-expect.kafka<br/>(RETRY)"| Kafka
-    
-    Suite -->|"6. JSON-RPC<br/>withdraw<br/>(expect error)"| LedgerApi
-    
-    Suite -->|"7. mq-publish.kafka<br/>(inject chargeback)"| Kafka
-    Kafka -->|"ledger-adjustments"| LedgerWorker
-    
-    Suite -->|"8. db-assert.postgres<br/>(RETRY)<br/>(balance=475)"| Postgres
-    LedgerWorker -->|"8. Applies adjustment"| Postgres
-    
-    Suite -->|"9. JSON-RPC<br/>getAccount"| LedgerApi
-    
-    Suite -->|"10. script.csharp<br/>(assert invariant)"| Suite
+sequenceDiagram
+    participant Suite as vouchfx suite (CSX)<br/>via LedgerRunner
+    participant API as ledger-api<br/>(Node.js, ROLE=api)
+    participant Kafka as Kafka<br/>(ledger-events +<br/>ledger-adjustments)
+    participant Worker as ledger-worker<br/>(Node.js, ROLE=worker)
+    participant PG as Postgres<br/>(accounts + adjustments)
+    Note over Suite,API: the Aspire topology is started and health-gated<br/>(step 1 bridges the ledger URL via script.csharp)
+    Suite->>API: 2. JSON-RPC createAccount
+    API->>PG: INSERT account (balance 0)
+    Suite->>API: 3. JSON-RPC deposit (+500)
+    API->>PG: UPDATE balance (+500)
+    API--)Kafka: publish deposit event (ledger-events)
+    Suite->>PG: 4. db-assert.postgres — balance = 500
+    Suite->>Kafka: 5. mq-expect.kafka (RETRY) — the deposit event
+    Suite->>API: 6. JSON-RPC withdraw (expect error — insufficient funds)
+    Suite--)Kafka: 7. mq-publish.kafka — inject a chargeback (ledger-adjustments)
+    Kafka--)Worker: ledger-adjustments delivery
+    Worker->>PG: apply the chargeback adjustment
+    Suite->>PG: 8. db-assert.postgres (RETRY) — balance = 475
+    Suite->>API: 9. JSON-RPC getAccount
+    Suite->>Suite: 10. script.csharp — assert the arithmetic invariant
 ```
 
 Both `ledger-api` and `ledger-worker` run as ordinary containers (`environment.services`);
