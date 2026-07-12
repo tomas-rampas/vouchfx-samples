@@ -34,9 +34,9 @@ sequenceDiagram
     Note over Suite,API: the Aspire topology is started and health-gated before step 1
     Suite->>API: 1. POST /orders {sku, quantity, callbackUrl}
     API->>DB: INSERT INTO orders (…)
+    API->>MQ: produce order-event (awaits delivery, bounded)
     API-->>Suite: 201 {id, sku, quantity, status}
     Suite->>DB: 2. db-assert.postgres — the row exists
-    API--)MQ: produce order-event (app)
     Suite->>MQ: 3. mq-expect.kafka (RETRY)
     API--)WH: POST callbacks/{id} (app, background)
     Suite->>WH: 4. webhook-listen.http (RETRY)
