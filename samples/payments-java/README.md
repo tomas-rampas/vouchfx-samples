@@ -28,38 +28,24 @@ that only speaks HTTP — cannot see any of that. This sample exists to prove vo
 
 ## Architecture
 
-```
-                                    ┌───────────────────────────────┐
-                                    │     vouchfx orchestration      │
-                                    │     (.NET Aspire topology)     │
-                                    └───────────────┬─────────────────┘
-                                                    │ starts / health-gates
-                                                    ▼
- ┌───────────────┐   1. POST /payments    ┌──────────────────────┐
- │ vouchfx        │ ─────────────────────▶│    payments-api        │
- │ compiled       │   {orderId, amount,   │  (this sample's app)   │
- │ suite (CSX)    │    customerEmail}     └───────────┬─────────────┘
- │                │                                   │
- │                │   201 {id, orderId,               │ 2. INSERT INTO payments (…)
- │                │◀── amount, status}                 ▼
- │                │                          ┌──────────────────────┐
- │                │                          │      SQL Server         │
- │                │   2. db-assert.sqlserver │      (paydbdb)          │
- │                │─────────────────────────▶│    payments table       │
- │                │                          └──────────────────────┘
- │                │
- │                │                          ┌──────────────────────┐
- │                │   3. mq-expect.nats      │   NATS JetStream         │
- │                │─────────────────────────▶│  payments.authorised    │◀── 3. JetStream
- │                │        (RETRY)           │  stream: PAYMENTS_       │    publish (app)
- │                │                          │  AUTHORISED              │
- │                │                          └──────────────────────┘
- │                │
- │                │                          ┌──────────────────────┐
- │                │   4. mail-expect.smtp    │        Mailpit           │
- │                │─────────────────────────▶│    (SMTP capture)        │◀── 4. SMTP send
- │                │        (RETRY)           └──────────────────────┘        (app)
- └───────────────┘
+```mermaid
+flowchart TB
+    Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
+    Suite["vouchfx suite<br/>(compiled CSX)"]
+    
+    Orchestration -->|starts / health-gates| Suite
+    
+    Suite -->|"1. POST /payments<br/>{orderId, amount,<br/>customerEmail}"| API["<b>payments-api</b><br/>(this sample's app)"]
+    API -->|"201 {id, orderId,<br/>amount, status}"| Suite
+    
+    API -->|"2. INSERT INTO payments (…)"| DB["<b>SQL Server</b><br/>(paydbdb)<br/>payments table"]
+    Suite -->|"2. db-assert.sqlserver"| DB
+    
+    Suite -->|"3. mq-expect.nats<br/>(RETRY)"| NATS["<b>NATS JetStream</b><br/>payments.authorised<br/>stream: PAYMENTS_AUTHORISED"]
+    API -->|"3. JetStream publish (app)"| NATS
+    
+    Suite -->|"4. mail-expect.smtp<br/>(RETRY)"| Mail["<b>Mailpit</b><br/>(SMTP capture)"]
+    API -->|"4. SMTP send (app)"| Mail
 ```
 
 `payments-api` runs as an ordinary container (`environment.services.payments-api`); SQL Server,

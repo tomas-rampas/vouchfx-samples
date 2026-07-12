@@ -24,37 +24,23 @@ end to end.
 
 ## Architecture
 
-```
-                         ┌─────────────────────────┐
-  vouchfx suite          │   inventory-api (8080)  │
-  (tests/inventory.      │   Python 3.12 / FastAPI │
-   e2e.yaml)             │                         │
-       │                 │  GET  /                 │
-       │  1. POST/GET    │  POST /items             │
-       └────────────────►│  GET  /items/{sku}       │
-                          └──────┬───────┬──────┬────┘
-                                 │       │      │
-                     upsert row  │       │      │ publish
-                                 ▼       │      ▼ "stock-changed"
-                          ┌──────────┐  │  ┌──────────────┐
-                          │  MySQL   │  │  │  RabbitMQ    │
-                          │  invdb   │  │  │  stock-events│
-                          │  items   │  │  │  (durable)   │
-                          └────┬─────┘  │  └──────┬───────┘
-                               │        │         │
-                    2. db-assert.mysql  │  4. mq-expect.rabbitmq
-                        (row exists)    │      (event matched)
-                                        ▼
-                                 ┌─────────────┐
-                                 │    Redis    │
-                                 │  item:<sku> │
-                                 └──────┬──────┘
-                                        │
-                          3. cache-assert.redis (key exists)
-                                        │
-                          5. GET /items/{sku} — 200, served
-                             from this same cache entry
-                             (read-through proof)
+```mermaid
+flowchart TB
+    Suite["vouchfx suite<br/>(tests/inventory.e2e.yaml)"]
+    API["<b>inventory-api (8080)</b><br/>Python 3.12 / FastAPI<br/><br/>GET  /<br/>POST /items<br/>GET  /items/{sku}"]
+    
+    Suite -->|"1. POST/GET"| API
+    
+    API -->|"upsert row"| MySQL["<b>MySQL</b><br/>invdb<br/>items table"]
+    Suite -->|"2. db-assert.mysql<br/>(row exists)"| MySQL
+    
+    API -->|"cache write"| Redis["<b>Redis</b><br/>item:&lt;sku&gt;"]
+    Suite -->|"3. cache-assert.redis<br/>(key exists)"| Redis
+    
+    API -->|"publish<br/>stock-changed"| RabbitMQ["<b>RabbitMQ</b><br/>stock-events<br/>(durable)"]
+    Suite -->|"4. mq-expect.rabbitmq<br/>(event matched)"| RabbitMQ
+    
+    Suite -->|"5. GET /items/{sku}<br/>— 200, served from cache<br/>(read-through proof)"| API
 ```
 
 The suite itself never talks to MySQL/Redis/RabbitMQ directly except through

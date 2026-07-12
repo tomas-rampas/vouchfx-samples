@@ -24,39 +24,26 @@ speaks HTTP — cannot see any of that. This sample exists to prove vouchfx can:
 
 ## Architecture
 
-```
-                                   ┌─────────────────────────────┐
-                                   │   vouchfx orchestration      │
-                                   │   (.NET Aspire topology)     │
-                                   └──────────────┬────────────────┘
-                                                  │ starts / health-gates
-                                                  ▼
- ┌──────────────┐   1. POST /orders    ┌───────────────────┐
- │ vouchfx       │ ───────────────────▶│   orders-api        │
- │ compiled      │   {sku, quantity,    │ (this sample's app)│
- │ suite (CSX)   │    callbackUrl}      └─────────┬──────────┘
- │               │                                │
- │               │   201 {id, sku,                │ 2. INSERT INTO orders (…)
- │               │◀── quantity, status}            ▼
- │               │                       ┌───────────────────┐
- │               │                       │     Postgres        │
- │               │   2. db-assert.postgres│  (ordersdb)         │
- │               │──────────────────────▶│  orders table       │
- │               │                       └───────────────────┘
- │               │
- │               │                       ┌───────────────────┐
- │               │   3. mq-expect.kafka  │      Kafka           │
- │               │──────────────────────▶│  order-events topic │◀── 3. produce (app)
- │               │      (RETRY)          └───────────────────┘
- │               │
- │               │                       ┌───────────────────┐
- │               │   4. webhook-listen   │  host-owned listener│◀── 4. POST callbacks/{id}
- │               │◀─────────────────────│  (listener: cb)      │      (app, background)
- │               │      (RETRY)          └───────────────────┘
- │               │
- │               │   5. GET /orders/{id} (optional final sanity check)
- │               │──────────────────────▶ orders-api
- └──────────────┘
+```mermaid
+flowchart TB
+    Orchestration["<b>vouchfx orchestration</b><br/>(.NET Aspire topology)"]
+    SuiteStart["vouchfx suite<br/>(compiled CSX)"]
+    
+    Orchestration -->|starts / health-gates| SuiteStart
+    
+    SuiteStart -->|"1. POST /orders<br/>{sku, quantity, callbackUrl}"| API["<b>orders-api</b><br/>(this sample's app)"]
+    API -->|"201 {id, sku,<br/>quantity, status}"| SuiteStart
+    
+    API -->|"2. INSERT INTO orders (…)"| DB["<b>Postgres</b><br/>(ordersdb)<br/>orders table"]
+    SuiteStart -->|"2. db-assert.postgres"| DB
+    
+    SuiteStart -->|"3. mq-expect.kafka<br/>(RETRY)"| MQ["<b>Kafka</b><br/>order-events topic"]
+    API -->|"3. produce (app)"| MQ
+    
+    SuiteStart -->|"4. webhook-listen<br/>(RETRY)"| Webhook["<b>host-owned listener</b><br/>(listener: cb)"]
+    Webhook -->|"4. POST callbacks/{id}<br/>(app, background)"| SuiteStart
+    
+    SuiteStart -->|"5. GET /orders/{id}<br/>(optional final sanity check)"| API
 ```
 
 `orders-api` runs as an ordinary container (`environment.services.orders-api`); Postgres and
