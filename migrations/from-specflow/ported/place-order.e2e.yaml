@@ -1,0 +1,119 @@
+# migrations/from-specflow/ported/place-order.e2e.yaml
+#
+# Ported from ../source/Orders.Specs/PlaceOrder.feature + PlaceOrderSteps.cs — a SpecFlow
+# scenario whose Given/When/Then narrative places an order and then checks it was confirmed,
+# persisted, published as an event, and called back out over a webhook. See ../README.md for
+# the full mapping and an account of what does not carry over.
+#
+# RE-AUTHORED, NOT AUTO-CONVERTED: this suite was written by hand against the vouchfx DSL,
+# reading the feature file's Given/When/Then lines as a specification of INTENT. Every
+# hand-rolled orchestration technique in PlaceOrderSteps.cs (the [BeforeScenario] cleanup,
+# the Kafka poll loop, the hand-rolled CallbackListener) is re-expressed as a first-class
+# engine feature instead of test-author infrastructure code.
+
+metadata:
+  name: place-order
+  owner: samples
+  tags: [migrations, samples, dotnet, specflow, postgres, kafka, webhook]
+  description: >-
+    Ported from Orders.Specs/PlaceOrder.feature: placing a valid order confirms it,
+    persists it, publishes an order-placed event, and notifies the caller-supplied
+    webhook — one Given/When/Then narrative across REST + Postgres + Kafka + webhook.
+
+environment:
+  services:
+    orders-api:
+      image: vouchfx-samples-orders-dotnet:local
+      httpPort: 8080
+      env:
+        ConnectionStrings__orders: "${conn:ordersdb}"
+        KAFKA_BOOTSTRAP: "${conn:broker}"
+
+  dependencies:
+    ordersdb:
+      type: postgres
+    broker:
+      type: kafka
+
+  # ── Background: "the orders service has no existing order for sku WIDGET-SPEC-1" ──────
+  # The declarative replacement for PlaceOrderSteps.ResetFixturesAsync, a [BeforeScenario]
+  # hook that hand-rolled the identical DELETE. Applied AFTER the whole topology — including
+  # orders-api's own health gate, which only turns green once its table exists — is healthy,
+  # and BEFORE step 1 runs, so the DELETE always targets a table that is already there.
+  seed:
+    ordersdb:
+      sql: ["fixtures/reset-sku.sql"]
+
+steps:
+  # ── When: "the customer places the order" ──────────────────────────────────────────────
+  # {cb_container} is the webhook-listen.http listener 'cb' declared by the last step below,
+  # resolved to its container-reachable form — the declarative replacement for
+  # PlaceOrderSteps's hand-rolled CallbackListener (bind a port, reserve a URL ACL, compute
+  # host.docker.internal, tear it down again). This single step also covers the feature's
+  # very next line, "Then the order is confirmed" — the HTTP response IS both the action and
+  # its own immediate assertion, so there is no separate step for it here (see ../README.md).
+  - id: place-order
+    type: http.rest
+    description: >-
+      When the customer places the order / Then the order is confirmed — the response's
+      201 covers both feature lines in one call.
+    target: orders-api
+    method: POST
+    path: /orders
+    body:
+      sku: WIDGET-SPEC-1
+      quantity: 2
+      callbackUrl: "{cb_container}"
+    expect:
+      status: 201
+    capture:
+      orderId: "$.id"
+
+  # ── Then: "the order is persisted with status CONFIRMED" ──────────────────────────────
+  # @id::uuid: db-assert.postgres always binds parameter VALUES as Npgsql string parameters
+  # (see samples/orders-dotnet/tests/orders.e2e.yaml for the full explanation) — the
+  # replacement for PlaceOrderSteps.ThenTheOrderIsPersistedWithStatus's hand-rolled
+  # NpgsqlCommand/ExecuteScalarAsync call.
+  - id: assert-order-row
+    type: db-assert.postgres
+    description: "Then the order is persisted with status CONFIRMED."
+    target: ordersdb
+    query: >-
+      SELECT sku, status FROM orders WHERE id = @id::uuid
+    parameters:
+      id: "{orderId}"
+    expect:
+      rowCount: 1
+      row:
+        sku: WIDGET-SPEC-1
+        status: CONFIRMED
+
+  # ── Then: "an order-placed event is published to the order-events topic" ──────────────
+  # verifyMode: RETRY replaces PlaceOrderSteps.ThenAnOrderPlacedEventIsPublished's hand-
+  # rolled ConsumerBuilder + while-loop + Task.Delay poll — engine-owned polling with
+  # bounded backoff, no author-managed consumer group or deadline.
+  - id: assert-order-event
+    type: mq-expect.kafka
+    description: "Then an order-placed event is published to the order-events topic."
+    target: broker
+    topic: order-events
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      json:
+        "$.id": "{orderId}"
+
+  # ── Then: "the customer's callback URL receives a confirmation webhook" ───────────────
+  # 'cb' is the SAME listener name referenced by {cb_container} in place-order — the engine
+  # stands the listener up before step 1 runs. This one step replaces the entire
+  # CallbackListener class (HttpListener binding, URL ACL reservation, TaskCompletionSource
+  # signalling, teardown).
+  - id: assert-webhook-callback
+    type: webhook-listen.http
+    description: "Then the customer's callback URL receives a confirmation webhook."
+    listener: cb
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      method: POST
+      path: "/callbacks/{orderId}"

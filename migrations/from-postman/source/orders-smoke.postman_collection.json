@@ -1,0 +1,117 @@
+{
+  "info": {
+    "_postman_id": "3f2e9b1a-6f2b-4d8e-9c9c-9a1b6a6f0f11",
+    "name": "Orders API - smoke",
+    "description": "Smoke-tests the orders-dotnet sample's public HTTP surface: place an order, then fetch it back by id. Two requests, chained through a collection variable, the way a team actually keeps one of these around for manual/CI smoke checks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Place order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test(\"Response has an order id\", function () {",
+              "    const json = pm.response.json();",
+              "    pm.expect(json.id).to.be.a(\"string\").and.to.have.length.above(0);",
+              "    pm.collectionVariables.set(\"orderId\", json.id);",
+              "});",
+              "",
+              "pm.test(\"sku matches the request\", function () {",
+              "    pm.expect(pm.response.json().sku).to.eql(\"WIDGET-1\");",
+              "});",
+              "",
+              "pm.test(\"status is CONFIRMED\", function () {",
+              "    pm.expect(pm.response.json().status).to.eql(\"CONFIRMED\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Api-Key",
+            "value": "{{apiKey}}",
+            "description": "Forwarded to the gateway/proxy in front of a real deployment; this sample's app does not itself validate it."
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sku\": \"WIDGET-1\",\n  \"quantity\": 3\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        },
+        "description": "Places an order for 3 units of WIDGET-1."
+      },
+      "response": []
+    },
+    {
+      "name": "Fetch order by id",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Returned id matches the placed order\", function () {",
+              "    pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"orderId\"));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{orderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{orderId}}"
+          ]
+        },
+        "description": "Re-fetches the order placed by the previous request, chained via the orderId collection variable it set."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

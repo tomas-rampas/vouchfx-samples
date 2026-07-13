@@ -1,0 +1,110 @@
+# migrations/from-postman/ported/orders-smoke.e2e.yaml
+#
+# Ported from ../source/orders-smoke.postman_collection.json — a genuine two-request Postman
+# smoke collection (POST /orders, then GET /orders/{{orderId}}) exercising the same
+# samples/orders-dotnet/app used by ../../../samples/orders-dotnet/tests/orders.e2e.yaml.
+#
+# See ../README.md for the field-by-field mapping table and an honest account of what a
+# Postman collection can express that this suite cannot say declaratively.
+#
+# RE-AUTHORED, NOT AUTO-CONVERTED: every step below was written by hand against the vouchfx
+# DSL, reading the Postman collection as a specification of INTENT — which requests, in
+# which order, asserting what — not as source text to transliterate.
+
+metadata:
+  name: orders-smoke
+  owner: samples
+  tags: [migrations, samples, dotnet, postman, http]
+  description: >-
+    Ported from a Postman smoke collection: place an order over REST, then fetch it back,
+    asserting the same status codes and body fields the original pm.test scripts checked.
+
+environment:
+  services:
+    orders-api:
+      image: vouchfx-samples-orders-dotnet:local
+      httpPort: 8080
+      env:
+        ConnectionStrings__orders: "${conn:ordersdb}"
+        KAFKA_BOOTSTRAP: "${conn:broker}"
+
+  dependencies:
+    # Postgres and Kafka are wired up only because Orders.Api requires both connection
+    # strings to start (see app/Program.cs) — the Postman collection never asserts against
+    # either directly, and neither does this suite. Keep the topology to what the app needs
+    # to boot, nothing more.
+    ordersdb:
+      type: postgres
+    broker:
+      type: kafka
+
+steps:
+  # ── "Place order" request (POST /orders) ──────────────────────────────────────────────
+  # The X-Api-Key header mirrors the Postman collection's {{apiKey}} environment variable
+  # (marked "secret" type there). Here it is resolved from the run environment at
+  # step-execution time via ${secret:...} and never baked into the compiled suite (§17) —
+  # scripts/run-migrations.* sets VOUCHFX_SAMPLES_ORDERS_API_KEY before invoking the CLI.
+  # This sample's app does not itself validate the header; it stands in for a real
+  # deployment's API gateway / auth proxy, which vouchfx sees as an opaque header
+  # requirement regardless of what enforces it.
+  - id: place-order
+    type: http.rest
+    description: >-
+      Place order — the collection's first request. expect.status is the direct
+      equivalent of pm.test("Status code is 201", ...); capture is the equivalent of
+      pm.collectionVariables.set("orderId", pm.response.json().id).
+    target: orders-api
+    method: POST
+    path: /orders
+    headers:
+      X-Api-Key: "${secret:env/VOUCHFX_SAMPLES_ORDERS_API_KEY}"
+    body:
+      sku: WIDGET-1
+      quantity: 3
+    expect:
+      status: 201
+    capture:
+      orderId: "$.id"
+      placedSku: "$.sku"
+      placedStatus: "$.status"
+
+  # ── The rest of "Place order"'s test script: deep JSON-body assertions ────────────────
+  # http.rest's 'expect' block supports ONLY a status-code check (see ../README.md) — there
+  # is no declarative "assert this JSON field equals that value" block for an HTTP response.
+  # script.csharp is the escape hatch: the two checks below are exactly what
+  # pm.expect(pm.response.json().sku).to.eql("WIDGET-1") (and the 'status' equivalent) did
+  # in the original collection, re-expressed as a trusted, unsandboxed C# body (§13) that
+  # reads the values place-order already captured.
+  - id: assert-place-order-fields
+    type: script.csharp
+    description: "Then the placed order has sku WIDGET-1 and status CONFIRMED (pm.test body assertions)."
+    code: |
+      var sku = (string)Vars["placedSku"];
+      var status = (string)Vars["placedStatus"];
+      if (sku != "WIDGET-1")
+        throw new System.Exception("Expected sku 'WIDGET-1', got '" + sku + "'.");
+      if (status != "CONFIRMED")
+        throw new System.Exception("Expected status 'CONFIRMED', got '" + status + "'.");
+
+  # ── "Fetch order by id" request (GET /orders/{{orderId}}) ─────────────────────────────
+  # {orderId} is the same placeholder-substitution mechanism as {{orderId}} in Postman —
+  # collection-variable chaining becomes capture + {placeholder}, resolved at execution time.
+  - id: fetch-order
+    type: http.rest
+    description: "Fetch order by id — chained on {orderId} captured above, exactly like {{orderId}} in the original collection."
+    target: orders-api
+    method: GET
+    path: "/orders/{orderId}"
+    expect:
+      status: 200
+    capture:
+      fetchedId: "$.id"
+
+  - id: assert-fetch-order-fields
+    type: script.csharp
+    description: "Then the returned id matches the placed order (pm.test body assertion)."
+    code: |
+      var fetchedId = (string)Vars["fetchedId"];
+      var orderId = (string)Vars["orderId"];
+      if (fetchedId != orderId)
+        throw new System.Exception("Expected fetched id '" + orderId + "', got '" + fetchedId + "'.");
