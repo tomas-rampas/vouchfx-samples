@@ -85,6 +85,7 @@ DOCS: list[tuple[str, str, str]] = [
     # Start
     ("docs/RUNNING.md", "Start", "Running the samples"),
     ("docs/custom-runner.md", "Start", "The custom-runner recipe"),
+    ("docs/migrating.md", "Start", "Migrating to vouchfx"),
 
     # Samples
     ("samples/orders-dotnet/README.md", "Samples", "Orders · C# + ASP.NET"),
@@ -156,7 +157,7 @@ PORTAL = """<!DOCTYPE html>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Documentation · vouchfx samples</title>
-<meta name="description" content="vouchfx samples documentation — running the samples, the custom-runner recipe, and every sample's worked-example README." />
+<meta name="description" content="vouchfx samples documentation — running the samples, the custom-runner recipe, migrating an existing test suite, and every sample's worked-example README." />
 <meta name="theme-color" content="#0b0f1a" />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="styles.css" />
@@ -196,6 +197,10 @@ PORTAL = """<!DOCTYPE html>
       <a class="doc-card" href="docs/custom-runner.html">
         <span class="doc-card__k">2 · RECIPE</span><h3>The custom-runner recipe</h3>
         <p>How to consume a Community-tier provider today: build a thin executable over the engine's public SDK, referencing exactly the providers you need.</p>
+      </a>
+      <a class="doc-card" href="docs/migrating.html">
+        <span class="doc-card__k">3 · GUIDE</span><h3>Migrating to vouchfx</h3>
+        <p>Three worked examples — Postman, xUnit, SpecFlow — each re-authored (not auto-converted) onto the orders-dotnet sample, with a field-by-field mapping table and an honest account of what doesn't map.</p>
       </a>
     </div>
   </section>

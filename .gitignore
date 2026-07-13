@@ -5,6 +5,10 @@
 ## .NET build output (orders-dotnet, and the vendored engine checkout)
 bin/
 obj/
+
+## SpecFlow's MSBuild code-behind generator writes this next to each .feature
+## file (migrations/from-specflow) — regenerated on every build, never source.
+*.feature.cs
 [Dd]ebug/
 [Rr]elease/
 artifacts/

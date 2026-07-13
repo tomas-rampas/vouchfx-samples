@@ -1,0 +1,86 @@
+# migrations/from-xunit/ported/orders-integration.e2e.yaml
+#
+# Ported from ../source/OrdersApi.IntegrationTests/OrderPlacementTests.cs — a single xUnit
+# [Fact] that places an order, then hand-rolls three different verification techniques
+# (a plain HttpClient assertion, a direct Npgsql query, and a Task.Delay poll loop against
+# Kafka) to prove the same thing this suite proves declaratively. See ../README.md.
+#
+# RE-AUTHORED, NOT AUTO-CONVERTED: every hand-rolled assertion technique in the original
+# test (the Npgsql query, the Kafka consumer poll loop) is re-expressed as a first-class
+# vouchfx step family instead of test-author infrastructure code.
+
+metadata:
+  name: orders-integration
+  owner: samples
+  tags: [migrations, samples, dotnet, xunit, postgres, kafka]
+  description: >-
+    Ported from OrdersApi.IntegrationTests.PlaceOrder_PersistsRowAndPublishesEvent: place an
+    order, then confirm the Postgres row and the order-events Kafka message, with no
+    author-written polling loop.
+
+environment:
+  services:
+    orders-api:
+      image: vouchfx-samples-orders-dotnet:local
+      httpPort: 8080
+      env:
+        ConnectionStrings__orders: "${conn:ordersdb}"
+        KAFKA_BOOTSTRAP: "${conn:broker}"
+
+  dependencies:
+    ordersdb:
+      type: postgres
+    broker:
+      type: kafka
+
+steps:
+  # ── [Fact] act: HttpClient.PostAsJsonAsync("/orders", ...) + the immediate assertions ──
+  - id: place-order
+    type: http.rest
+    description: "Place the order over plain HTTP — equivalent to the [Fact]'s HttpClient.PostAsJsonAsync call."
+    target: orders-api
+    method: POST
+    path: /orders
+    body:
+      sku: WIDGET-1
+      quantity: 3
+    expect:
+      status: 201
+    capture:
+      orderId: "$.id"
+
+  # ── Assert.Equal(...) against a hand-rolled NpgsqlConnection/NpgsqlCommand/reader ─────
+  # @id::uuid: db-assert.postgres always binds parameter VALUES as Npgsql string parameters
+  # (see samples/orders-dotnet/tests/orders.e2e.yaml for the full explanation of this
+  # idiom) — the original test's own ADO.NET call needed no equivalent cast, because it
+  # passed a C# Guid straight into AddWithValue and Npgsql inferred the parameter type.
+  - id: assert-order-row
+    type: db-assert.postgres
+    description: >-
+      The order row landed in Postgres — equivalent to the [Fact]'s own NpgsqlConnection /
+      NpgsqlCommand / NpgsqlDataReader block and its two Assert.Equal calls.
+    target: ordersdb
+    query: >-
+      SELECT sku, status FROM orders WHERE id = @id::uuid
+    parameters:
+      id: "{orderId}"
+    expect:
+      rowCount: 1
+      row:
+        sku: WIDGET-1
+        status: CONFIRMED
+
+  # ── The hand-rolled ConsumerBuilder + while-loop + Task.Delay poll, replaced ──────────
+  # verifyMode: RETRY is engine-owned polling with bounded backoff — the direct replacement
+  # for the [Fact]'s ~20-line "consume, check, Task.Delay(500ms), repeat until deadline"
+  # block. No author-written sleep, no author-managed consumer group, deadline, or cleanup.
+  - id: assert-order-event
+    type: mq-expect.kafka
+    description: "An order-placed event for {orderId} reached the order-events topic — equivalent to the [Fact]'s manual consumer poll loop."
+    target: broker
+    topic: order-events
+    verifyMode: RETRY
+    timeout: 30s
+    match:
+      json:
+        "$.id": "{orderId}"
