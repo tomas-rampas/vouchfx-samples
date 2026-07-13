@@ -45,6 +45,13 @@ Reports land in `out/`:
 - `out/<sample>-results.xml` — JUnit XML (for IDE/CI test-result integrations)
 - `out/<sample>-report.html` — a self-contained HTML report, open it directly in a browser
 
+The three ported migration suites (see [Migrating to vouchfx](migrating.md)) have their own runner, with the
+same sequential discipline and report conventions (`out/migrations-<name>-*`):
+
+```bash
+./scripts/run-migrations.sh      # or .\scripts\run-migrations.ps1 on Windows
+```
+
 ## What a passing run looks like
 
 vouchfx separates **four** outcomes, not two — this is deliberate and is the single most important thing to understand when reading a result:

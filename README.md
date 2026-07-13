@@ -15,6 +15,8 @@ Each sample is a **real service** (not a toy echo), with its own database, broke
 
 Each sample's `README.md` walks through the transaction, the code, the suite design, and what success looks like.
 
+**Migrating from an existing test estate?** [`migrations/`](migrations/) holds three worked porting examples — a Postman collection, a hand-rolled xUnit integration test, and a SpecFlow feature — each pairing the genuine before-artefact with a runnable `.e2e.yaml` port and a field-by-field mapping table. The guide is published at [Migrating to vouchfx](https://tomas-rampas.github.io/vouchfx-samples/docs/migrating.html); run all three ported suites with `scripts/run-migrations.sh` (or `.ps1`).
+
 ## Quick Start
 
 **Prerequisites:** .NET 8 SDK (8.0.400+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
@@ -91,11 +93,18 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 |-- ENGINE_PIN                          (the pinned vouchfx engine commit SHA)
 |-- docs/
 |   |-- RUNNING.md                      (prerequisites, quick start, reading results)
+|   |-- migrating.md                    (the migration guide: Postman/xUnit/SpecFlow -> vouchfx)
 |   `-- ...                             (other documentation)
 |-- scripts/
 |   |-- bootstrap.sh / bootstrap.ps1    (fetch and build the pinned engine)
 |   |-- run-sample.sh / run-sample.ps1  (build a sample's image and run its suite)
+|   |-- run-migrations.sh / .ps1        (run the three ported migration suites)
 |   `-- ...
+|-- migrations/
+|   |-- from-postman/                   (Postman collection -> .e2e.yaml, source + ported + mapping)
+|   |-- from-xunit/                     (xUnit integration test -> .e2e.yaml)
+|   |-- from-specflow/                  (SpecFlow feature -> .e2e.yaml)
+|   `-- README.md                       (the porting philosophy and how to run them)
 |-- samples/
 |   |-- orders-dotnet/
 |   |   |-- app/                        (Dockerfile + ASP.NET Core service)
@@ -127,6 +136,7 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 - **[`README.md`](README.md)** — overview, catalogue, quick start (you are here)
 - **[`docs/RUNNING.md`](docs/RUNNING.md)** — prerequisites, how to read results, CI notes
+- **[`docs/migrating.md`](docs/migrating.md)** — porting Postman / xUnit / SpecFlow assets onto vouchfx, with the three worked examples in [`migrations/`](migrations/)
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — how to add a new sample, quality bar, DCO sign-off
 - **Per-sample READMEs:**
   - [`samples/orders-dotnet/README.md`](samples/orders-dotnet/README.md) — ASP.NET Core e2e flow, webhook listener design, database assertions
