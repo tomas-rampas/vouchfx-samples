@@ -1,5 +1,9 @@
 # vouchfx-samples
 
+[![Samples CI](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml/badge.svg?branch=main)](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml?query=branch%3Amain)
+[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://tomas-rampas.github.io/vouchfx-samples/)
+[![License](https://img.shields.io/github/license/tomas-rampas/vouchfx-samples)](https://github.com/tomas-rampas/vouchfx-samples/blob/main/LICENSE)
+
 Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx) — the engine that compiles declarative `.e2e.yaml` integration tests into C#, orchestrates your full container topology with .NET Aspire, and proves a distributed system works end-to-end. Clone this repository, run one command, and watch vouchfx test a real polyglot system: REST API calls fanning out into database writes, broker events, cache entries, and outbound webhooks — all in one coherent business-transaction narrative, all proven end-to-end.
 
 ## The Sample Catalogue
