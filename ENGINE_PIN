@@ -1,4 +1,4 @@
-fb500bdeb93613fd54482626f2ee2c9328a5a859
+514f77d20949aada2ae2b811e635c195b2ffec70
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,8 @@ fb500bdeb93613fd54482626f2ee2c9328a5a859
 #
 # Pin history
 # ------------
+# 2026-07-14: advanced to 514f77d2 — the v1.0.0-alpha.7 tag commit — transitive security-dependency pinning and shared site-tools extraction (engine PRs #216, #214).
+# Prior pin: fb500bde.
 # 2026-07-12: advanced to fb500bde — the v1.0.0-alpha.6 tag commit — packaged-tool DCP portability fix (engine PR #206).
 # Prior pin: 072acf57.
 # 2026-07-11: advanced to 072acf57 — script.csharp file field (engine PR #194) so the ledger-jsonrpc sample's file: step validates.
