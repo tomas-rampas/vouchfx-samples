@@ -1,7 +1,14 @@
 # .github/workflows/samples-ci.yml — build + run every sample's .e2e.yaml suite, plus the
 # migrations/ worked examples
 #
-# Triggers: push and pull_request to main, plus manual dispatch.
+# Triggers: push and pull_request to main, plus manual dispatch. Docs-only
+# changes (Markdown anywhere, docs/, site/, LICENSE, .gitignore) skip the
+# whole workflow via paths-ignore (issue #12): the 4-runner Docker matrix
+# costs ~32 runner-minutes per push and proves nothing about prose. The
+# branch ruleset names no required checks, so a skipped run does not wedge
+# merges. Anything that can affect a suite run — samples/, migrations/,
+# scripts/, ENGINE_PIN, global.json, this workflow — still triggers, and
+# workflow_dispatch remains available to force a full run on any ref.
 #
 # Each sample gets its own matrix job (separate runners, so no DCP/port
 # contention between them) that:
@@ -28,9 +35,21 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "site/**"
+      - "LICENSE"
+      - ".gitignore"
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "site/**"
+      - "LICENSE"
+      - ".gitignore"
   workflow_dispatch:
 
 concurrency:
