@@ -5,6 +5,8 @@ pymysql==1.1.1
 # cryptography is required by pymysql for MySQL 8's default caching_sha2_password
 # auth plugin — without it, every connection attempt raises RuntimeError at
 # handshake time (proven by the docker smoke test; see README troubleshooting).
-cryptography==44.0.0
+# 48.0.1 clears Dependabot alerts 1-4 (bundled-OpenSSL advisories, subgroup
+# validation, DNS name-constraint enforcement).
+cryptography==48.0.1
 redis==5.2.1
 pika==1.3.2

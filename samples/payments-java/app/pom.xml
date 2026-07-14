@@ -41,7 +41,7 @@
 
   <properties>
     <java.version>17</java.version>
-    <mssql-jdbc.version>12.10.0.jre11</mssql-jdbc.version>
+    <mssql-jdbc.version>12.10.2.jre11</mssql-jdbc.version>
     <jnats.version>2.25.3</jnats.version>
   </properties>
 
