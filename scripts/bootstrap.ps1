@@ -138,8 +138,12 @@ dotnet build $CliProjectPath -c Release
 Assert-Success "dotnet build failed for $CliProjectPath. See the build output above for details."
 
 Write-BootstrapLog "Bootstrap complete. Engine CLI built from commit $EngineSha."
-# Derive the sample list dynamically (mirroring run-sample.ps1's Get-AvailableSample)
-# so this hint can never drift from the samples the runner actually offers.
-$SampleNames = @(Get-ChildItem -Path (Join-Path $RepoRoot 'samples') -Directory |
-    Select-Object -ExpandProperty Name | Sort-Object)
+# Derive the sample list dynamically (mirroring run-sample.ps1's Get-AvailableSample,
+# including its missing-directory guard — a corrupted checkout must not fail bootstrap
+# after the real work succeeded) so this hint can never drift from the samples the
+# runner actually offers.
+$SamplesDir = Join-Path $RepoRoot 'samples'
+$SampleNames = @(if (Test-Path $SamplesDir) {
+    Get-ChildItem -Path $SamplesDir -Directory | Select-Object -ExpandProperty Name | Sort-Object
+})
 Write-BootstrapLog ("Next: scripts/run-sample.ps1 <{0}|all>" -f ($SampleNames -join '|'))
