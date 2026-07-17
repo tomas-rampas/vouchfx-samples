@@ -10,7 +10,7 @@ Each sample lives under `samples/<name>/` and has exactly three parts:
 2. **`tests/*.e2e.yaml`** — one or more `.e2e.yaml` suites exercising that flow through the vouchfx engine, per the [YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md).
 3. **`README.md`** — what the sample demonstrates, the technology pairing, how to run it standalone, and what a passing run looks like.
 
-A new sample is welcome when it demonstrates a **distinct** technology pairing or integration pattern not already covered by the existing samples (`orders-dotnet`, `inventory-python`, `payments-java`). Open a [sample request issue](../../issues/new?template=sample-request.yml) first if you'd like early feedback on fit before doing the work.
+A new sample is welcome when it demonstrates a **distinct** technology pairing or integration pattern not already covered by the existing samples (`orders-dotnet`, `inventory-python`, `payments-java`, `ledger-jsonrpc`). Open a [sample request issue](../../issues/new?template=sample-request.yml) first if you'd like early feedback on fit before doing the work.
 
 ## Quality bar
 

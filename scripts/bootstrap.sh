@@ -97,4 +97,8 @@ if ! dotnet build "$CLI_PROJECT_PATH" -c Release; then
 fi
 
 log "Bootstrap complete. Engine CLI built from commit ${ENGINE_SHA}."
-log "Next: scripts/run-sample.sh <orders-dotnet|inventory-python|payments-java|all>"
+# Derive the sample list dynamically (mirroring run-sample.sh's list_samples glob —
+# portable, no GNU-only `find -printf`) so this hint can never drift from the samples
+# the runner actually offers.
+sample_hint="$(for d in "${REPO_ROOT}/samples"/*/; do [[ -d "$d" ]] || continue; basename "$d"; done | sort | paste -sd'|' -)"
+log "Next: scripts/run-sample.sh <${sample_hint}|all>"

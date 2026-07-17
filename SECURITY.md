@@ -13,9 +13,9 @@ production system and expect a hardened baseline. In particular, the following a
 known, deliberate properties of the demos, not reportable vulnerabilities:
 
 - **No authentication on the sample APIs.** The services (orders-dotnet,
-  inventory-python, payments-java) expose unauthenticated endpoints because they
-  run inside a vouchfx-orchestrated, throwaway container topology on a local
-  Docker network.
+  inventory-python, payments-java, ledger-jsonrpc) expose unauthenticated
+  endpoints because they run inside a vouchfx-orchestrated, throwaway container
+  topology on a local Docker network.
 - **A documented SSRF-style callback surface in orders-dotnet.** The order flow
   deliberately POSTs an outbound webhook to a caller-influenced callback URL so
   that the suite can exercise `webhook-listen.http`. In a production service this
