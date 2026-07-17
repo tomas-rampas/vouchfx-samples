@@ -45,7 +45,7 @@ body:
       description: >
         What integration pattern or technology combination is not already
         covered by the existing samples (orders-dotnet, inventory-python,
-        payments-java)?
+        payments-java, ledger-jsonrpc)?
     validations:
       required: true
 
