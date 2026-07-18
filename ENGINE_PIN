@@ -1,4 +1,4 @@
-514f77d20949aada2ae2b811e635c195b2ffec70
+2177b3717e0c9f9cfea37d1a041cec0e4a1aa780
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,8 @@
 #
 # Pin history
 # ------------
+# 2026-07-18: advanced to 2177b371 — v1.0.0-alpha.8 — all fifteen per-provider examples pass when CLI-run + examples CI gate (engine PRs #241, #242); single-file discovery root and startup-banner filter now in the packaged tool.
+# Prior pin: 514f77d2.
 # 2026-07-14: advanced to 514f77d2 — the v1.0.0-alpha.7 tag commit — transitive security-dependency pinning and shared site-tools extraction (engine PRs #216, #214).
 # Prior pin: fb500bde.
 # 2026-07-12: advanced to fb500bde — the v1.0.0-alpha.6 tag commit — packaged-tool DCP portability fix (engine PR #206).
