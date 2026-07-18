@@ -1281,10 +1281,11 @@
       },
       "MySqlConnector": {
         "type": "Transitive",
-        "resolved": "2.3.1",
-        "contentHash": "FYTnvNBbNSZotSWUerK22Ztsc3vx3wBRZ4veavkUbfCBNthtCr3CH5Wpoo4l5gBD2TmQD9JbL33Gf9kWko1yYw==",
+        "resolved": "2.4.0",
+        "contentHash": "78M+gVOjbdZEDIyXQqcA7EYlCGS3tpbUELHvn6638A2w0pkPI625ixnzsa5staAd3N9/xFmPJtkKDYwsXpFi/w==",
         "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "7.0.1"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.2"
         }
       },
       "NATS.Client.Abstractions": {
@@ -1668,8 +1669,12 @@
           "Aspire.Hosting.RabbitMQ": "[13.4.2, )",
           "Aspire.Hosting.Redis": "[13.4.2, )",
           "Aspire.Hosting.SqlServer": "[13.4.2, )",
+          "Microsoft.Data.SqlClient": "[7.0.1, )",
+          "MongoDB.Driver": "[3.8.1, )",
+          "MySqlConnector": "[2.4.0, )",
           "Npgsql": "[8.0.7, )",
           "Respawn": "[6.2.1, )",
+          "StackExchange.Redis": "[2.13.1, )",
           "Vouchfx.Engine.Abstractions": "[1.0.0-0.local, )",
           "Vouchfx.Engine.Authoring": "[1.0.0-0.local, )"
         }
