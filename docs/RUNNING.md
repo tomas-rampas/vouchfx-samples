@@ -79,8 +79,8 @@ Full exit code table, as implemented by the engine CLI:
 
 Most samples run via `scripts/run-sample.sh <name>`, which invokes the stock `vouchfx` engine CLI.
 The CLI ships only the 25 frozen Core providers; it cannot load Community-tier providers from
-the [vouchfx-providers](https://tomas-rampas.github.io/vouchfx-providers/) hub.
-See the hub's [consuming a provider guide](https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html) for details.
+the [vouchfx-providers](https://providers.vouchfx.io/) hub.
+See the hub's [consuming a provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html) for details.
 
 The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# runner that:
 

@@ -73,7 +73,7 @@ by the `ROLE` environment variable — a production pattern the suite proves end
 The vouchfx engine CLI ships with 25 **Core providers** (frozen at build time for v1.x). The
 `rpc.json-rpc` provider in the vouchfx-providers hub is **Community-tier** — maintained outside
 the engine, published as an independent NuGet package. Providers are compile-time plugins
-(§13 of the [engine blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)),
+(§13 of the [engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)),
 not runtime-loaded extensions. The stock CLI has no seam to discover or load Community providers.
 
 **The workaround (today's state):** build a custom runner. This project's `runner/` is exactly
@@ -334,10 +334,10 @@ explicitly references, demonstrating the minimal-bundle pattern for hub consumpt
 
 ## Key documents
 
-- **[vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/)** — Community provider listings and the Vouched badge; see its [consuming-a-provider guide](https://tomas-rampas.github.io/vouchfx-providers/docs/consuming-a-provider.html) for the packaging and pinning rules
-- **[Engine blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)**
+- **[vouchfx-providers hub](https://providers.vouchfx.io/)** — Community provider listings and the Vouched badge; see its [consuming-a-provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html) for the packaging and pinning rules
+- **[Engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)**
   — the five-layer design, memory model, §13 provider contract (frozen for v1.x)
-- **[YAML DSL specification](https://tomas-rampas.github.io/vouchfx/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.html)**
+- **[YAML DSL specification](https://vouchfx.io/02_YAML_DSL_Specification_and_VSCode_Extension_Design/)**
   — `.e2e.yaml` grammar, step families, capture/placeholder syntax
 - **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)**
   — how to implement a new provider (source)
