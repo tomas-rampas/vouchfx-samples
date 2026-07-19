@@ -249,7 +249,7 @@ Artefact paths (when run via the sample runner):
 
 ## Key documents
 
-- **[Engine blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
-- **[YAML DSL specification](https://tomas-rampas.github.io/vouchfx/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.html)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
+- **[Engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)** — the five-layer design, memory model, provider contract (frozen for v1.x), §5 Roslyn/memory, §13 provider architecture
+- **[YAML DSL specification](https://vouchfx.io/02_YAML_DSL_Specification_and_VSCode_Extension_Design/)** — `.e2e.yaml` grammar, step families, capture/placeholder syntax, verifyMode
 - **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to implement a new provider, SDK contract (source)
-- **[vouchfx-providers hub](https://tomas-rampas.github.io/vouchfx-providers/)** — community provider listings and the Vouched badge
+- **[vouchfx-providers hub](https://providers.vouchfx.io/)** — community provider listings and the Vouched badge

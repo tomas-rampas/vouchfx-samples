@@ -1,7 +1,7 @@
 # vouchfx-samples
 
 [![Samples CI](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml/badge.svg?branch=main)](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml?query=branch%3Amain)
-[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://tomas-rampas.github.io/vouchfx-samples/)
+[![Docs](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://samples.vouchfx.io/)
 [![License](https://img.shields.io/github/license/tomas-rampas/vouchfx-samples)](https://github.com/tomas-rampas/vouchfx-samples/blob/main/LICENSE)
 
 Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx) — the engine that compiles declarative `.e2e.yaml` integration tests into C#, orchestrates your full container topology with .NET Aspire, and proves a distributed system works end-to-end. Clone this repository, run one command, and watch vouchfx test a real polyglot system: REST API calls fanning out into database writes, broker events, cache entries, and outbound webhooks — all in one coherent business-transaction narrative, all proven end-to-end.
@@ -19,7 +19,7 @@ Each sample is a **real service** (not a toy echo), with its own database, broke
 
 Each sample's `README.md` walks through the transaction, the code, the suite design, and what success looks like.
 
-**Migrating from an existing test estate?** [`migrations/`](migrations/) holds three worked porting examples — a Postman collection, a hand-rolled xUnit integration test, and a SpecFlow feature — each pairing the genuine before-artefact with a runnable `.e2e.yaml` port and a field-by-field mapping table. The guide is published at [Migrating to vouchfx](https://tomas-rampas.github.io/vouchfx-samples/docs/migrating.html); run all three ported suites with `scripts/run-migrations.sh` (or `.ps1`).
+**Migrating from an existing test estate?** [`migrations/`](migrations/) holds three worked porting examples — a Postman collection, a hand-rolled xUnit integration test, and a SpecFlow feature — each pairing the genuine before-artefact with a runnable `.e2e.yaml` port and a field-by-field mapping table. The guide is published at [Migrating to vouchfx](https://samples.vouchfx.io/docs/migrating.html); run all three ported suites with `scripts/run-migrations.sh` (or `.ps1`).
 
 ## Quick Start
 
@@ -78,7 +78,7 @@ The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` to
 
 ## What "Proven" Means
 
-The vouchfx engine separates **four** distinct verdicts — this is deliberate and is the single most important thing to understand when reading a test result. The full taxonomy, with exit-code mappings and what each verdict means for your product, is documented in the engine's [blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html) § 12.1. In brief:
+The vouchfx engine separates **four** distinct verdicts — this is deliberate and is the single most important thing to understand when reading a test result. The full taxonomy, with exit-code mappings and what each verdict means for your product, is documented in the engine's [blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/) § 12.1. In brief:
 
 - **Pass** — every assertion held; the system works as built.
 - **Fail** — an assertion failed; a genuine defect exists in the code.
@@ -151,15 +151,15 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 ### vouchfx Engine
 
 - **[Engine GitHub Repository](https://github.com/tomas-rampas/vouchfx)** — the system under test
-- **[Project Website](https://tomas-rampas.github.io/vouchfx/)** — getting started guide, language reference, recipes, and architecture overview
+- **[Project Website](https://vouchfx.io/)** — getting started guide, language reference, recipes, and architecture overview
 - **[Engine CONTRIBUTING.md](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)** — how to write a new provider
-- **[Technical Architecture & Blueprint](https://tomas-rampas.github.io/vouchfx/docs/01_Technical_Architecture_and_Engineering_Blueprint.html)** — the five-layer design, memory model, Aspire integration, verdict taxonomy, provider contract
-- **[YAML DSL Specification](https://tomas-rampas.github.io/vouchfx/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.html)** — the `.e2e.yaml` grammar, step families, capture/placeholder syntax
+- **[Technical Architecture & Blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)** — the five-layer design, memory model, Aspire integration, verdict taxonomy, provider contract
+- **[YAML DSL Specification](https://vouchfx.io/02_YAML_DSL_Specification_and_VSCode_Extension_Design/)** — the `.e2e.yaml` grammar, step families, capture/placeholder syntax
 
 ### Related Repositories
 
-- **[vouchfx-providers](https://tomas-rampas.github.io/vouchfx-providers/)** — the community provider hub: the registry of community providers and hub-hosted provider source. Providers can earn the maintainer-awarded Vouched badge after rubric review.
-- **[vouchfx-telemetry-backend](https://tomas-rampas.github.io/vouchfx-telemetry-backend/)** — the optional telemetry aggregation service (aggregate run-metadata only: verdict counts, timings, tool/engine versions, under a privacy allowlist with 90-day retention default).
+- **[vouchfx-providers](https://providers.vouchfx.io/)** — the community provider hub: the registry of community providers and hub-hosted provider source. Providers can earn the maintainer-awarded Vouched badge after rubric review.
+- **[vouchfx-telemetry-backend](https://telemetry.vouchfx.io/)** — the optional telemetry aggregation service (aggregate run-metadata only: verdict counts, timings, tool/engine versions, under a privacy allowlist with 90-day retention default).
 
 ## Status
 
@@ -177,6 +177,6 @@ The vouchfx engine, the `Vouchfx.Sdk`, and all related documentation are also Ap
 
 ---
 
-**Questions?** Open an issue here for questions about samples or running the tests. For questions about the engine itself, vouchfx providers, or the DSL, see the [engine repository](https://github.com/tomas-rampas/vouchfx). Visit the [project website](https://tomas-rampas.github.io/vouchfx/) for getting-started guides and architecture documentation.
+**Questions?** Open an issue here for questions about samples or running the tests. For questions about the engine itself, vouchfx providers, or the DSL, see the [engine repository](https://github.com/tomas-rampas/vouchfx). Visit the [project website](https://vouchfx.io/) for getting-started guides and architecture documentation.
 
 **Ready to contribute a sample?** Read [`CONTRIBUTING.md`](CONTRIBUTING.md) — we welcome real-world examples that showcase new technology pairings or integration patterns.

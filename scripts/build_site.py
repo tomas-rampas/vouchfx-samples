@@ -118,6 +118,20 @@ PAGE = """<!DOCTYPE html>
 <meta name="description" content="{desc}" />
 <meta name="theme-color" content="#0b0f1a" />
 <link rel="icon" href="{root}favicon.svg" type="image/svg+xml" />
+<link rel="canonical" href="{canonical}" />
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="vouchfx samples" />
+<meta property="og:title" content="{title}" />
+<meta property="og:description" content="{desc}" />
+<meta property="og:url" content="{canonical}" />
+
+<!-- Twitter card -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="{title}" />
+<meta name="twitter:description" content="{desc}" />
+
 <link rel="stylesheet" href="{root}styles.css" />
 <link rel="stylesheet" href="{root}docs.css" />
 <link rel="stylesheet" href="{root}pygments.css" />
@@ -133,7 +147,7 @@ PAGE = """<!DOCTYPE html>
       <a href="{root}index.html">Home</a>
       <a href="{root}docs.html">Docs</a>
       <a href="{root}docs/RUNNING.html">Running the samples</a>
-      <a href="https://tomas-rampas.github.io/vouchfx/">Engine docs</a>
+      <a href="https://vouchfx.io/">Engine docs</a>
     </nav>
     <a class="btn btn--ghost nav__gh" href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
@@ -157,9 +171,23 @@ PORTAL = """<!DOCTYPE html>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Documentation · vouchfx samples</title>
-<meta name="description" content="vouchfx samples documentation — running the samples, the custom-runner recipe, migrating an existing test suite, and every sample's worked-example README." />
+<meta name="description" content="vouchfx samples documentation — test-suite examples (C#, Python, Node.js, Java) for vouchfx, the end-to-end integration testing framework." />
 <meta name="theme-color" content="#0b0f1a" />
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="canonical" href="https://samples.vouchfx.io/docs.html" />
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="vouchfx samples" />
+<meta property="og:title" content="Documentation · vouchfx samples" />
+<meta property="og:description" content="vouchfx samples documentation — test-suite examples (C#, Python, Node.js, Java) for vouchfx, the end-to-end integration testing framework." />
+<meta property="og:url" content="https://samples.vouchfx.io/docs.html" />
+
+<!-- Twitter card -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Documentation · vouchfx samples" />
+<meta name="twitter:description" content="vouchfx samples documentation — test-suite examples (C#, Python, Node.js, Java) for vouchfx, the end-to-end integration testing framework." />
+
 <link rel="stylesheet" href="styles.css" />
 <link rel="stylesheet" href="docs.css" />
 </head>
@@ -173,7 +201,7 @@ PORTAL = """<!DOCTYPE html>
     <nav class="nav__links" aria-label="Primary">
       <a href="index.html">Home</a>
       <a href="docs/RUNNING.html">Running the samples</a>
-      <a href="https://tomas-rampas.github.io/vouchfx/">Engine docs</a>
+      <a href="https://vouchfx.io/">Engine docs</a>
     </nav>
     <a class="btn btn--ghost nav__gh" href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">GitHub</a>
   </div>
@@ -243,9 +271,9 @@ PORTAL = """<!DOCTYPE html>
     <h2>Ecosystem</h2>
     <p>Where the pieces this repository depends on live.</p>
     <div class="doc-cards">
-      <a class="doc-card" href="https://tomas-rampas.github.io/vouchfx/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">ENGINE</span><h3>vouchfx project site</h3><p>The architecture blueprint, the YAML DSL specification, and the language reference.</p></a>
-      <a class="doc-card" href="https://tomas-rampas.github.io/vouchfx-providers/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">HUB</span><h3>Provider hub</h3><p>The community provider registry — including rpc.json-rpc, consumed by the ledger-jsonrpc sample.</p></a>
-      <a class="doc-card" href="https://tomas-rampas.github.io/vouchfx-telemetry-backend/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">TELEMETRY</span><h3>Telemetry backend</h3><p>The optional, privacy-allowlisted run-metadata aggregation service.</p></a>
+      <a class="doc-card" href="https://vouchfx.io/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">ENGINE</span><h3>vouchfx project site</h3><p>The architecture blueprint, the YAML DSL specification, and the language reference.</p></a>
+      <a class="doc-card" href="https://providers.vouchfx.io/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">HUB</span><h3>Provider hub</h3><p>The community provider registry — including rpc.json-rpc, consumed by the ledger-jsonrpc sample.</p></a>
+      <a class="doc-card" href="https://telemetry.vouchfx.io/" target="_blank" rel="noopener noreferrer"><span class="doc-card__k">TELEMETRY</span><h3>Telemetry backend</h3><p>The optional, privacy-allowlisted run-metadata aggregation service.</p></a>
     </div>
   </section>
 </div>
@@ -259,7 +287,7 @@ PORTAL = """<!DOCTYPE html>
     <div class="footer__links">
       <a href="index.html">Home</a>
       <a href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">Repository</a>
-      <a href="https://tomas-rampas.github.io/vouchfx/" target="_blank" rel="noopener noreferrer">Engine docs</a>
+      <a href="https://vouchfx.io/" target="_blank" rel="noopener noreferrer">Engine docs</a>
       <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Licence (Apache-2.0)</a>
     </div>
   </div>
@@ -274,10 +302,13 @@ CONFIG = SiteConfig(
     docs=DOCS,
     page_template=PAGE,
     portal_html=PORTAL,
-    meta_description_prefix="vouchfx samples documentation",
+    meta_description_prefix="vouchfx samples — test-suite examples for vouchfx, the end-to-end integration testing framework",
     extra=EXTRA,
     skip=SKIP,
     skip_prefixes=SKIP_PREFIXES,
+    # specs/seo-custom-domains.md REQ-006: this repo's custom domain. Opts build()
+    # into emitting robots.txt + sitemap.xml and supplying {canonical} to PAGE.
+    site_url="https://samples.vouchfx.io/",
 )
 
 

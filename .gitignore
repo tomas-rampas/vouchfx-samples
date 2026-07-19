@@ -62,6 +62,10 @@ npm-debug.log*
 ## site/ + the repository's markdown on every build/CI run. Never committed.
 /_site/
 
+## Ad hoc local build_site.py validation output (e.g. SEO/canonical spot checks
+## against a non-default output dir). Never committed.
+/_site_seo_check/
+
 ## Test results & coverage
 [Tt]est[Rr]esult*/
 *.trx
