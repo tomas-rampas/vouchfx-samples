@@ -1,4 +1,4 @@
-8c579ab4315cacba4066bc3f33dc24a19ca6c3d1
+645021bc9cb66b23d2762d051faba86f3a815cfe
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,8 @@
 #
 # Pin history
 # ------------
+# 2026-07-24: advanced to 645021bc — v1.0.0-rc.1 — first release candidate; full-fleet sample validation green.
+# Prior pin: 8c579ab4.
 # 2026-07-19: advanced to 8c579ab4 — v1.0.0-alpha.9 — step-timeout upper bound for IMMEDIATE steps (engine #244); full customer-surface validation green on the packaged alpha.9 tool.
 # Prior pin: 2177b371.
 # 2026-07-18: advanced to 2177b371 — v1.0.0-alpha.8 — all fifteen per-provider examples pass when CLI-run + examples CI gate (engine PRs #241, #242); single-file discovery root and startup-banner filter now in the packaged tool.
