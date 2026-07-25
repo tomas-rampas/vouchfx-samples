@@ -81,23 +81,38 @@ from vouchfx_site_tools import SiteConfig, build  # noqa: E402
 # Every DOCS source path must be matched by a paths: glob in
 # .github/workflows/pages.yml (superset invariant) — a page that renders here
 # but whose source path a push to main doesn't trigger on would silently drift.
-DOCS: list[tuple[str, str, str]] = [
+DOCS: list[tuple[str, str, str, str]] = [
     # Start
-    ("docs/RUNNING.md", "Start", "Running the samples"),
-    ("docs/custom-runner.md", "Start", "The custom-runner recipe"),
-    ("docs/migrating.md", "Start", "Migrating to vouchfx"),
+    ("docs/RUNNING.md", "Start", "Running the samples",
+     "What you need installed, the two-command quick start, the four-verdict taxonomy and exit codes, "
+     "and what CI does differently from your machine."),
+    ("docs/custom-runner.md", "Start", "The custom-runner recipe",
+     "How to consume a Community-tier provider today: build a thin executable over the engine's public SDK, "
+     "referencing exactly the providers you need."),
+    ("docs/migrating.md", "Start", "Migrating to vouchfx",
+     "Three worked examples: Postman, xUnit, SpecFlow, each re-authored (not auto-converted) onto the "
+     "orders-dotnet sample, with a field-by-field mapping table and an honest account of what doesn't map."),
 
     # Samples
-    ("samples/orders-dotnet/README.md", "Samples", "Orders · C# + ASP.NET"),
-    ("samples/inventory-python/README.md", "Samples", "Inventory · Python + FastAPI"),
-    ("samples/payments-java/README.md", "Samples", "Payments · Java + Spring Boot"),
-    ("samples/ledger-jsonrpc/README.md", "Samples", "Ledger · Node.js + JSON-RPC"),
+    ("samples/orders-dotnet/README.md", "Samples", "Orders · C# + ASP.NET",
+     "REST to Postgres row to Kafka event to outbound webhook callback. Five steps."),
+    ("samples/inventory-python/README.md", "Samples", "Inventory · Python + FastAPI",
+     "REST to MySQL row to Redis cache entry to RabbitMQ event, with a read-through cache proof. Five steps."),
+    ("samples/payments-java/README.md", "Samples", "Payments · Java + Spring Boot",
+     "REST to SQL Server row to NATS JetStream event to SMTP receipt e-mail. Four steps."),
+    ("samples/ledger-jsonrpc/README.md", "Samples", "Ledger · Node.js + JSON-RPC",
+     "JSON-RPC to Postgres to Kafka to an independent worker role consuming an injected adjustment, via a "
+     "custom runner and the Community rpc.json-rpc provider. Ten steps."),
 
     # Project
-    ("README.md", "Project", "Catalogue & repository README"),
-    ("CONTRIBUTING.md", "Project", "Contributing a sample"),
-    ("SECURITY.md", "Project", "Security policy"),
-    ("CODE_OF_CONDUCT.md", "Project", "Code of conduct"),
+    ("README.md", "Project", "Catalogue & repository README",
+     "Overview, the sample catalogue table, quick start, and directory layout."),
+    ("CONTRIBUTING.md", "Project", "Contributing a sample",
+     "The quality bar for a new sample, and how to add one."),
+    ("SECURITY.md", "Project", "Security policy",
+     "How to report a vulnerability in a sample application or test suite."),
+    ("CODE_OF_CONDUCT.md", "Project", "Code of conduct",
+     "The standards this community holds itself to."),
 ]
 
 # Any additional markdown that is link-reachable but not in the sidebar.
@@ -309,6 +324,16 @@ CONFIG = SiteConfig(
     # specs/seo-custom-domains.md REQ-006: this repo's custom domain. Opts build()
     # into emitting robots.txt + sitemap.xml and supplying {canonical} to PAGE.
     site_url="https://samples.vouchfx.io/",
+    # specs/seo-fleet-audit.md B1/B2: a rendered page's own markdown title now
+    # renders a real <h1>, and the sidebar nav-group label drops out of the
+    # heading outline (paired with the site/docs.css selector rename below).
+    semantic_headings=True,
+    # specs/seo-fleet-audit.md B3: emits llms.txt (site_url is already set above).
+    llms_summary=(
+        "vouchfx samples provides four production-shaped sample applications, in C#, Python, "
+        "Node.js and Java, each pairing a real database, broker or cache with an end-to-end "
+        "integration test suite written for the vouchfx engine and run against real containers."
+    ),
 )
 
 
