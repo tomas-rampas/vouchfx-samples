@@ -59,15 +59,36 @@ RUN set -eu; \
 # Always points at a valid store: with no truststore.p12 and no *.crt files in
 # certs/ this is a straight copy of the JDK's own cacerts, so the default build
 # trusts exactly what it always did.
-ENV MAVEN_OPTS="-Djavax.net.ssl.trustStore=/opt/maven-truststore.p12 -Djavax.net.ssl.trustStorePassword=${TRUSTSTORE_PASSWORD}"
+#
+# The PASSWORD is deliberately NOT part of this ENV. An ENV value is recorded in
+# the image config, so interpolating an ARG into one persists whatever the caller
+# passed; it is supplied per-command on the Maven RUN lines below instead. Verified
+# with a distinctive password: it no longer appears in Config.Env, and the final
+# runtime image (a fresh FROM in stage 2) carries no MAVEN_OPTS at all.
+#
+# WHAT THIS DOES NOT FIX: any --build-arg value is still recorded in the build
+# stage's `docker history`, as a "|1 TRUSTSTORE_PASSWORD=..." prefix on each RUN
+# layer. That is inherent to build args, not to ENV, so moving the value off ENV
+# reduces the exposure but does not remove it. Eliminating it entirely would mean
+# BuildKit secrets (--mount=type=secret), which is not available here: restricted
+# networks need the legacy builder, since BuildKit pulls its frontend image from
+# Docker Hub first.
+#
+# That trade-off is acceptable ONLY because of what this particular password is:
+# a truststore holds public certificates, not a private key, so its password
+# guards integrity rather than confidentiality — which is why the JDK ships the
+# universally known "changeit". Do not put a value you actually care about here.
+ENV MAVEN_OPTS="-Djavax.net.ssl.trustStore=/opt/maven-truststore.p12"
 
 # Resolve dependencies as a separate, cacheable layer before copying source, so an
 # edit-only source change does not re-download the world.
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline || true
+RUN MAVEN_OPTS="$MAVEN_OPTS -Djavax.net.ssl.trustStorePassword=$TRUSTSTORE_PASSWORD" \
+    mvn -B -q dependency:go-offline || true
 
 COPY src ./src
-RUN mvn -B -q -DskipTests package
+RUN MAVEN_OPTS="$MAVEN_OPTS -Djavax.net.ssl.trustStorePassword=$TRUSTSTORE_PASSWORD" \
+    mvn -B -q -DskipTests package
 
 # Stage 2: minimal runtime image -- JRE only, no build tooling.
 FROM eclipse-temurin:17-jre
