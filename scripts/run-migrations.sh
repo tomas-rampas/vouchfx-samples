@@ -20,6 +20,32 @@ OUT_DIR="${REPO_ROOT}/out"
 ORDERS_APP_DIR="${REPO_ROOT}/samples/orders-dotnet/app"
 ORDERS_IMAGE="vouchfx-samples-orders-dotnet:local"
 
+# ── Build-time network accommodations (all opt-in) ────────────────────────────
+# Identical to the block in scripts/run-sample.sh — see that file for the full
+# rationale of each variable, and keep the two copies in step. With none of them
+# set, the `docker build` below is exactly what it has always been.
+#
+#   VOUCHFX_SAMPLES_NO_BUILDKIT=1            use the legacy builder
+#   VOUCHFX_SAMPLES_BUILD_NETWORK=<network>  docker build --network <network>
+#   HTTPS_PROXY / HTTP_PROXY / NO_PROXY      forwarded as build args when set
+if [[ "${VOUCHFX_SAMPLES_NO_BUILDKIT:-0}" == "1" ]]; then
+  export DOCKER_BUILDKIT=0
+fi
+
+# docker_build_flags emits one extra `docker build` argument per line (nothing at
+# all when no accommodation is configured).
+docker_build_flags() {
+  local var
+  if [[ -n "${VOUCHFX_SAMPLES_BUILD_NETWORK:-}" ]]; then
+    printf '%s\n' '--network' "${VOUCHFX_SAMPLES_BUILD_NETWORK}"
+  fi
+  for var in HTTPS_PROXY HTTP_PROXY NO_PROXY https_proxy http_proxy no_proxy; do
+    if [[ -n "${!var:-}" ]]; then
+      printf '%s\n' '--build-arg' "${var}=${!var}"
+    fi
+  done
+}
+
 log() {
   printf '[run-migrations] %s\n' "$1"
 }

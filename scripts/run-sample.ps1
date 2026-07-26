@@ -31,6 +31,37 @@ $VouchfxSrcDir = Join-Path $RepoRoot '.vouchfx-src'
 $CliProject    = Join-Path $VouchfxSrcDir 'src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj'
 $OutDir        = Join-Path $RepoRoot 'out'
 
+# ── Build-time network accommodations (all opt-in) ────────────────────────────
+# Mirrors the identical block in scripts/run-sample.sh — see that file, or the
+# "Restricted networks" section of docs/RUNNING.md, for the full rationale. With
+# none of these set, Get-DockerBuildFlag returns an empty array and the
+# `docker build` call below is exactly what it has always been.
+#
+#   VOUCHFX_SAMPLES_NO_BUILDKIT=1            use the legacy builder
+#   VOUCHFX_SAMPLES_BUILD_NETWORK=<network>  docker build --network <network>
+#   HTTPS_PROXY / HTTP_PROXY / NO_PROXY      forwarded as build args when set
+if ($env:VOUCHFX_SAMPLES_NO_BUILDKIT -eq '1') {
+    $env:DOCKER_BUILDKIT = '0'
+}
+
+function Get-DockerBuildFlag {
+    # Emits each extra `docker build` argument as its own array element, so a
+    # value containing spaces is passed through as one argument.
+    $flags = @()
+    if ($env:VOUCHFX_SAMPLES_BUILD_NETWORK) {
+        $flags += '--network'
+        $flags += $env:VOUCHFX_SAMPLES_BUILD_NETWORK
+    }
+    foreach ($name in @('HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY')) {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ($value) {
+            $flags += '--build-arg'
+            $flags += "${name}=${value}"
+        }
+    }
+    return ,$flags
+}
+
 function Write-SampleLog {
     param([string]$Message)
     Write-Host "[run-sample] $Message"
@@ -132,7 +163,8 @@ function Invoke-Sample {
     # `return` emits, turning the caller's `$rc = Invoke-Sample ...` into an array instead
     # of an int, and `exit $overallRc` on that array silently coerces to a 0 exit code even
     # when the sample genuinely failed (the false-green this fixes).
-    docker build -t $image "$appDir" | Out-Host
+    $buildFlags = @(Get-DockerBuildFlag)
+    docker build @buildFlags -t $image "$appDir" | Out-Host
     $buildRc = [int]$LASTEXITCODE
     if ($buildRc -ne 0) {
         Write-SampleLog "docker build failed for $Name (exit $buildRc)."

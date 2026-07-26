@@ -29,6 +29,33 @@ $OutDir        = Join-Path $RepoRoot 'out'
 $OrdersAppDir  = Join-Path $RepoRoot 'samples/orders-dotnet/app'
 $OrdersImage   = 'vouchfx-samples-orders-dotnet:local'
 
+# -- Build-time network accommodations (all opt-in) ---------------------------
+# Mirrors the identical block in scripts/run-sample.ps1 -- see that file, or the
+# "Restricted networks" section of docs/RUNNING.md, for the full rationale.
+#
+#   VOUCHFX_SAMPLES_NO_BUILDKIT=1            use the legacy builder
+#   VOUCHFX_SAMPLES_BUILD_NETWORK=<network>  docker build --network <network>
+#   HTTPS_PROXY / HTTP_PROXY / NO_PROXY      forwarded as build args when set
+if ($env:VOUCHFX_SAMPLES_NO_BUILDKIT -eq '1') {
+    $env:DOCKER_BUILDKIT = '0'
+}
+
+function Get-DockerBuildFlag {
+    $flags = @()
+    if ($env:VOUCHFX_SAMPLES_BUILD_NETWORK) {
+        $flags += '--network'
+        $flags += $env:VOUCHFX_SAMPLES_BUILD_NETWORK
+    }
+    foreach ($name in @('HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY')) {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ($value) {
+            $flags += '--build-arg'
+            $flags += "${name}=${value}"
+        }
+    }
+    return ,$flags
+}
+
 function Write-MigrationLog {
     param([string]$Message)
     Write-Host "[run-migrations] $Message"
@@ -60,7 +87,8 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 # is built once here rather than once per migration (see samples/orders-dotnet/README.md
 # for what the image contains).
 Write-MigrationLog "=== docker build $OrdersImage ==="
-docker build -t $OrdersImage "$OrdersAppDir" | Out-Host
+$buildFlags = @(Get-DockerBuildFlag)
+docker build @buildFlags -t $OrdersImage "$OrdersAppDir" | Out-Host
 $buildRc = [int]$LASTEXITCODE
 if ($buildRc -ne 0) {
     Write-Fail "docker build failed for $OrdersImage (exit $buildRc)."

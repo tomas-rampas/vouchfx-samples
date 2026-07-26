@@ -89,6 +89,11 @@ secrets.json
 .env.*
 !.env.example
 
+## Locally supplied TLS trust anchors (e.g. an inspecting proxy's CA).
+## Machine-specific and never committed; the directories' README.md stays tracked.
+samples/*/app/certs/*
+!samples/*/app/certs/README.md
+
 ## OS / temp
 .DS_Store
 Thumbs.db
