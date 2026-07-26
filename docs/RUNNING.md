@@ -103,6 +103,49 @@ remain identical (0 = Pass, 1 = Fail, 3 = EnvironmentError, 4 = Inconclusive). S
 [`samples/ledger-jsonrpc/README.md`](../samples/ledger-jsonrpc/README.md) for details, or
 [`docs/custom-runner.md`](custom-runner.md) for the detailed code recipe and design rationale.
 
+## Restricted networks (egress proxy, blocked registries)
+
+The default build assumes direct internet access. On a network that forces traffic through an inspecting proxy, or that cannot reach Docker Hub, three separate things break — each with its own fix. All of them are **opt-in**: with none of these set, every command behaves exactly as documented above.
+
+### 1. Dependency images can't be pulled
+
+Aspire/DCP pulls the managed dependency images (Postgres, Kafka, MySQL, Redis, RabbitMQ, NATS, Mailpit) itself at run time, so no script flag can redirect them. Point the Docker **daemon** at a registry mirror instead — this is transparent, needs no change to any suite, and keeps image references as `docker.io/...`:
+
+```json
+/* /etc/docker/daemon.json */
+{ "registry-mirrors": ["https://mirror.gcr.io"] }
+```
+
+Restart the daemon afterwards. Verify with `docker info | grep -A1 "Registry Mirrors"`. Confirm your mirror serves the digests you expect before trusting a run — `docker pull postgres:17.6` should report the same `sha256:` digest as Docker Hub.
+
+> Check this is permitted by your organisation's egress policy first. If Docker Hub is deliberately blocked, mirroring the same images may not be an approved route — allowlisting the registry is the cleaner fix.
+
+### 2. `docker build` can't reach the network
+
+`scripts/run-sample.sh` and `scripts/run-migrations.sh` read three optional variables:
+
+| Variable | Effect |
+|---|---|
+| `VOUCHFX_SAMPLES_NO_BUILDKIT=1` | Build with the legacy builder. BuildKit resolves the `# syntax=docker/dockerfile:1` directive by first pulling that frontend image from Docker Hub, which fails before the build starts when Docker Hub is unreachable. |
+| `VOUCHFX_SAMPLES_BUILD_NETWORK=host` | Passed through as `docker build --network host`. Required when the proxy is bound to the host's loopback address — a build container on the default bridge network has its own `127.0.0.1` and cannot see the host's. |
+| `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` | Forwarded as build args when present. Docker predefines these, so no Dockerfile `ARG` is needed and the values stay out of `docker history`. |
+
+```bash
+export VOUCHFX_SAMPLES_NO_BUILDKIT=1
+export VOUCHFX_SAMPLES_BUILD_NETWORK=host
+export HTTPS_PROXY=http://127.0.0.1:3128
+./scripts/run-sample.sh orders-dotnet
+```
+
+### 3. Maven rejects the proxy's TLS certificate
+
+An inspecting proxy presents its own CA, and the `payments-java` build then fails every download with `PKIX path building failed`. Drop the proxy's CA as a PEM `*.crt` into [`samples/payments-java/app/certs/`](../samples/payments-java/app/certs/) — the build imports it and points Maven at the resulting truststore. That directory's `README.md` covers two traps worth knowing about, because both make a *seemingly successful* import do nothing:
+
+- `keytool -importcert` reads only the **first** certificate from a multi-certificate PEM bundle and silently ignores the rest, so passing a full `ca-bundle.crt` trusts the wrong anchor while printing `Certificate was added to keystore`.
+- Importing into the JDK's own `cacerts` is **not** sufficient on its own — `keytool -list` shows the alias, yet Maven still fails PKIX. The store has to be handed to the JVM explicitly via `-Djavax.net.ssl.trustStore`.
+
+The other three samples need no CA handling: the .NET build reaches NuGet through the forwarded proxy, and the Python and Node builds fetch from PyPI and npm, which are typically direct.
+
 ## Why samples don't run concurrently on one machine
 
 Each suite brings up its own topology through .NET Aspire's orchestrator (DCP). Running two topologies at once on one host causes DCP port/network contention — the symptoms are usually a spurious `EnvironmentError` with a health-gate timeout that has nothing to do with either sample's actual code. `scripts/run-sample.* all` therefore always runs samples one after another, never in parallel, regardless of how many CPU cores are available.

@@ -18,6 +18,52 @@ VOUCHFX_SRC_DIR="${REPO_ROOT}/.vouchfx-src"
 CLI_PROJECT="${VOUCHFX_SRC_DIR}/src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj"
 OUT_DIR="${REPO_ROOT}/out"
 
+# ── Build-time network accommodations (all opt-in) ────────────────────────────
+# With none of the variables below set, the `docker build` invocation is exactly
+# what it has always been — these exist for restricted networks (an egress proxy,
+# an air-gapped CI sandbox) where the default build cannot reach the internet.
+# scripts/run-migrations.sh carries the identical block; keep the two in step.
+#
+#   VOUCHFX_SAMPLES_NO_BUILDKIT=1
+#       Build with the legacy builder. BuildKit honours the
+#       `# syntax=docker/dockerfile:1` directive by first pulling that frontend
+#       image from Docker Hub, which fails before the build even starts on a
+#       network that cannot reach Docker Hub. The legacy builder skips it.
+#
+#   VOUCHFX_SAMPLES_BUILD_NETWORK=<network>
+#       Passed through as `docker build --network <network>`. Use "host" when the
+#       build must reach a proxy bound to the host's loopback address: a build
+#       container on the default bridge network has its own 127.0.0.1 and cannot
+#       see the host's.
+#
+#   HTTPS_PROXY / HTTP_PROXY / NO_PROXY (and lower-case forms)
+#       Forwarded as build args when present in the environment. Docker
+#       predefines these as build args, so no Dockerfile `ARG` is required and
+#       their values are kept out of `docker history`.
+#
+# Pulling the *dependency* images (postgres, kafka, ...) is not something this
+# script controls — Aspire/DCP pulls those itself at run time. Point the Docker
+# daemon at a registry mirror instead (docs/RUNNING.md, "Restricted networks").
+if [[ "${VOUCHFX_SAMPLES_NO_BUILDKIT:-0}" == "1" ]]; then
+  export DOCKER_BUILDKIT=0
+fi
+
+# docker_build_flags emits one extra `docker build` argument per line (nothing at
+# all when no accommodation is configured). Line-per-argument keeps values with
+# spaces intact when the caller reads them back into an array.
+docker_build_flags() {
+  local var
+  if [[ -n "${VOUCHFX_SAMPLES_BUILD_NETWORK:-}" ]]; then
+    printf '%s\n' '--network' "${VOUCHFX_SAMPLES_BUILD_NETWORK}"
+  fi
+  for var in HTTPS_PROXY HTTP_PROXY NO_PROXY https_proxy http_proxy no_proxy; do
+    # ${!var} is an indirect expansion: the value of the variable *named* by $var.
+    if [[ -n "${!var:-}" ]]; then
+      printf '%s\n' '--build-arg' "${var}=${!var}"
+    fi
+  done
+}
+
 log() {
   printf '[run-sample] %s\n' "$1"
 }
@@ -121,7 +167,15 @@ run_one() {
   fi
 
   log "=== ${name}: docker build ${image} ==="
-  if ! docker build -t "$image" "$app_dir"; then
+  # Read the opt-in flags into an array one line at a time, so a value containing
+  # spaces survives intact (word-splitting an unquoted string would not).
+  local -a build_flags=()
+  while IFS= read -r flag; do
+    [[ -n "$flag" ]] && build_flags+=("$flag")
+  done < <(docker_build_flags)
+  # ${arr[@]+"${arr[@]}"} expands to nothing at all when the array is empty,
+  # instead of tripping `set -u` on bash 3.2 (still the system bash on macOS).
+  if ! docker build ${build_flags[@]+"${build_flags[@]}"} -t "$image" "$app_dir"; then
     log "docker build failed for ${name}."
     return 1
   fi
