@@ -46,7 +46,11 @@ function Get-DockerBuildFlag {
         $flags += '--network'
         $flags += $env:VOUCHFX_SAMPLES_BUILD_NETWORK
     }
-    foreach ($name in @('HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY')) {
+    # Both spellings, for the same reason as run-sample.ps1: variable names are
+    # case-sensitive on Linux and macOS, where the lower-case forms are the more
+    # common convention.
+    foreach ($name in @('HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY',
+                        'https_proxy', 'http_proxy', 'no_proxy')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($value) {
             $flags += '--build-arg'

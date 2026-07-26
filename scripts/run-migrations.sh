@@ -70,7 +70,15 @@ mkdir -p "$OUT_DIR"
 # All three migrations port tests against the same samples/orders-dotnet/app, so the image
 # is built once here rather than once per migration.
 log "=== docker build ${ORDERS_IMAGE} ==="
-if ! docker build -t "$ORDERS_IMAGE" "$ORDERS_APP_DIR"; then
+# Read the opt-in flags into an array one line at a time, so a value containing
+# spaces survives intact (word-splitting an unquoted string would not).
+build_flags=()
+while IFS= read -r flag; do
+  [[ -n "$flag" ]] && build_flags+=("$flag")
+done < <(docker_build_flags)
+# ${arr[@]+"${arr[@]}"} expands to nothing at all when the array is empty,
+# instead of tripping `set -u` on bash 3.2 (still the system bash on macOS).
+if ! docker build ${build_flags[@]+"${build_flags[@]}"} -t "$ORDERS_IMAGE" "$ORDERS_APP_DIR"; then
   fail "docker build failed for ${ORDERS_IMAGE}."
 fi
 

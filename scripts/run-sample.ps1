@@ -52,7 +52,15 @@ function Get-DockerBuildFlag {
         $flags += '--network'
         $flags += $env:VOUCHFX_SAMPLES_BUILD_NETWORK
     }
-    foreach ($name in @('HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY')) {
+    # Both spellings are checked, matching run-sample.sh. On Linux and macOS
+    # environment variable names are case-sensitive and lower-case forms are the
+    # more common convention, so checking only the upper-case names would miss
+    # them when PowerShell runs on a non-Windows host. On Windows the lookup is
+    # case-insensitive, so both names resolve to the same value and Docker
+    # receives the proxy under each spelling — which is what we want anyway,
+    # since tools inside the build read one or the other.
+    foreach ($name in @('HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY',
+                        'https_proxy', 'http_proxy', 'no_proxy')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($value) {
             $flags += '--build-arg'
