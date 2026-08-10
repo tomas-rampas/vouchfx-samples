@@ -1,4 +1,4 @@
-645021bc9cb66b23d2762d051faba86f3a815cfe
+be12ebd126fdf03dcea9eade7bcec3afbcba001b
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,35 @@
 #
 # Pin history
 # ------------
+# 2026-08-10: advanced to be12ebd1 — the v1.0.0-rc.4 tag commit — authenticated
+# infrastructure: a suite can now test against infrastructure that demands TLS or
+# mutual TLS instead of only plaintext. A `security:` block on `services` and on
+# `kafka` dependencies declares the transport and the certificate material;
+# `services` are generalised beyond HTTP (raw TCP `ports:`, author-declared health
+# checks, compose-style host-port pinning) so a non-HTTP system under test can be
+# declared at all; the http.* family speaks HTTPS presenting a client certificate;
+# mq-publish.kafka and mq-expect.kafka speak mutual TLS; and a fail-closed pre-run
+# probe confirms the negotiated protection before any step executes.
+#   CI behaviour worth knowing before you bump: an unconfirmable `security:`
+#   declaration now exits NON-ZERO with no gating flag set — the single deliberate
+#   exception to "only Fail breaks CI by default" (probe failure exits 3; a
+#   preflight or schema rejection starts no container and exits 4). It is scoped
+#   to suites that write a `security:` block; every other environment error still
+#   exits 0 by default. None of this repo's four samples declares `security:`, so
+#   none of them changes behaviour under this pin — and the stock-CLI path in
+#   scripts/run-sample.* and scripts/run-migrations.* has always passed
+#   --fail-on-env-error/--fail-on-inconclusive anyway.
+#   Skips v1.0.0-rc.3 (the `scaffold` and `plan` subcommands plus their public
+#   library APIs), which itself shipped the contents of rc.2 — rc.2 was prepared
+#   but never published: no v1.0.0-rc.2 tag or NuGet package exists.
+#   Validated against a freshly re-fetched .vouchfx-src: run-sample.sh all → exit
+#   0 (inventory-python pass=5, ledger-jsonrpc pass=10, orders-dotnet pass=5,
+#   payments-java pass=4; zero fail/envError/inconclusive) and run-migrations.sh →
+#   exit 0 (from-postman pass=4, from-xunit pass=3, from-specflow pass=4). Re the
+#   NOTE above: ledger-jsonrpc's runner built unchanged — rc.4 adds no
+#   PackageReference to any project it references, so packages.lock.json needed no
+#   regeneration.
+# Prior pin: 645021bc.
 # 2026-07-24: advanced to 645021bc — v1.0.0-rc.1 — first release candidate; full-fleet sample validation green.
 # Prior pin: 8c579ab4.
 # 2026-07-19: advanced to 8c579ab4 — v1.0.0-alpha.9 — step-timeout upper bound for IMMEDIATE steps (engine #244); full customer-surface validation green on the packaged alpha.9 tool.
