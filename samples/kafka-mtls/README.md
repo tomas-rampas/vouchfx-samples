@@ -15,10 +15,11 @@ PEM certificate material — no JDK, no `keytool` anywhere in `setup.sh`/`setup.
 - that the assurance a green run gives you comes from the **engine's own pre-run confirmation
   probe**, not from a hand-written negative-control step (see "Why there's no negative control in
   this suite" below).
-- the `env:` block that actually turns TLS on for the broker — the eight `KAFKA_LISTENER_*` /
-  `KAFKA_SSL_*` variables that wire a secured `PLAINTEXT_HOST` listener alongside the broker's
-  ordinary internal ones, plus the KRaft/cluster-identity variables a lone container needs when
-  nothing else is standing it up for you (see "The broker is a service, not a dependency" below).
+- the KRaft/cluster-identity variables a lone service-form container needs when nothing else is
+  standing it up for you (see "The broker is a service, not a dependency" below), and — separately —
+  `broker-bash-config.sh`, delivered via `serverArtifacts`, which is what actually turns TLS on for
+  the broker's `PLAINTEXT_HOST` listener, and *why* that has to happen outside `env:` (see "The
+  bash-config indirection" below).
 
 ## The broker is a service, not a dependency
 
@@ -59,6 +60,70 @@ targets*, third limit:
 this suite chose it rather than Aspire allocating it. This is not a downgrade in what the sample
 proves: `security: profile: mtls` + PEM `serverArtifacts` behave identically on a service and on a
 dependency (docs §3.2.6b: "on the same terms"); only the container topology declaration changed.
+
+## The bash-config indirection
+
+The service-form conversion above reached CI and broke there a second time, differently: the
+`broker` container **started but never became healthy**. The TCP health probe against the secured
+listener failed for the entire ~45-second health-gate window, with zero successes, and the topology
+failed before any step ran:
+
+```
+fail: Stopped waiting for resource 'broker' to become healthy because it failed to start.
+```
+
+This was not a slow broker. A direct `docker run` reproduction with this suite's exact `env:` block
+and the two PEM stores **bind-mounted** — present from the container's first instant — reached
+`Kafka Server started` in 6.4 seconds, bound the secured listener, completed a full produce/consume
+round trip over mutual TLS, and refused an anonymous connection. The variable set was correct; the
+delivery mechanism was not. `serverArtifacts` is delivered via Aspire's `WithContainerFiles`, which
+lands strictly **after** the container process starts — unlike a bind mount, which is present before
+the entrypoint ever runs. The old version of this suite set `KAFKA_SSL_KEYSTORE_LOCATION` (and the
+other four `KAFKA_SSL_*` variables) directly in `env:`, unconditionally — so SSL initialisation could
+run before the keystore file had actually arrived, and Kafka does not retry binding a listener once
+it has decided that listener's key store is unusable. The health probe then fails for the whole
+window on every run, because nothing is ever going to answer on `9092`.
+
+The fix is the same one `examples/security-mtls/broker-entrypoint.sh` uses in the engine repo, for
+the identical reason: `tests/broker-bash-config.sh`, delivered as
+`/etc/confluent/docker/bash-config` (first in `serverArtifacts`, ahead of the two PEM stores). The
+Confluent image **sources** that file before it renders broker properties, so exporting `KAFKA_*`
+there is equivalent to setting it in `env:` — except this file can make the secured listener
+**conditional** on the keystore having actually arrived (`if [ -f /etc/kafka/secrets/broker.keystore.pem ]`).
+If `serverArtifacts` ever fails to deliver it, the broker now comes up with no secured listener at
+all, and the suite fails loudly at the handshake — never quietly unhealthy for 45 seconds and never
+half-secured.
+
+`env:` still carries the KRaft/cluster-identity and REST-proxy variables (needed regardless of
+whether the broker is secured) and a **baseline** listener set with no `PLAINTEXT_HOST` at all —
+what the broker falls back to if artefact delivery fails. `broker-bash-config.sh` rewrites
+`KAFKA_LISTENERS`, `KAFKA_ADVERTISED_LISTENERS` and `KAFKA_LISTENER_SECURITY_PROTOCOL_MAP` to add the
+secured listener, and sets the five `KAFKA_SSL_*` variables, only inside its `if` block.
+`VOUCHFX_SECURE_ADVERTISED` (`localhost:19093` — the pinned host port from `ports:`, spelled as the
+client sees it) is still set in `env:`, because the script needs it and a `security:`-block cannot
+inject its own `env:` entries.
+
+The listener name this fixture uses is `PLAINTEXT_HOST`, not `SECURE` (the engine example's choice)
+— chosen before this fix existed and kept, since it already satisfies the constraint below and
+renaming it would be change for its own sake.
+
+Verified directly (`docker run`, artefacts delivered as declared, this file's exact content), not
+inferred:
+
+- **with the keystore delivered**: `Kafka Server started (kafka.server.KafkaRaftServer)`,
+  `listeners = [PLAINTEXT://localhost:29092, CONTROLLER://localhost:29093, PLAINTEXT_HOST://0.0.0.0:9092]`,
+  `advertised.listeners = [PLAINTEXT://localhost:29092, PLAINTEXT_HOST://localhost:19093]`,
+  `ssl.client.auth = required`, `ssl.keystore.type = PEM`, `ssl.truststore.type = PEM`; a real
+  `Confluent.Kafka`-equivalent client (`kafka-console-producer`/`kafka-console-consumer` with a PEM
+  `security.protocol=SSL` config) completed a produce/consume round trip presenting the client
+  certificate, and a client presenting **no** certificate was refused mid-handshake with
+  `javax.net.ssl.SSLHandshakeException: (certificate_required) Received fatal alert:
+  certificate_required`;
+- **with the keystore absent** (bash-config delivered, PEM stores not): the container stays
+  **running** — `Kafka Server started` still logs — with `listeners = [PLAINTEXT://localhost:29092,
+  CONTROLLER://localhost:29093]` (no `PLAINTEXT_HOST` at all) and `ssl.client.auth = none`, proving
+  the conditional actually degrades to "no secured listener" rather than either crashing or coming up
+  half-secured.
 
 ## Why `confluentinc/confluent-local:8.2.0`, not `cp-kafka:7.6.1`
 
@@ -186,6 +251,24 @@ disagree, the bootstrap connection can still succeed, but every subsequent produ
 follows the broker's own advertised address, which then points nowhere reachable. Change `19093` in
 one place, change it in both.
 
+### 3. The keystore must arrive before `env:` turns SSL on — this is why `broker-bash-config.sh` exists
+
+Putting `KAFKA_SSL_KEYSTORE_LOCATION` (and the other four `KAFKA_SSL_*` variables) straight into
+`env:` is the natural thing to write, and it is what an earlier version of this suite did. It is
+**wrong for a service whose `serverArtifacts` land after the container starts** — which is exactly
+how Aspire delivers them (`WithContainerFiles`, not a bind mount). SSL can initialise before the
+keystore file exists, and once Kafka decides a listener's key store is unusable it does not retry —
+the broker never binds that listener, for the rest of its life. In this suite's CI that surfaced as
+the topology sitting **unhealthy for the entire ~45-second health-gate window**, not as an obvious
+startup error: `Stopped waiting for resource 'broker' to become healthy because it failed to start.`
+
+The fix is `tests/broker-bash-config.sh`, delivered first in `serverArtifacts` to
+`/etc/confluent/docker/bash-config` — a file the Confluent image sources before it renders broker
+properties, and which makes the secured `PLAINTEXT_HOST` listener conditional on
+`/etc/kafka/secrets/broker.keystore.pem` actually existing by the time it runs. See "The bash-config
+indirection" above for the full CI failure, the fix, and the verification that both the
+keystore-present and keystore-absent paths behave as declared.
+
 ## Exact provider fields used
 
 | Step type | Fields used | Verified against |
@@ -195,39 +278,45 @@ one place, change it in both.
 
 ## Known unverified
 
-**This exact service-form suite has not yet been run end to end.** The dependency-form version was
-run through CI (vouchfx-samples PR #37, engine v1.0.0-rc.5) and that run is what surfaced the
-port-allocation failure this README documents — CI is the validator for this repository's samples,
-and the machine this sample was authored on has a local DCP port-allocation fault that blocks
-`scripts/run-sample.sh` for every sample here, not just this one, so a local run was not attempted
-for the converted suite either.
+**This exact suite (service form, `broker-bash-config.sh` fix included) has not yet been run
+through a live, Aspire-orchestrated CI job.** Two earlier attempts have: the dependency-form version
+(vouchfx-samples PR #37, engine v1.0.0-rc.5), which surfaced the port-allocation failure this README
+documents above ("The broker is a service, not a dependency"); and the first service-form version,
+which fixed that but then surfaced the artefact-delivery-timing failure `broker-bash-config.sh` now
+fixes ("The bash-config indirection" above). CI is the validator for this repository's samples, and
+the machine this sample was authored on has a local DCP port-allocation fault that blocks
+`scripts/run-sample.sh` for every sample here, not just this one, so a local Aspire run was not
+attempted for the current suite either.
 
-What **has** been measured, directly, before and during this sample's authoring:
+What **has** been measured, directly, via `docker run` reproductions using this suite's exact
+declared artefacts (not inferred from the `env:`/`serverArtifacts` text):
 
-- the exact `env:` set (including the KRaft/cluster-identity variables a lone service-form
-  container needs, which a `kafka` dependency would otherwise get from Aspire's own `AddKafka`
-  wiring), against `docker.io/confluentinc/confluent-local:8.2.0` started directly with
-  `docker run -p <pinned-port>:9092` — broker logs confirmed `ssl.keystore.type = PEM`,
-  `ssl.truststore.type = PEM`, `ssl.client.auth = required`, `ssl.keystore.password = null`, and a
-  real `Confluent.Kafka` client completed a produce/consume round trip with a client certificate
-  and was refused (`SSL alert number 116: certificate required`) without one — this is precisely
-  the `docker run -p <host>:<container>` shape a pinned-port service now reproduces;
+- **the fix itself, both branches of its conditional** — see "The bash-config indirection" above for
+  the full quoted evidence: with the keystore delivered, `Kafka Server started`, the secured
+  `PLAINTEXT_HOST` listener binds with `ssl.client.auth = required`, a real produce/consume round
+  trip completes over it, and a client presenting no certificate is refused
+  (`SSLHandshakeException: (certificate_required)`); with the keystore absent, the container stays
+  running with no secured listener at all rather than failing to start;
 - the listener-name gotcha above, both directions;
 - that the keystore file's concatenation order (key, then leaf certificate, then CA, in one file)
   works, via the same direct `docker run` measurement;
 - that both `setup.sh` and `setup.ps1` produce valid, chain-verified, non-expired material, and
   that material from either script validates through the other's own currency check;
-- that the failure mode described above is real and specific — quoted directly from the CI run
-  that produced it, not inferred.
+- that both failure modes described above (the port-allocation one and the artefact-delivery-timing
+  one) are real and specific — quoted directly from the CI runs that produced them, not inferred.
 
-What remains genuinely open until a live CI run: whether `endpoint: "9092"` on the service's
-`security:` block, `healthCheck: { type: tcp, port: 9092 }`, and the exact 22-variable `env:` block
-combine to bring the topology healthy on the first try, or whether some interaction only a real
-Aspire-orchestrated container start would surface (a stricter port-conflict check, a different
-default the image applies inside a full topology versus a bare `docker run`, etc.) still needs a
-second fix. If it does, the fix is confined to this one file — the underlying mechanism (pin the
-host port, advertise the same one) is the one docs §3.2.6b already documents as working, and engine
-issue #443 tracks the one confirmed defect this sample ran into.
+What remains genuinely open until a live CI run: a `docker run` reproduction with a bind-mounted
+keystore, or with the file present from container start via `-v`, is not the same delivery-timing
+shape as Aspire's `WithContainerFiles`, which is the mechanism that caused the original failure —
+the reproduction above proves `broker-bash-config.sh`'s **conditional logic** is correct in both
+branches, not that Aspire's own delivery necessarily lands before the container's first SSL
+initialisation attempt on every run. If it does not land in time even with the fix, the broker still
+comes up loudly unsecured (per the conditional) rather than silently unhealthy, which is itself a
+diagnosable outcome; whether it needs a further fix (e.g. a startup delay, or `WaitFor` tuning) is
+what only a real Aspire-orchestrated run can settle. Also open: whether `endpoint: "9092"` on the
+service's `security:` block and `healthCheck: { type: tcp, port: 9092 }` combine with the rest of
+the topology to bring it healthy on the first try under Aspire specifically. Engine issue #443
+tracks the separate, already-fixed dependency-port defect this sample also ran into.
 
 ## Key documents
 

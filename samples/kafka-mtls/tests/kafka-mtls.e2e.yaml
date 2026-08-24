@@ -145,35 +145,68 @@ environment:
         clientKey: ./certs/client-key.pem
 
         # THE HALF THE ENGINE DOES NOT DO FOR YOU: securing the broker's OWN
-        # listener. These two files are copied into the container at
-        # topology-build time, before it starts — delete this block and the
-        # suite still validates and still starts a container; it just fails
-        # the pre-run confirmation probe, because nothing on the secured
-        # listener speaks TLS.
+        # listener. These files are copied into the container via Aspire's
+        # `WithContainerFiles` at topology-build time — which, MEASURED,
+        # lands strictly AFTER the container process starts, not before it
+        # like a bind mount would. Delete this block and the suite still
+        # validates and still starts a container; it just fails the pre-run
+        # confirmation probe, because nothing on the secured listener speaks
+        # TLS.
         #
-        # Both are plain PEM, not JKS: confluent-local:8.2.0 reads
-        # `KAFKA_SSL_KEYSTORE_TYPE: PEM` natively, so neither ../setup.sh nor
-        # ../setup.ps1 ever shells out to keytool. The keystore file's
-        # internal shape (key, then leaf certificate, then CA — all three in
-        # ONE file) is measured, not merely documented; see ../setup.sh's own
-        # header comment for exactly what that measurement covered.
+        # broker-bash-config.sh is listed FIRST and is what makes that
+        # delivery-timing gap survivable: it is sourced by the Confluent
+        # image before broker properties render, and it makes the secured
+        # PLAINTEXT_HOST listener CONDITIONAL on the keystore file below
+        # having actually arrived by then — see the file's own header for the
+        # CI failure this fixes (broker never became healthy: the TCP probe
+        # against 9092 failed for the whole health-gate window because
+        # KAFKA_SSL_KEYSTORE_LOCATION used to be set unconditionally in
+        # `env:`, and Kafka does not retry binding a listener once it decides
+        # the key store is unusable) and ../README.md "The bash-config
+        # indirection" for the summary.
+        #
+        # The two PEM stores are plain PEM, not JKS: confluent-local:8.2.0
+        # reads `KAFKA_SSL_KEYSTORE_TYPE: PEM` natively, so neither
+        # ../setup.sh nor ../setup.ps1 ever shells out to keytool. The
+        # keystore file's internal shape (key, then leaf certificate, then CA
+        # — all three in ONE file) is measured, not merely documented; see
+        # ../setup.sh's own header comment for exactly what that measurement
+        # covered.
         serverArtifacts:
+          - source: ./broker-bash-config.sh
+            target: /etc/confluent/docker/bash-config
           - source: ./certs/broker.keystore.pem
             target: /etc/kafka/secrets/broker.keystore.pem
           - source: ./certs/broker.truststore.pem
             target: /etc/kafka/secrets/broker.truststore.pem
 
-      # The full env set MEASURED against docker.io/confluentinc/confluent-
+      # The env set MEASURED against docker.io/confluentinc/confluent-
       # local:8.2.0 (direct `docker run`, before this sample was written) to
-      # bring up a single-node KRaft broker with a mutually-authenticated
-      # PLAINTEXT_HOST listener alongside the plaintext internal ones. A
-      # SERVICE gets no Aspire `AddKafka` resource wiring KRaft/cluster
-      # defaults on its behalf the way a `kafka` dependency does — the image
-      # supplies its own baked-in defaults for anything left unset
-      # (/etc/confluent/docker/configureDefaults), but every variable below
-      # is written explicitly to match exactly what was run and proved
+      # bring up a single-node KRaft broker alongside the plaintext internal
+      # listeners. A SERVICE gets no Aspire `AddKafka` resource wiring
+      # KRaft/cluster defaults on its behalf the way a `kafka` dependency
+      # does — the image supplies its own baked-in defaults for anything left
+      # unset (/etc/confluent/docker/configureDefaults), but every variable
+      # below is written explicitly to match exactly what was run and proved
       # working, not to rely on an inference about which subset the image
       # would default correctly.
+      #
+      # THE SECURED LISTENER IS NOT HERE. It used to be — KAFKA_SSL_KEYSTORE_
+      # LOCATION and friends were set unconditionally in this block — and
+      # that is what broke CI: Aspire delivers `serverArtifacts` (the
+      # keystore below) via `WithContainerFiles`, which lands strictly AFTER
+      # the container starts, not before it like a bind mount. SSL
+      # initialisation could run before the file arrived, and once Kafka
+      # decides a listener's key store is unusable it never binds that
+      # listener again — the health probe against 9092 then fails for the
+      # entire ~45s gate window, every time, regardless of how long the
+      # window is. broker-bash-config.sh (see `serverArtifacts` above) now
+      # owns the secured listener instead, sourced by the Confluent image
+      # before it renders broker properties, and adds PLAINTEXT_HOST only
+      # once it can see the keystore file has actually arrived. What remains
+      # below is what the broker falls back to if delivery failed anyway: a
+      # broker with no secured listener at all, which fails the suite loudly
+      # at the handshake instead of sitting unhealthy forever.
       env:
         # ── Cluster identity (KRaft, single node, combined broker+controller) ──
         KAFKA_NODE_ID: "1"
@@ -198,39 +231,24 @@ environment:
         KAFKA_REST_BOOTSTRAP_SERVERS: "localhost:29092"
         KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
 
-        # ── The listener wiring THIS IS WHAT TURNS ON TLS ───────────────────
-        # PLAINTEXT_HOST is the listener NAME that carries the secured
-        # protocol — deliberately NOT a name ending in "SSL" (e.g.
-        # "EXTERNAL_SSL"). MEASURED: confluent-local:8.2.0's own
-        # /etc/confluent/docker/configure script string-matches
-        # KAFKA_ADVERTISED_LISTENERS for the literal substring "SSL://" and,
-        # if found, unconditionally demands KAFKA_SSL_KEYSTORE_FILENAME (a
-        # JKS-only, file-INDIRECTION variable this sample never sets) via
-        # `ub ensure` — a bash preflight check, not a Kafka broker error.
-        # Tested BOTH directions before this sample was written: a listener
-        # named "EXTERNAL_SSL" made the container exit 1 immediately with
-        # `environment variable "KAFKA_SSL_KEYSTORE_FILENAME" is not set`,
-        # before Kafka itself ever started; "PLAINTEXT_HOST" (no "SSL"
-        # substring) skips that bash branch entirely and lets the generic
-        # KAFKA_* -> property-name mapper apply KAFKA_SSL_KEYSTORE_TYPE=PEM
-        # and friends directly. See ../README.md "Two things you will
-        # otherwise get wrong" for the full measurement.
-        #
-        # KAFKA_ADVERTISED_LISTENERS names `localhost:19093` — the PINNED
-        # HOST port from `ports:` above, spelled as the client sees it. This
+        # ── Baseline listeners — the FALLBACK if serverArtifacts fails to
+        # deliver the keystore. broker-bash-config.sh rewrites these three to
+        # add the secured PLAINTEXT_HOST listener once it sees the keystore
+        # file, but only then — see that file's own header, and the block
+        # comment above, for why this is a fallback and not a duplicate of
+        # what the script sets.
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+        KAFKA_LISTENERS: "PLAINTEXT://localhost:29092,CONTROLLER://localhost:29093"
+        KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:29092"
+
+        # The address broker-bash-config.sh advertises for the secured
+        # PLAINTEXT_HOST listener once it turns it on — the PINNED HOST port
+        # from `ports:` above (`19093`), spelled as the client sees it. This
         # is the line that was WRONG in the dependency-form version of this
         # suite (it named an unpinned, guessed port) and is the whole reason
-        # this file now declares `broker` as a service.
-        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:SSL"
-        KAFKA_LISTENERS: "PLAINTEXT://localhost:29092,CONTROLLER://localhost:29093,PLAINTEXT_HOST://0.0.0.0:9092"
-        KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:29092,PLAINTEXT_HOST://localhost:19093"
-
-        # ── The five SSL variables (measured) ──────────────────────────────
-        KAFKA_SSL_KEYSTORE_TYPE: "PEM"
-        KAFKA_SSL_KEYSTORE_LOCATION: "/etc/kafka/secrets/broker.keystore.pem"
-        KAFKA_SSL_TRUSTSTORE_TYPE: "PEM"
-        KAFKA_SSL_TRUSTSTORE_LOCATION: "/etc/kafka/secrets/broker.truststore.pem"
-        KAFKA_SSL_CLIENT_AUTH: "required"
+        # this file declares `broker` as a service rather than a dependency
+        # (see file header).
+        VOUCHFX_SECURE_ADVERTISED: "localhost:19093"
 
 steps:
   # ── 1. Publish over the mutually-authenticated listener ─────────────────
