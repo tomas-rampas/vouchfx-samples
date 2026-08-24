@@ -1,4 +1,4 @@
-be12ebd126fdf03dcea9eade7bcec3afbcba001b
+cc5e8efa9c84f59e1135568456f7c156261f6263
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,8 @@ be12ebd126fdf03dcea9eade7bcec3afbcba001b
 #
 # Pin history
 # ------------
+# 2026-08-24: advanced to cc5e8efa — a managed dependency's env: map — the kafka-mtls sample needs it to override Aspire's listener wiring for a TLS listener.
+# Prior pin: be12ebd1.
 # 2026-08-10: advanced to be12ebd1 — the v1.0.0-rc.4 tag commit — authenticated
 # infrastructure: a suite can now test against infrastructure that demands TLS or
 # mutual TLS instead of only plaintext. A `security:` block on `services` and on
