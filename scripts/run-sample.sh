@@ -119,9 +119,27 @@ if [[ "$TARGET" != "all" ]]; then
   fi
 fi
 
-# ── Ensure the engine CLI is bootstrapped ────────────────────────────────────
+# ── Ensure the engine CLI is bootstrapped, AT THE PINNED COMMIT ──────────────
+# Presence of .vouchfx-src is not enough: an existing checkout can be sitting at
+# a PREVIOUS pin, and then every suite here runs against the wrong engine while
+# reporting success. That is not hypothetical — advancing ENGINE_PIN to
+# v1.0.0-rc.5 and re-running produced a schema rejection of a field the pinned
+# engine supports, because the stale checkout was still at rc.4. ENGINE_PIN's
+# own instructions say to delete .vouchfx-src by hand; a step nobody can forget
+# is better than a step everybody must remember.
+pinned_sha="$(grep -m1 -E '^[0-9a-f]{40}$' "${REPO_ROOT}/ENGINE_PIN" || true)"
+checkout_sha=""
+if [[ -d "$VOUCHFX_SRC_DIR/.git" ]]; then
+  checkout_sha="$(git -C "$VOUCHFX_SRC_DIR" rev-parse HEAD 2>/dev/null || true)"
+fi
+
 if [[ ! -d "$VOUCHFX_SRC_DIR" ]]; then
   log ".vouchfx-src not found — running scripts/bootstrap.sh first."
+  "${REPO_ROOT}/scripts/bootstrap.sh"
+elif [[ -n "$pinned_sha" && "$checkout_sha" != "$pinned_sha" ]]; then
+  log ".vouchfx-src is at ${checkout_sha:-<unknown>} but ENGINE_PIN says ${pinned_sha}."
+  log "Re-bootstrapping so this run uses the pinned engine, not the stale one."
+  rm -rf "$VOUCHFX_SRC_DIR"
   "${REPO_ROOT}/scripts/bootstrap.sh"
 fi
 
@@ -154,33 +172,62 @@ run_one() {
   local app_dir="${SAMPLES_DIR}/${name}/app"
   local tests_dir="${SAMPLES_DIR}/${name}/tests"
   local runner_dir="${SAMPLES_DIR}/${name}/runner"
+  local setup_script="${SAMPLES_DIR}/${name}/setup.sh"
   local junit_out="${OUT_DIR}/${name}-results.xml"
   local html_out="${OUT_DIR}/${name}-report.html"
 
-  if [[ ! -d "$app_dir" ]]; then
-    log "Sample '${name}' has no app/ directory at ${app_dir}."
-    return 1
-  fi
   if [[ ! -d "$tests_dir" ]]; then
     log "Sample '${name}' has no tests/ directory at ${tests_dir}."
     return 1
   fi
 
-  log "=== ${name}: docker build ${image} ==="
-  # Read the opt-in flags into an array one line at a time, so a value containing
-  # spaces survives intact (word-splitting an unquoted string would not).
-  local -a build_flags=()
-  while IFS= read -r flag; do
-    [[ -n "$flag" ]] && build_flags+=("$flag")
-  done < <(docker_build_flags)
-  # ${arr[@]+"${arr[@]}"} expands to nothing at all when the array is empty,
-  # instead of tripping `set -u` on bash 3.2 (still the system bash on macOS).
-  if ! docker build ${build_flags[@]+"${build_flags[@]}"} -t "$image" "$app_dir"; then
-    log "docker build failed for ${name}."
-    return 1
+  # Discovered by CONVENTION, not listed by name: a sample that declares
+  # certificates or other files a fresh checkout does not contain (a
+  # `security:` block's `caCert`/`clientCert`/`clientKey`/`serverArtifacts`,
+  # all resolved and existence-checked before any container starts) ships
+  # samples/<name>/setup.sh beside its suite. This is the only point at which
+  # such material can be created — nothing inside the suite itself can, since
+  # every declared path is checked before the topology starts (see
+  # samples/kafka-mtls/README.md for the concrete case this exists for).
+  # Mirrors examples/<name>.setup.sh discovery in the engine's own
+  # vouchfx-run-examples.yml CI workflow. Absent for every sample that needs
+  # no generated fixtures, which is most of them.
+  if [[ -f "$setup_script" ]]; then
+    log "=== ${name}: running setup script (samples/${name}/setup.sh) ==="
+    if ! bash "$setup_script"; then
+      log "setup.sh failed for ${name}."
+      return 1
+    fi
+  fi
+
+  # A sample with no system under test — only managed dependencies and steps
+  # against them — has no app/ directory and needs no image built. Tolerated
+  # rather than required: only has_runner_project below or the CLI-only path
+  # further down actually needs anything docker-built here.
+  local has_app=0
+  if [[ -d "$app_dir" ]]; then
+    has_app=1
+  else
+    log "Sample '${name}' has no app/ directory — skipping docker build (no system under test)."
   fi
 
   local rc=0
+
+  if [[ "$has_app" -eq 1 ]]; then
+    log "=== ${name}: docker build ${image} ==="
+    # Read the opt-in flags into an array one line at a time, so a value containing
+    # spaces survives intact (word-splitting an unquoted string would not).
+    local -a build_flags=()
+    while IFS= read -r flag; do
+      [[ -n "$flag" ]] && build_flags+=("$flag")
+    done < <(docker_build_flags)
+    # ${arr[@]+"${arr[@]}"} expands to nothing at all when the array is empty,
+    # instead of tripping `set -u` on bash 3.2 (still the system bash on macOS).
+    if ! docker build ${build_flags[@]+"${build_flags[@]}"} -t "$image" "$app_dir"; then
+      log "docker build failed for ${name}."
+      return 1
+    fi
+  fi
 
   if has_runner_project "$runner_dir"; then
     # Custom-runner sample: it project-references the bootstrapped
