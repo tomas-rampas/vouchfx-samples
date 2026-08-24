@@ -104,6 +104,23 @@ jobs:
       - name: Run sample suite (${{ matrix.sample }})
         run: bash scripts/run-sample.sh ${{ matrix.sample }}
 
+      # A suite that fails because a CONTAINER never became healthy leaves no
+      # trace in this log: the engine reports "resource X failed to start" and
+      # the container's own stdout — which says why — is never surfaced. That
+      # cost a full debugging cycle on the kafka-mtls sample, where the broker
+      # was measured healthy in 6.4s under `docker run` with identical inputs
+      # and the orchestrated one never came up. Containers are usually torn
+      # down by then; anything still present is worth reading.
+      - name: Container diagnostics (${{ matrix.sample }})
+        if: failure()
+        run: |
+          echo "=== containers (any state) ==="
+          docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || true
+          for c in $(docker ps -aq); do
+            echo "=== logs: $(docker inspect --format '{{.Name}}' "$c") ==="
+            docker logs --tail 200 "$c" 2>&1 || true
+          done
+
       - name: Upload reports (${{ matrix.sample }})
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
