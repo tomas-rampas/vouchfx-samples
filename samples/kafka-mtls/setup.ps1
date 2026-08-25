@@ -2,7 +2,9 @@
 <#
 .SYNOPSIS
     Generates the throwaway certificates that tests/kafka-mtls.e2e.yaml
-    declares for a mutually-authenticated Kafka `dependency` (not a service).
+    declares for a mutually-authenticated Kafka broker, declared as a SERVICE
+    under environment.services so its host port can be pinned — a dependency
+    cannot advertise a reachable address (engine issue #443).
 
 .DESCRIPTION
     ###########################################################################

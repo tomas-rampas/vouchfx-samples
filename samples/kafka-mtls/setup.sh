@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  setup.sh — generate the throwaway certificates that kafka-mtls.e2e.yaml
-#  declares for a mutually-authenticated Kafka `dependency` (not a service).
+#  declares for a mutually-authenticated Kafka broker, declared as a SERVICE
+#  under `environment.services` so its host port can be pinned — a dependency
+#  cannot advertise a reachable address (engine issue #443).
 #
 #  ###########################################################################
 #  #  THIS IS A TEST CERTIFICATE AUTHORITY.  IT IS NOT SECURE.               #

@@ -56,7 +56,17 @@
 # the secured listener rather than announcing itself.)
 : "${VOUCHFX_SECURE_ADVERTISED:?must be set in the suite env block to the pinned host address}"
 
-if [ -f /etc/kafka/secrets/broker.keystore.pem ]; then
+# BOTH stores, and both non-empty. Gating on the keystore alone was the first
+# version of this file, and it left the exact hole this conditional exists to
+# close, just one file along: `serverArtifacts` delivers the keystore and the
+# truststore as two separate operations, so the keystore can land first, and a
+# broker that turns SSL on with KAFKA_SSL_TRUSTSTORE_LOCATION pointing at a file
+# that is not there yet fails SSL init and never binds the listener — the same
+# silent, never-healthy shape as before, reached by a different route. `-s`
+# rather than `-f` because a partially-written file is present but useless, and
+# the delivery is not atomic.
+if [ -s /etc/kafka/secrets/broker.keystore.pem ] \
+   && [ -s /etc/kafka/secrets/broker.truststore.pem ]; then
   # THE LISTENER NAME `PLAINTEXT_HOST` IS LOAD-BEARING. DO NOT RENAME IT TO
   # ANYTHING ENDING IN `SSL`.
   #
