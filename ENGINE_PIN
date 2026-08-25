@@ -1,4 +1,4 @@
-be12ebd126fdf03dcea9eade7bcec3afbcba001b
+cc5e8efa9c84f59e1135568456f7c156261f6263
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,17 @@ be12ebd126fdf03dcea9eade7bcec3afbcba001b
 #
 # Pin history
 # ------------
+# 2026-08-24: advanced to cc5e8efa — the v1.0.0-rc.5 tag commit — tracking the current
+# release; validated by a full-fleet green run (all five samples plus migrations).
+#   Headline of rc.5 is a managed dependency's env: map, plus security.clientKeyPassword
+#   for an encrypted mutual-TLS client key. NOTE, so a future bump does not inherit a
+#   wrong reason: this pin was originally taken BECAUSE the kafka-mtls sample needed the
+#   dependency env: map to add a TLS listener to Aspire's own broker. That approach was
+#   abandoned — a kafka dependency cannot advertise a reachable host port (engine issue
+#   #443) — and the sample now declares its broker as a service, which needs nothing from
+#   rc.5. The pin is still worth having on the fleet-green grounds above; it is no longer
+#   load-bearing for any sample here.
+# Prior pin: be12ebd1.
 # 2026-08-10: advanced to be12ebd1 — the v1.0.0-rc.4 tag commit — authenticated
 # infrastructure: a suite can now test against infrastructure that demands TLS or
 # mutual TLS instead of only plaintext. A `security:` block on `services` and on

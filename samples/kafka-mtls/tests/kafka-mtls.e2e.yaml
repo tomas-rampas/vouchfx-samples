@@ -1,0 +1,298 @@
+# samples/kafka-mtls/tests/kafka-mtls.e2e.yaml
+#
+# Mutual TLS against a Kafka broker vouchfx starts for you — a produce/
+# consume round trip over a mutually-authenticated `confluentinc/confluent-
+# local:8.2.0` listener, secured entirely with PEM certificate material (no
+# JDK, no keytool anywhere in ../setup.sh / ../setup.ps1).
+#
+# THE BROKER IS DECLARED AS A SERVICE (environment.services), NOT A
+# DEPENDENCY, and that is a correction, not the original design. A `kafka`
+# dependency also accepts a `security:` block (docs/02
+# §3.2.6b), and an earlier version of this suite used exactly that shape —
+# vouchfx-samples PR #37, run against engine v1.0.0-rc.5, is where it broke:
+# Aspire allocated an unpredictable host port (measured: 39725) for the
+# dependency's own `tcp` binding, this suite's `KAFKA_ADVERTISED_LISTENERS`
+# necessarily advertised a different, guessed port (`localhost:9092`), and
+# every Kafka client's standard second hop — reconnecting to whatever
+# `advertised.listeners` names, after the initial bootstrap — then targeted a
+# port nothing was listening on. The broker never became healthy:
+#
+#   [thrd:localhost:39725/bootstrap]: Disconnected: connection closed by peer:
+#     receive 0 after POLLIN (after 3ms in state APIVERSION_QUERY)
+#   fail: Stopped waiting for resource 'broker' to become healthy because it
+#   failed to start.
+#
+# A `kafka` dependency has no author-facing field to pin its own host port —
+# no `ports:`, `${conn:}` refused inside its own `env:` (docs/02 §3.2.6c:
+# "a dependency is a connection SOURCE rather than a consumer"), and
+# `${env:}` cannot know a port Aspire has not allocated yet. Filed as engine
+# issue #443. A SERVICE does not have this problem: `ports:` accepts the
+# `"<host>:<container>"` form specifically to PIN the host side (docs/02
+# §3.2.6a/§3.2.6b, "Kafka targets", third limit: "Pin the host port the
+# broker's container port publishes on... and configure the broker's own
+# advertised.listeners through its env: map to name that same pinned host
+# port"), which is exactly what this file now does.
+#
+# RUN THE SETUP SCRIPT FIRST. This suite declares certificates that do not
+# exist in a fresh checkout:
+#
+#     bash samples/kafka-mtls/setup.sh            (Linux, macOS, CI, Git Bash)
+#     pwsh -File samples/kafka-mtls/setup.ps1      (Windows)
+#
+# then run it via the repository's sample runner (which runs the setup
+# script above for you automatically — see scripts/run-sample.sh):
+#
+#     scripts/run-sample.sh kafka-mtls
+#
+# NO NEGATIVE CONTROL IS HAND-WRITTEN INTO THIS SUITE, and that is deliberate
+# rather than an omission. For a secured `kafka` TARGET — dependency or
+# service, this doesn't change with the conversion above — the engine's own
+# pre-run confirmation probe does both halves itself, before step 1 ever
+# runs: it completes a real Kafka `ApiVersions` round trip over the
+# mutually-authenticated connection AND opens a SECOND connection presenting
+# no client certificate, which the broker must refuse. Both are required for
+# the probe to report `AuthenticatedRoundTrip`, and it fails CLOSED — an
+# unconfirmable declaration exits non-zero with no gating flag needed
+# (docs/02 §3.2.6b, "Confirmation before the suite runs"). So the assurance
+# this sample rests on comes from the ENGINE, independently of whatever this
+# suite's own steps do or don't assert — a stronger and more honest claim
+# than a hand-rolled "connect without a cert and expect a refusal" step
+# further down this file could make, since that step would only prove the
+# SAME thing the engine already proved before it ran.
+#
+# WHAT THE CERTIFICATES MUST NOT BE. Everything under ./certs/ is generated,
+# git-ignored (see the repo .gitignore's `samples/kafka-mtls/tests/certs*/`
+# entry) and thrown away. Do not put a production identity there — see
+# ../setup.sh's own header for the full warning this sample inherits
+# verbatim from examples/security-mtls.setup.sh in the engine repo.
+#
+# ENGINE PIN. See ../../ENGINE_PIN for the exact commit this repository
+# currently builds against.
+
+metadata:
+  name: kafka-mtls
+  owner: samples
+  tags: [samples, kafka, security, mtls]
+  description: >-
+    A produce/consume round trip over a mutually-authenticated Kafka broker,
+    secured end to end with plain PEM certificate material — no JDK, no
+    keytool. Proves `security: profile: mtls` (caCert/clientCert/clientKey +
+    serverArtifacts) against a broker vouchfx itself starts, and that the
+    engine's own pre-run confirmation probe both completes an authenticated
+    round trip and refuses an anonymous connection before any step runs.
+
+environment:
+  services:
+    # SERVICE, not dependency — see the file header for exactly why. The
+    # image is the one every measurement behind this sample was taken
+    # against: docker.io/confluentinc/confluent-local:8.2.0, the same image
+    # Aspire's own `AddKafka` resolves to. examples/security-mtls.e2e.yaml in
+    # the engine repo uses `cp-kafka:7.6.1` instead — an older, ZooKeeper-
+    # capable Confluent Platform image with its own broker-entrypoint.sh
+    # indirection (serverArtifacts overriding /etc/confluent/docker/
+    # bash-config) that this sample's own measurements never exercised.
+    # Switching images now, on top of switching declaration forms, would
+    # trade one unverified claim for another; confluent-local:8.2.0 keeps
+    # every other measured fact behind this sample (the PEM env set, the
+    # listener-name trap, the keystore concatenation order, the produce/
+    # consume round trip, the negative control) still true of the exact
+    # image being run.
+    broker:
+      image: confluentinc/confluent-local:8.2.0
+
+      # THE FIX. "<host>:<container>" PINS the host side so this suite can
+      # name a port that is actually knowable — the opposite of the
+      # dependency form's problem (see file header). 19093 is arbitrary and
+      # simply has to be free on the runner; change it if it collides. The
+      # container side (9092) is where the secured PLAINTEXT_HOST listener
+      # in `env:` below actually binds.
+      ports: ["19093:9092"]
+
+      # A container health check cannot present a client certificate, so an
+      # HTTP probe against a mutual-TLS listener would hold a healthy
+      # topology unhealthy forever (docs/02 §3.2.6b). Written out explicitly
+      # rather than left to the default `tcp`-against-the-secured-port
+      # behaviour, because the port it probes is worth stating — same
+      # rationale examples/security-mtls.e2e.yaml gives for its own broker.
+      healthCheck: { type: tcp, port: 9092 }
+
+      security:
+        # `mtls` — present the client certificate below and require the
+        # broker's own to validate.
+        profile: mtls
+
+        # On a SERVICE, unlike a dependency, this field DOES select which
+        # declared port is secured — the CONTAINER-side number from `ports:`
+        # above (docs/02 §3.2.6b: "endpoint selects WHICH of the service's
+        # ports is the secured one"). Matches examples/security-mtls.e2e.yaml's
+        # own broker (`ports: ["39093:9093"]`, `endpoint: "9093"`).
+        endpoint: "9092"
+
+        # One private CA signs both leaves below — what an internal PKI
+        # actually looks like, and why `caCert` names the same file the
+        # broker's own truststore is built from (see ../setup.sh step 4).
+        caCert: ./certs/ca.pem
+
+        # THE IDENTITY THIS SUITE PRESENTS. Unencrypted PEM: the certificates
+        # are generated, git-ignored and thrown away on every run, so there
+        # is nothing at rest worth protecting — see ../setup.sh's own header
+        # for engine issue #384, which tracks the general case where an
+        # unencrypted key at rest is a real constraint rather than a
+        # convenience. Both paths are checked for containment inside this
+        # suite's own directory and existence, before any container starts
+        # (docs/02 §3.2.6b) — certificates cannot live outside ../tests/.
+        clientCert: ./certs/client.pem
+        clientKey: ./certs/client-key.pem
+
+        # THE HALF THE ENGINE DOES NOT DO FOR YOU: securing the broker's OWN
+        # listener. These files are copied into the container via Aspire's
+        # `WithContainerFiles` at topology-build time — which, MEASURED,
+        # lands strictly AFTER the container process starts, not before it
+        # like a bind mount would. Delete this block and the suite still
+        # validates and still starts a container; it just fails the pre-run
+        # confirmation probe, because nothing on the secured listener speaks
+        # TLS.
+        #
+        # broker-bash-config.sh is listed FIRST and is what makes that
+        # delivery-timing gap survivable: it is sourced by the Confluent
+        # image before broker properties render, and it makes the secured
+        # PLAINTEXT_HOST listener CONDITIONAL on the keystore file below
+        # having actually arrived by then — see the file's own header for the
+        # CI failure this fixes (broker never became healthy: the TCP probe
+        # against 9092 failed for the whole health-gate window because
+        # KAFKA_SSL_KEYSTORE_LOCATION used to be set unconditionally in
+        # `env:`, and Kafka does not retry binding a listener once it decides
+        # the key store is unusable) and ../README.md "The bash-config
+        # indirection" for the summary.
+        #
+        # The two PEM stores are plain PEM, not JKS: confluent-local:8.2.0
+        # reads `KAFKA_SSL_KEYSTORE_TYPE: PEM` natively, so neither
+        # ../setup.sh nor ../setup.ps1 ever shells out to keytool. The
+        # keystore file's internal shape (key, then leaf certificate, then CA
+        # — all three in ONE file) is measured, not merely documented; see
+        # ../setup.sh's own header comment for exactly what that measurement
+        # covered.
+        serverArtifacts:
+          - source: ./broker-bash-config.sh
+            target: /etc/confluent/docker/bash-config
+          - source: ./certs/broker.keystore.pem
+            target: /etc/kafka/secrets/broker.keystore.pem
+          - source: ./certs/broker.truststore.pem
+            target: /etc/kafka/secrets/broker.truststore.pem
+
+      # The env set MEASURED against docker.io/confluentinc/confluent-
+      # local:8.2.0 (direct `docker run`, before this sample was written) to
+      # bring up a single-node KRaft broker alongside the plaintext internal
+      # listeners. A SERVICE gets no Aspire `AddKafka` resource wiring
+      # KRaft/cluster defaults on its behalf the way a `kafka` dependency
+      # does — the image supplies its own baked-in defaults for anything left
+      # unset (/etc/confluent/docker/configureDefaults), but every variable
+      # below is written explicitly to match exactly what was run and proved
+      # working, not to rely on an inference about which subset the image
+      # would default correctly.
+      #
+      # THE SECURED LISTENER IS NOT HERE. It used to be — KAFKA_SSL_KEYSTORE_
+      # LOCATION and friends were set unconditionally in this block — and
+      # that is what broke CI: Aspire delivers `serverArtifacts` (the
+      # keystore below) via `WithContainerFiles`, which lands strictly AFTER
+      # the container starts, not before it like a bind mount. SSL
+      # initialisation could run before the file arrived, and once Kafka
+      # decides a listener's key store is unusable it never binds that
+      # listener again — the health probe against 9092 then fails for the
+      # entire ~45s gate window, every time, regardless of how long the
+      # window is. broker-bash-config.sh (see `serverArtifacts` above) now
+      # owns the secured listener instead, sourced by the Confluent image
+      # before it renders broker properties, and adds PLAINTEXT_HOST only
+      # once it can see BOTH PEM stores have actually arrived and are
+      # non-empty. What remains below is what the broker falls back to if
+      # delivery failed anyway: a broker with no secured listener at all.
+      # That fallback fails at the HEALTH GATE, not at a step — `healthCheck`
+      # above probes 9092, the secured port, so with no secured listener
+      # nothing binds it and the run stops before any step executes. Loud and
+      # never half-secured, but do not expect a handshake error or any step
+      # verdicts; expect a health-gate timeout naming this service.
+      env:
+        # ── Cluster identity (KRaft, single node, combined broker+controller) ──
+        KAFKA_NODE_ID: "1"
+        CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+        KAFKA_PROCESS_ROLES: "broker,controller"
+        KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:29093"
+        KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+        KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+        KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+        KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+
+        # ── The REST proxy the image also bundles ──────────────────────────
+        # /etc/confluent/docker/configure unconditionally does `ub ensure
+        # KAFKA_REST_BOOTSTRAP_SERVERS` — a hard preflight requirement,
+        # whether or not the broker itself is secured. Values match the
+        # image's own baked-in defaults; declared explicitly for the same
+        # reason as the cluster-identity block above.
+        KAFKA_REST_HOST_NAME: "rest-proxy"
+        KAFKA_REST_BOOTSTRAP_SERVERS: "localhost:29092"
+        KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
+
+        # ── Baseline listeners — the FALLBACK if serverArtifacts fails to
+        # deliver the keystore. broker-bash-config.sh rewrites these three to
+        # add the secured PLAINTEXT_HOST listener once it sees the keystore
+        # file, but only then — see that file's own header, and the block
+        # comment above, for why this is a fallback and not a duplicate of
+        # what the script sets.
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+        KAFKA_LISTENERS: "PLAINTEXT://localhost:29092,CONTROLLER://localhost:29093"
+        KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:29092"
+
+        # The address broker-bash-config.sh advertises for the secured
+        # PLAINTEXT_HOST listener once it turns it on — the PINNED HOST port
+        # from `ports:` above (`19093`), spelled as the client sees it. This
+        # is the line that was WRONG in the dependency-form version of this
+        # suite (it named an unpinned, guessed port) and is the whole reason
+        # this file declares `broker` as a service rather than a dependency
+        # (see file header).
+        VOUCHFX_SECURE_ADVERTISED: "localhost:19093"
+
+steps:
+  # ── 1. Publish over the mutually-authenticated listener ─────────────────
+  - id: publish-order
+    type: mq-publish.kafka
+    description: >
+      Publishes to the secured PLAINTEXT_HOST listener. mq-publish.kafka
+      takes its transport from the target's declared `security` block
+      (docs/02 §3.2.6b/§5.2) whether the target is a dependency or, as here,
+      a service — presenting the client certificate above.
+    target: broker
+    topic: orders
+    payload: '{"orderId":"kafka-mtls-001","source":"kafka-mtls-sample"}'
+    timeout: 30s
+
+  # ── 2. Consume it back over the same connection ──────────────────────────
+  # verifyMode RETRY polls with engine-owned backoff until the message
+  # arrives or the timeout expires — never write a sleep.
+  - id: consume-order
+    type: mq-expect.kafka
+    description: >
+      Reads the message back over the mutually-authenticated connection,
+      proving the round trip completed end to end — not merely that the
+      engine's own pre-run probe could reach the broker.
+    target: broker
+    topic: orders
+    verifyMode: RETRY
+    timeout: 60s
+    match:
+      json:
+        "$.orderId": "kafka-mtls-001"
+        "$.source": "kafka-mtls-sample"
+
+# ── WHAT THIS SUITE PROVES, AND WHAT IT DOES NOT ─────────────────────────────
+# A green run here means the engine's OWN AuthenticatedRoundTrip confirmation
+# succeeded (both a real authenticated round trip AND a refused anonymous
+# connection, before step 1 ran) AND the two steps above completed a genuine
+# produce/consume round trip over that same secured connection. It does NOT
+# prove authorisation (docs/02 §3.2.6b: "Any client certificate the declared
+# CA issued is accepted, whatever it says about who the holder is") and it
+# does NOT prove the broker enforces mTLS against every possible listener —
+# only the one this suite's `security:` block and `env:` map actually secure.
+# ─────────────────────────────────────────────────────────────────────────────

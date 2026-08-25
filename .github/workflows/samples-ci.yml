@@ -3,8 +3,8 @@
 #
 # Triggers: push and pull_request to main, plus manual dispatch. Docs-only
 # changes (Markdown anywhere, docs/, site/, LICENSE, .gitignore) skip the
-# whole workflow via paths-ignore (issue #12): the 4-runner Docker matrix
-# costs ~32 runner-minutes per push and proves nothing about prose. The
+# whole workflow via paths-ignore (issue #12): the 5-runner Docker matrix
+# costs runner-minutes on every push and proves nothing about prose. The
 # branch ruleset names no required checks, so a skipped run does not wedge
 # merges. Anything that can affect a suite run — samples/, migrations/,
 # scripts/, ENGINE_PIN, global.json, this workflow — still triggers, and
@@ -77,16 +77,17 @@ jobs:
 
     strategy:
       fail-fast: false
-      # Four matrix entries, four isolated runners — full fan-out is safe
+      # Five matrix entries, five isolated runners — full fan-out is safe
       # (see the file header: the CI matrix, not this value, is what keeps
       # samples from colliding on shared Aspire/DCP resources).
-      max-parallel: 4
+      max-parallel: 5
       matrix:
         sample:
           - orders-dotnet
           - inventory-python
           - payments-java
           - ledger-jsonrpc
+          - kafka-mtls
 
     steps:
       - name: Checkout vouchfx-samples
@@ -102,6 +103,30 @@ jobs:
 
       - name: Run sample suite (${{ matrix.sample }})
         run: bash scripts/run-sample.sh ${{ matrix.sample }}
+
+      # A suite that fails because a CONTAINER never became healthy leaves no
+      # trace in this log: the engine reports "resource X failed to start" and
+      # the container's own stdout — which says why — is never surfaced. That
+      # cost a full debugging cycle on the kafka-mtls sample, where the broker
+      # was measured healthy in 6.4s under `docker run` with identical inputs
+      # and the orchestrated one never came up. Containers are usually torn
+      # down by then; anything still present is worth reading.
+      - name: Container diagnostics (${{ matrix.sample }})
+        if: failure()
+        run: |
+          echo "=== containers (any state) ==="
+          docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || true
+          # Every command guarded, including the substitution. A container can
+          # disappear between this list and the inspect below — DCP is tearing
+          # them down while this step runs, which is why the step so often finds
+          # nothing — and an unguarded failure there would abort the loop and
+          # cost the logs of every container after it, in the one step whose
+          # whole purpose is to salvage logs from a failure.
+          for c in $(docker ps -aq 2>/dev/null || true); do
+            name="$(docker inspect --format '{{.Name}}' "$c" 2>/dev/null || echo "$c")"
+            echo "=== logs: ${name} ==="
+            docker logs --tail 200 "$c" 2>&1 || true
+          done
 
       - name: Upload reports (${{ matrix.sample }})
         if: always()
