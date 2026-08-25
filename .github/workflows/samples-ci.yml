@@ -101,8 +101,82 @@ jobs:
       - name: Bootstrap engine CLI (pinned commit)
         run: bash scripts/bootstrap.sh
 
+      # DIAGNOSTIC SCAFFOLDING (temporary — kafka-mtls CI investigation).
+      # Establishes which container runtime DCP actually drives, and starts a
+      # background poller that captures the broker container's OWN stdout plus
+      # file-ownership/permissions facts WHILE the suite runs — the existing
+      # `if: failure()` diagnostics step below runs too late: by the time it
+      # fires, HeadlessTopology.DisposeAsync has already torn the topology
+      # down (§4.5 teardown discipline), so `docker ps -a` finds nothing. This
+      # step polls podman directly (the orphan-process log shows DCP always
+      # spawns `podman pause`) and detaches so it keeps running across the
+      # "Run sample suite" step boundary within the same job.
+      - name: Start broker diagnostics watcher (${{ matrix.sample }})
+        if: matrix.sample == 'kafka-mtls'
+        run: |
+          mkdir -p diag
+          echo "=== runtime identity ===" > diag/runtime-identity.log
+          { command -v docker podman; docker --version; podman --version; \
+            echo "-- readlink docker --"; readlink -f "$(command -v docker)" || true; \
+            echo "-- docker info (runtime hints) --"; docker info 2>&1 | grep -i -E 'podman|server version|operating system' || true; \
+            echo "-- podman info (rootless/userns) --"; podman info 2>&1 | grep -i -E 'rootless|graphDriverName|idmappings' || true; \
+          } >> diag/runtime-identity.log 2>&1 || true
+          cat diag/runtime-identity.log
+
+          nohup bash -c '
+            found=""
+            for i in $(seq 1 150); do
+              name=$(podman ps -a --format "{{.Names}}" 2>/dev/null | grep -i broker | head -n1)
+              if [ -n "$name" ] && [ -z "$found" ]; then
+                found="$name"
+                echo "[watcher] $(date -u +%H:%M:%S) found broker container: $name" >> diag/watcher.log
+                podman logs -f "$name" >> diag/broker-container.log 2>&1 &
+              fi
+              if [ -n "$found" ]; then
+                {
+                  echo "=== $(date -u +%H:%M:%S) podman inspect state ==="
+                  podman inspect "$found" --format "Status={{.State.Status}} ExitCode={{.State.ExitCode}} StartedAt={{.State.StartedAt}} FinishedAt={{.State.FinishedAt}}" 2>&1
+                  echo "=== ls -la /etc/kafka/secrets ==="
+                  podman exec "$found" ls -la /etc/kafka/secrets 2>&1
+                  echo "=== ls -la /etc/confluent/docker/bash-config ==="
+                  podman exec "$found" ls -la /etc/confluent/docker/bash-config 2>&1
+                  echo "=== id (process user) ==="
+                  podman exec "$found" id 2>&1
+                  echo "=== stat keystore/truststore/bash-config ==="
+                  podman exec "$found" stat /etc/kafka/secrets/broker.keystore.pem /etc/kafka/secrets/broker.truststore.pem /etc/confluent/docker/bash-config 2>&1
+                  echo "=== can the container user READ the keystore? ==="
+                  podman exec "$found" sh -c "cat /etc/kafka/secrets/broker.keystore.pem >/dev/null && echo READABLE || echo READ_FAILED" 2>&1
+                } >> diag/exec-diag.log 2>&1
+              fi
+              sleep 1
+            done
+          ' > diag/watcher-stdout.log 2>&1 &
+          disown
+          echo "[watcher] launched, pid $!"
+
       - name: Run sample suite (${{ matrix.sample }})
         run: bash scripts/run-sample.sh ${{ matrix.sample }}
+
+      # DIAGNOSTIC SCAFFOLDING (temporary — kafka-mtls CI investigation).
+      # Prints everything the watcher above captured, regardless of outcome —
+      # this is the artefact the failure-only step below cannot produce
+      # because teardown has already run by the time it executes.
+      - name: Dump broker diagnostics (${{ matrix.sample }})
+        if: always() && matrix.sample == 'kafka-mtls'
+        run: |
+          sleep 3
+          echo "===== diag/runtime-identity.log ====="
+          cat diag/runtime-identity.log 2>&1 || true
+          echo "===== diag/watcher.log ====="
+          cat diag/watcher.log 2>&1 || true
+          echo "===== diag/broker-container.log (the broker's OWN stdout) ====="
+          cat diag/broker-container.log 2>&1 || true
+          echo "===== diag/exec-diag.log (ownership/perms/state over time) ====="
+          cat diag/exec-diag.log 2>&1 || true
+          echo "===== podman ps -a (post-run) ====="
+          podman ps -a 2>&1 || true
+          echo "===== docker ps -a (post-run, for comparison) ====="
+          docker ps -a 2>&1 || true
 
       # A suite that fails because a CONTAINER never became healthy leaves no
       # trace in this log: the engine reports "resource X failed to start" and
