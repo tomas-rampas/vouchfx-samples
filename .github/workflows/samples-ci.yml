@@ -171,9 +171,17 @@ jobs:
                 # Full snapshot, overwritten every cycle (not appended — a
                 # non-follow `docker logs` re-reads from the start of the
                 # container'"'"'s log every time, so appending would duplicate
-                # every line on every poll).
-                docker logs -t "$found" > diag/broker-container.log 2>&1
-                echo "--- docker logs exit status: $? ---" >> diag/broker-container.log
+                # every line on every poll) — via a TEMP file, promoted onto
+                # the real target only on success. Round 4 overwrote the
+                # target unconditionally and the very last poll cycle (which
+                # ran after DCP had already destroyed the container) wrote
+                # "No such container", clobbering the last GOOD capture that
+                # had everything. Keep the last good one instead.
+                if docker logs -t "$found" > diag/broker-container.log.tmp 2>&1; then
+                  mv diag/broker-container.log.tmp diag/broker-container.log
+                else
+                  cat diag/broker-container.log.tmp >> diag/broker-container-final-attempt-failed.log 2>&1 || true
+                fi
               fi
               sleep 0.5
             done
