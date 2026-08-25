@@ -101,60 +101,74 @@ jobs:
       - name: Bootstrap engine CLI (pinned commit)
         run: bash scripts/bootstrap.sh
 
-      # DIAGNOSTIC SCAFFOLDING (temporary — kafka-mtls CI investigation).
-      # Establishes which container runtime DCP actually drives, and starts a
-      # background poller that captures the broker container's OWN stdout plus
-      # file-ownership/permissions facts WHILE the suite runs — the existing
-      # `if: failure()` diagnostics step below runs too late: by the time it
-      # fires, HeadlessTopology.DisposeAsync has already torn the topology
-      # down (§4.5 teardown discipline), so `docker ps -a` finds nothing. This
-      # step polls podman directly (the orphan-process log shows DCP always
-      # spawns `podman pause`) and detaches so it keeps running across the
-      # "Run sample suite" step boundary within the same job.
+      # DIAGNOSTIC SCAFFOLDING (temporary — kafka-mtls CI investigation, round 2).
+      # Round 1 (commit 0e4c89d) proved docker (28.0.4) and podman (5.8.4) are
+      # two genuinely separate installed runtimes here, but a 1s-interval
+      # `podman ps -a | grep -i broker` poll NEVER once observed a "broker"
+      # container — diag/watcher.log, broker-container.log and exec-diag.log
+      # never got created, and a POST-run `podman ps -a`/`docker ps -a` were
+      # both already empty too (not merely torn down between polls — the name
+      # filter may have missed the real name, or the container's lifetime is
+      # shorter than 1s). This round: (a) drops the name filter — capture
+      # EVERY container, any runtime, unfiltered, (b) runs `podman events`/
+      # `docker events` continuously from before the topology starts, so a
+      # sub-second-lived container still leaves a create/start/die/remove
+      # trail even if `ps -a` polling misses it, (c) captures DCP's own
+      # working directory (the `/tmp/aspire-dcp*` path named in "Starting DCP
+      # with arguments" in the existing job log) in case DCP writes its own
+      # logs there, and (d) dumps the full environment for anything
+      # docker/podman/container-runtime-related.
       - name: Start broker diagnostics watcher (${{ matrix.sample }})
         if: matrix.sample == 'kafka-mtls'
         run: |
           mkdir -p diag
-          echo "=== runtime identity ===" > diag/runtime-identity.log
-          { command -v docker podman; docker --version; podman --version; \
-            echo "-- readlink docker --"; readlink -f "$(command -v docker)" || true; \
-            echo "-- docker info (runtime hints) --"; docker info 2>&1 | grep -i -E 'podman|server version|operating system' || true; \
-            echo "-- podman info (rootless/userns) --"; podman info 2>&1 | grep -i -E 'rootless|graphDriverName|idmappings' || true; \
-          } >> diag/runtime-identity.log 2>&1 || true
+          {
+            echo "=== runtime identity ==="
+            command -v docker podman
+            docker --version; podman --version
+            echo "-- readlink docker --"; readlink -f "$(command -v docker)" || true
+            echo "-- docker info (runtime hints) --"; docker info 2>&1 | grep -i -E 'podman|server version|operating system' || true
+            echo "-- podman info (rootless/userns) --"; podman info 2>&1 | grep -i -E 'rootless|graphDriverName|idmappings' || true
+            echo "-- environment (docker/podman/container-related) --"
+            env | grep -i -E 'docker|podman|container|dcp' | sort || true
+          } > diag/runtime-identity.log 2>&1
           cat diag/runtime-identity.log
 
+          # Continuous, unfiltered lifecycle event streams — catches a
+          # container that lives for less than one polling interval, which a
+          # `ps -a` snapshot loop cannot.
+          nohup podman events --format '{{.Time}} podman {{.Status}} {{.Type}} {{.Name}} {{.ID}}' > diag/podman-events.log 2>&1 &
+          disown
+          nohup docker events --format '{{.Time}} docker {{.Status}} {{.Type}} {{.Actor.Attributes.name}} {{.ID}}' > diag/docker-events.log 2>&1 &
+          disown
+
+          # Unfiltered ps -a snapshots, both runtimes, every second — a
+          # container present for at least ~1s should show up here even if
+          # events formatting above turns out to need adjustment.
           nohup bash -c '
-            found=""
             for i in $(seq 1 150); do
-              name=$(podman ps -a --format "{{.Names}}" 2>/dev/null | grep -i broker | head -n1)
-              if [ -n "$name" ] && [ -z "$found" ]; then
-                found="$name"
-                echo "[watcher] $(date -u +%H:%M:%S) found broker container: $name" >> diag/watcher.log
-                podman logs -f "$name" >> diag/broker-container.log 2>&1 &
-              fi
-              if [ -n "$found" ]; then
-                {
-                  echo "=== $(date -u +%H:%M:%S) podman inspect state ==="
-                  podman inspect "$found" --format "Status={{.State.Status}} ExitCode={{.State.ExitCode}} StartedAt={{.State.StartedAt}} FinishedAt={{.State.FinishedAt}}" 2>&1
-                  echo "=== ls -la /etc/kafka/secrets ==="
-                  podman exec "$found" ls -la /etc/kafka/secrets 2>&1
-                  echo "=== ls -la /etc/confluent/docker/bash-config ==="
-                  podman exec "$found" ls -la /etc/confluent/docker/bash-config 2>&1
-                  echo "=== id (process user) ==="
-                  podman exec "$found" id 2>&1
-                  echo "=== stat keystore/truststore/bash-config ==="
-                  podman exec "$found" stat /etc/kafka/secrets/broker.keystore.pem /etc/kafka/secrets/broker.truststore.pem /etc/confluent/docker/bash-config 2>&1
-                  echo "=== can the container user READ the keystore? ==="
-                  podman exec "$found" sh -c "cat /etc/kafka/secrets/broker.keystore.pem >/dev/null && echo READABLE || echo READ_FAILED" 2>&1
-                } >> diag/exec-diag.log 2>&1
-              fi
+              {
+                echo "=== $(date -u +%H:%M:%S.%N) podman ps -a ==="
+                podman ps -a --format "{{.ID}} {{.Names}} {{.Status}} {{.Image}}" 2>&1
+                echo "=== $(date -u +%H:%M:%S.%N) docker ps -a ==="
+                docker ps -a --format "{{.ID}} {{.Names}} {{.Status}} {{.Image}}" 2>&1
+              } >> diag/ps-poll.log 2>&1
               sleep 1
             done
-          ' > diag/watcher-stdout.log 2>&1 &
+          ' > diag/ps-poll-stdout.log 2>&1 &
           disown
-          echo "[watcher] launched, pid $!"
+          echo "[watcher] event streams + ps-poll launched"
 
+      # Aspire.Hosting.Dcp is NOT filtered by HeadlessTopology (only
+      # Microsoft.Extensions.Diagnostics.HealthChecks and
+      # Aspire.Hosting.DistributedApplication are), so it already logs at
+      # Information — these env vars ask the default .NET
+      # EnvironmentVariablesConfigurationProvider for Debug on top of that,
+      # in case DCP's own container-creation reasoning is only logged there.
       - name: Run sample suite (${{ matrix.sample }})
+        env:
+          Logging__LogLevel__Aspire.Hosting.Dcp: ${{ matrix.sample == 'kafka-mtls' && 'Debug' || '' }}
+          Logging__LogLevel__Aspire.Hosting: ${{ matrix.sample == 'kafka-mtls' && 'Debug' || '' }}
         run: bash scripts/run-sample.sh ${{ matrix.sample }}
 
       # DIAGNOSTIC SCAFFOLDING (temporary — kafka-mtls CI investigation).
@@ -167,12 +181,24 @@ jobs:
           sleep 3
           echo "===== diag/runtime-identity.log ====="
           cat diag/runtime-identity.log 2>&1 || true
-          echo "===== diag/watcher.log ====="
-          cat diag/watcher.log 2>&1 || true
-          echo "===== diag/broker-container.log (the broker's OWN stdout) ====="
-          cat diag/broker-container.log 2>&1 || true
-          echo "===== diag/exec-diag.log (ownership/perms/state over time) ====="
-          cat diag/exec-diag.log 2>&1 || true
+          echo "===== diag/podman-events.log ====="
+          cat diag/podman-events.log 2>&1 || true
+          echo "===== diag/docker-events.log ====="
+          cat diag/docker-events.log 2>&1 || true
+          echo "===== diag/ps-poll.log (last 60 lines) ====="
+          tail -n 60 diag/ps-poll.log 2>&1 || true
+          echo "===== /tmp/aspire-dcp* (DCP's own working directory, if it wrote logs) ====="
+          for d in /tmp/aspire-dcp*; do
+            [ -e "$d" ] || continue
+            echo "--- $d ---"
+            find "$d" -type f 2>&1 | while read -r f; do
+              echo "-- file: $f --"
+              # DCP's kubeconfig/socket files can be large or binary; cap what
+              # we dump so a huge file cannot blow the job log.
+              head -c 20000 "$f" 2>&1
+              echo
+            done
+          done
           echo "===== podman ps -a (post-run) ====="
           podman ps -a 2>&1 || true
           echo "===== docker ps -a (post-run, for comparison) ====="
