@@ -141,7 +141,16 @@ jobs:
               if [ -n "$name" ] && [ -z "$found" ]; then
                 found="$name"
                 echo "[watcher] $(date -u +%H:%M:%S) found broker container: $name" >> diag/watcher.log
-                docker logs -f "$name" >> diag/broker-container.log 2>&1 &
+                # Round 3 tried a single long-lived `docker logs -f &`
+                # backgrounded across the whole poll loop and it produced a
+                # completely EMPTY file despite the container running for
+                # ~45s and responding to docker exec the whole time — so this
+                # round does not trust `-f` follow surviving the nohup/disown
+                # boundary. Instead: OVERWRITE a full non-follow `docker
+                # logs` snapshot every poll cycle below, so whatever the
+                # daemon has buffered up to that instant is captured
+                # regardless of whether a follow stream stayed attached.
+                :
               fi
               if [ -n "$found" ]; then
                 {
@@ -159,12 +168,18 @@ jobs:
                   echo "=== can the container user READ the keystore? ==="
                   docker exec "$found" sh -c "cat /etc/kafka/secrets/broker.keystore.pem >/dev/null && echo READABLE || echo READ_FAILED" 2>&1
                 } >> diag/exec-diag.log 2>&1
+                # Full snapshot, overwritten every cycle (not appended — a
+                # non-follow `docker logs` re-reads from the start of the
+                # container'"'"'s log every time, so appending would duplicate
+                # every line on every poll).
+                docker logs -t "$found" > diag/broker-container.log 2>&1
+                echo "--- docker logs exit status: $? ---" >> diag/broker-container.log
               fi
               sleep 0.5
             done
           ' > diag/watcher-stdout.log 2>&1 &
           disown
-          echo "[watcher] docker log-follow + exec-diag poller launched"
+          echo "[watcher] docker log-snapshot + exec-diag poller launched"
 
       # Aspire.Hosting.Dcp is NOT filtered by HeadlessTopology (only
       # Microsoft.Extensions.Diagnostics.HealthChecks and
