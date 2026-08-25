@@ -225,6 +225,44 @@ jobs:
           echo "===== docker ps -a (post-run) ====="
           docker ps -a 2>&1 || true
 
+      # DIAGNOSTIC SCAFFOLDING (temporary — kafka-mtls CI investigation, round
+      # 6). Round 5 (2562063) got the decisive evidence: the broker's own
+      # stdout shows 'Fatal error during broker startup ... Failed to load
+      # PEM SSL keystore ... Caused by: java.security.cert.
+      # CertificateParsingException: Empty issuer DN not allowed in
+      # X509Certificates'. That is a CERTIFICATE CONTENT defect, not a
+      # runtime/timing/permissions one — every prior hypothesis this
+      # investigation chased is dead. It traces to setup.sh's `-subj
+      # "//CN=..."` convention (needed to dodge Git Bash's MSYS path-rewrite
+      # on Windows), verified there only via `openssl x509 -noout -subject`
+      # printing 'CN=X' — never checked against a strict parser. A local
+      # Windows/Git-Bash openssl 3.5.6 reproduction of the identical
+      # CA-then-signed-leaf chain produces a clean, non-empty Issuer DN, so
+      # the defect could not be reproduced off this runner — it may be
+      # specific to the Ubuntu 24.04 runner's openssl build/version. This
+      # step inspects the ACTUAL certificates this CI run generated, with
+      # the SAME openssl that produced them. Reads ONLY plain certificate
+      # files (ca.pem, broker.pem) — NEVER broker-key.pem, client.pem,
+      # client-key.pem, or broker.keystore.pem/broker.truststore.pem (the
+      # keystore is key+cert+CA concatenated, and both `cat` and
+      # `openssl asn1parse` on it would print private key material into the
+      # job log).
+      - name: Inspect generated certificate encoding (${{ matrix.sample }})
+        if: always() && matrix.sample == 'kafka-mtls'
+        run: |
+          echo "=== openssl version (the one that generated these certs) ==="
+          openssl version
+          CERTS=samples/kafka-mtls/tests/certs
+          for f in ca.pem broker.pem; do
+            echo "===== $f: openssl x509 -issuer -subject ====="
+            openssl x509 -in "$CERTS/$f" -noout -issuer -subject 2>&1 || true
+            echo "===== $f: asn1parse of the Issuer/Subject Name SEQUENCEs ====="
+            # Names only — the first two top-level SEQUENCE/SET blocks in a
+            # certificate are Issuer then Subject; this stops well before
+            # the public key material, let alone anything private.
+            openssl asn1parse -in "$CERTS/$f" 2>&1 | head -30 || true
+          done
+
       # A suite that fails because a CONTAINER never became healthy leaves no
       # trace in this log: the engine reports "resource X failed to start" and
       # the container's own stdout — which says why — is never surfaced. That
