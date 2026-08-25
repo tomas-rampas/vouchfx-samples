@@ -116,8 +116,15 @@ jobs:
         run: |
           echo "=== containers (any state) ==="
           docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' || true
-          for c in $(docker ps -aq); do
-            echo "=== logs: $(docker inspect --format '{{.Name}}' "$c") ==="
+          # Every command guarded, including the substitution. A container can
+          # disappear between this list and the inspect below — DCP is tearing
+          # them down while this step runs, which is why the step so often finds
+          # nothing — and an unguarded failure there would abort the loop and
+          # cost the logs of every container after it, in the one step whose
+          # whole purpose is to salvage logs from a failure.
+          for c in $(docker ps -aq 2>/dev/null || true); do
+            name="$(docker inspect --format '{{.Name}}' "$c" 2>/dev/null || echo "$c")"
+            echo "=== logs: ${name} ==="
             docker logs --tail 200 "$c" 2>&1 || true
           done
 

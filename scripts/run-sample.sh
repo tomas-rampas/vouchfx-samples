@@ -127,7 +127,18 @@ fi
 # engine supports, because the stale checkout was still at rc.4. ENGINE_PIN's
 # own instructions say to delete .vouchfx-src by hand; a step nobody can forget
 # is better than a step everybody must remember.
-pinned_sha="$(grep -m1 -E '^[0-9a-f]{40}$' "${REPO_ROOT}/ENGINE_PIN" || true)"
+# Strip carriage returns before matching. ENGINE_PIN is `text=auto` in
+# .gitattributes with no explicit `eol=lf` (unlike *.sh/*.yml/*.py), so a
+# Windows checkout has it as CRLF — measured, `git ls-files --eol ENGINE_PIN`
+# reports `i/lf w/crlf` there. Whether the anchored 40-hex match then fails
+# depends on the grep: Git Bash's tolerates a trailing \r before `$` (measured
+# — the unstripped form does match on such a checkout), GNU grep on Linux does
+# not. Relying on that difference is not worth it, because the failure is
+# silent in the worst way: pinned_sha comes back empty, the mismatch branch
+# below never runs, and the guard reintroduces exactly the stale-checkout
+# failure it exists to prevent. Matching \r in the regex instead would leave it
+# inside pinned_sha and break the comparison instead.
+pinned_sha="$(tr -d '\r' < "${REPO_ROOT}/ENGINE_PIN" | grep -m1 -E '^[0-9a-f]{40}$' || true)"
 checkout_sha=""
 if [[ -d "$VOUCHFX_SRC_DIR/.git" ]]; then
   checkout_sha="$(git -C "$VOUCHFX_SRC_DIR" rev-parse HEAD 2>/dev/null || true)"
