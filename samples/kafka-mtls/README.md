@@ -89,10 +89,16 @@ the identical reason: `tests/broker-bash-config.sh`, delivered as
 `/etc/confluent/docker/bash-config` (first in `serverArtifacts`, ahead of the two PEM stores). The
 Confluent image **sources** that file before it renders broker properties, so exporting `KAFKA_*`
 there is equivalent to setting it in `env:` — except this file can make the secured listener
-**conditional** on the keystore having actually arrived (`if [ -f /etc/kafka/secrets/broker.keystore.pem ]`).
-If `serverArtifacts` ever fails to deliver it, the broker now comes up with no secured listener at
-all, and the suite fails loudly at the handshake — never quietly unhealthy for 45 seconds and never
-half-secured.
+**conditional** on the key material having actually arrived: it requires **both** PEM stores to be
+present and non-empty (`-s`, not `-f` — the delivery is not atomic, and a partially written file is
+present but useless).
+
+If `serverArtifacts` ever fails to deliver them, the broker comes up with no secured listener at all
+rather than half-secured. **That failure surfaces at the health gate, not at a step**: `healthCheck`
+probes 9092, the secured port, so with no secured listener nothing binds it, the gate times out
+naming this service, and the run stops before any step executes. Loud, but do not expect a handshake
+error or step verdicts. (The engine's own `examples/security-mtls` describes a handshake failure
+instead — correctly, for itself: it keeps a plaintext listener its health check can reach.)
 
 `env:` still carries the KRaft/cluster-identity and REST-proxy variables (needed regardless of
 whether the broker is secured) and a **baseline** listener set with no `PLAINTEXT_HOST` at all —

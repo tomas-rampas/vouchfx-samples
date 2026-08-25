@@ -203,10 +203,14 @@ environment:
       # window is. broker-bash-config.sh (see `serverArtifacts` above) now
       # owns the secured listener instead, sourced by the Confluent image
       # before it renders broker properties, and adds PLAINTEXT_HOST only
-      # once it can see the keystore file has actually arrived. What remains
-      # below is what the broker falls back to if delivery failed anyway: a
-      # broker with no secured listener at all, which fails the suite loudly
-      # at the handshake instead of sitting unhealthy forever.
+      # once it can see BOTH PEM stores have actually arrived and are
+      # non-empty. What remains below is what the broker falls back to if
+      # delivery failed anyway: a broker with no secured listener at all.
+      # That fallback fails at the HEALTH GATE, not at a step — `healthCheck`
+      # above probes 9092, the secured port, so with no secured listener
+      # nothing binds it and the run stops before any step executes. Loud and
+      # never half-secured, but do not expect a handshake error or any step
+      # verdicts; expect a health-gate timeout naming this service.
       env:
         # ── Cluster identity (KRaft, single node, combined broker+controller) ──
         KAFKA_NODE_ID: "1"

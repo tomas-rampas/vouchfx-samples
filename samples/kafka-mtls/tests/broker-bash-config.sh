@@ -24,11 +24,17 @@
 # /etc/confluent/docker/bash-config before it renders broker properties, so
 # exporting KAFKA_* here is equivalent to setting them in `env:` — with one
 # difference that matters. This file can make the secured listener
-# CONDITIONAL on the key store having actually arrived. If `serverArtifacts`
-# failed to deliver it, the broker comes up with no secured listener at all
-# and the suite fails at the handshake, loudly. It never comes up
-# half-secured, and it never sits unhealthy waiting on a listener that is
-# never going to bind.
+# CONDITIONAL on the key material having actually arrived, so the broker never
+# comes up half-secured — SSL is either fully configured or entirely off.
+#
+# WHERE IT FAILS IF THE MATERIAL DOES NOT ARRIVE, stated precisely, because
+# this suite differs from the engine example this file is modelled on. That
+# example keeps a plaintext listener the health check can reach, so a delivery
+# failure there surfaces later, at a step's handshake. HERE the health check is
+# `{ type: tcp, port: 9092 }` — the SECURED port — so with no secured listener
+# nothing binds 9092, the health gate times out, and the run stops before any
+# step executes. Either way it is loud and it is not half-secured; but expect a
+# health-gate failure, not a handshake one, and expect zero steps to have run.
 #
 # Delivered to /etc/confluent/docker/bash-config — see `serverArtifacts` in
 # ./kafka-mtls.e2e.yaml, where this file is listed ahead of the two PEM
