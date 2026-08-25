@@ -56,21 +56,46 @@
 #  valid, and regenerates automatically once it is within a day of expiry.
 # =============================================================================
 #
-#  WHY EVERY -subj ARGUMENT BELOW STARTS "//CN=" AND NOT "/CN=". A single
-#  leading slash is indistinguishable, to Git Bash's MSYS runtime on Windows,
-#  from an absolute POSIX path, and gets silently rewritten before openssl
-#  ever sees it (measured: `-subj "/CN=Test CA"` arrived at openssl as
-#  `C:/Program Files/Git/CN=Test CA` and failed with "subject name is
-#  expected to be in the format /type0=value0/..."). openssl's own subject
-#  parser treats a leading EMPTY RDN component as a no-op, so `//CN=X` and
-#  `/CN=X` produce the identical subject `CN=X` on every platform — this is
-#  the standard portable fix, not a Windows-only branch, and was verified
-#  identical (`openssl x509 -noout -subject`) on the actual openssl this
-#  script runs. examples/security-mtls.setup.sh in the engine repo uses a
-#  bare `/CN=` because it is documented "Linux, macOS, CI" only and directs
-#  Windows readers to its .ps1 sibling instead; this script keeps the single
-#  bash script runnable under Git Bash too, which is the common case for a
-#  sample maintained from a Windows dev machine.
+#  WHY THE SUBJECT NAME NEVER GOES THROUGH `-subj`, AND WHAT WAS TRIED FIRST.
+#  A bare `-subj "/CN=Test CA"` is indistinguishable, to Git Bash's MSYS
+#  runtime on Windows, from an absolute POSIX path, and gets silently
+#  rewritten before openssl ever sees it (measured: it arrived as
+#  `-subj C:/Program Files/Git/CN=Test CA` and failed with "subject name is
+#  expected to be in the format /type0=value0/..."). The first fix here was
+#  `-subj "//CN=X"`, on the claim that openssl's subject parser treats a
+#  leading empty RDN as a no-op on every platform — verified only against
+#  `openssl x509 -noout -subject` on this maintainer's own machine (OpenSSL
+#  3.5.6). IT IS NOT TRUE ON EVERY PLATFORM: OpenSSL 3.0.13 — Ubuntu 24.04's
+#  stock version, i.e. every GitHub-hosted `ubuntu-latest` CI runner — parses
+#  `-subj "//CN=X"` into a certificate with a GENUINELY EMPTY subject/issuer
+#  DN (measured directly on the runner: `openssl x509 -noout -subject`
+#  printed nothing, and `openssl asn1parse` showed a zero-length Name
+#  SEQUENCE), not `CN=X`. Kafka's Java PEM store does not tolerate that:
+#  loading a keystore built from such a certificate fails the broker's own
+#  SSL init with `java.security.cert.CertificateParsingException: Empty
+#  issuer DN not allowed in X509Certificates`, and the container exits ---
+#  which is why this is called out here rather than left to be rediscovered:
+#  do NOT go back to a doubled leading slash to solve a future MSYS problem
+#  with `-subj`.
+#
+#  MSYS_NO_PATHCONV=1 was tried next, and measured to fail differently: it is
+#  a per-PROCESS toggle, not a per-ARGUMENT one, so applying it to an
+#  `openssl req` invocation that also carries `-keyout`/`-out` as absolute
+#  POSIX paths (this script's `$work`/`$secrets_work`, both produced by
+#  `$(cd .. && pwd)`) suppresses MSYS's conversion of THOSE paths too —
+#  measured: `req: Can't open ".../ca-key.pem" for writing, No such file or
+#  directory`. One env var cannot both stop MSYS rewriting `-subj` and keep
+#  it rewriting `-keyout`/`-out` on the same command line.
+#
+#  THE FIX: `dn_config` below writes the Common Name into a tiny openssl
+#  CONFIG FILE and every `openssl req` call here takes `-config` instead of
+#  `-subj`. The DN value never becomes an argv token, so MSYS never sees
+#  anything resembling a path to rewrite, and it never passes through
+#  `-subj`'s own parser, so the OpenSSL-3.0.13-specific empty-DN behaviour
+#  above never triggers either. The config FILE's own path is a normal
+#  `-keyout`-style absolute POSIX path and is left to MSYS's ordinary
+#  (unsuppressed) conversion, exactly like every other path this script
+#  passes to openssl.
 set -euo pipefail
 
 readonly CA_SUBJECT="Vouchfx Sample kafka-mtls CA"
@@ -152,10 +177,25 @@ mkdir -p "$work"
 
 printf 'kafka-mtls: generating a TEST certificate authority in %s\n' "$certs_dir"
 
+# dn_config writes a minimal openssl config naming ONLY the Subject/Issuer DN
+# for $1 (a Common Name) to path $2. See the header note above for why every
+# `openssl req` call below takes `-config "$(...)"` instead of `-subj`.
+dn_config() {
+  local cn="$1" out="$2"
+  cat > "$out" <<CNF
+[req]
+distinguished_name = dn
+prompt = no
+[dn]
+CN = ${cn}
+CNF
+}
+
 # ── 1. The private CA ────────────────────────────────────────────────────────
+dn_config "$CA_SUBJECT" "${secrets_work}/ca-dn.cnf"
 openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout "${secrets_work}/ca-key.pem" -out "${work}/ca.pem" -days "$DAYS" \
-  -subj "//CN=${CA_SUBJECT}" \
+  -config "${secrets_work}/ca-dn.cnf" \
   -addext "basicConstraints=critical,CA:TRUE" \
   -addext "keyUsage=critical,keyCertSign,cRLSign" \
   -addext "subjectKeyIdentifier=hash" \
@@ -166,9 +206,10 @@ openssl req -x509 -newkey rsa:2048 -nodes \
 # secured target vouchfx starts (docs/02, "Which hostname your server
 # certificate must carry"). serverAuth+clientAuth so the same leaf is legal
 # whichever way a TLS library checks EKU.
+dn_config "$BROKER_SUBJECT" "${secrets_work}/broker-dn.cnf"
 openssl req -newkey rsa:2048 -nodes \
   -keyout "${work}/broker-key.pem" -out "${secrets_work}/broker.csr" \
-  -subj "//CN=${BROKER_SUBJECT}" \
+  -config "${secrets_work}/broker-dn.cnf" \
   >/dev/null 2>&1
 
 # A real temp file, not `-extfile <(...)` process substitution: the latter
@@ -198,9 +239,10 @@ openssl x509 -req -in "${secrets_work}/broker.csr" \
 # own convention in the engine repo, so the two sibling scripts stay
 # byte-compatible rather than diverging on a detail neither script's own
 # comments call out as intentional.
+dn_config "$CLIENT_SUBJECT" "${secrets_work}/client-dn.cnf"
 openssl req -newkey rsa:2048 -nodes \
   -keyout "${work}/client-key.pem" -out "${secrets_work}/client.csr" \
-  -subj "//CN=${CLIENT_SUBJECT}" \
+  -config "${secrets_work}/client-dn.cnf" \
   >/dev/null 2>&1
 
 # Real temp file, same reason as the broker one above.
