@@ -66,16 +66,12 @@ install_cli() {
 # The installed CLI's informational version ("<version>+<commit-sha>"), or empty.
 cli_version() { "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true; }
 
-as_root() {
-  if [ "$(id -u)" -eq 0 ]; then
-    "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo "$@"
-  else
-    log "ERROR: installing the .NET SDK needs root, and sudo is not available."
-    exit 1
-  fi
-}
+# The system-wide steps (apt, /usr/bin/dotnet, /etc/profile.d) run only as root, which
+# is what a Claude Code on the web container is. This hook NEVER escalates: there is no
+# sudo, because a checked-in hook that elevated itself would hand any branch a privileged
+# path. Not root and no SDK is a loud refusal; not root with an SDK present skips only
+# the system-wide writes.
+is_root() { [ "$(id -u)" -eq 0 ]; }
 
 # True when an SDK in the 8.0.4xx band or later is installed. Captured before grep so
 # `grep -q` exiting early cannot SIGPIPE `dotnet` into a pipefail.
@@ -93,23 +89,23 @@ install_sdk() {
 
   if [ ! -s "$MS_KEYRING" ]; then
     log "Adding Microsoft's package signing key."
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | as_root gpg --dearmor --yes -o "$MS_KEYRING"
+    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor --yes -o "$MS_KEYRING"
   fi
   if [ "$(cat "$MS_LIST" 2>/dev/null)" != "$line" ]; then
-    printf '%s\n' "$line" | as_root tee "$MS_LIST" >/dev/null
+    printf '%s\n' "$line" >"$MS_LIST"
   fi
   printf 'Package: dotnet* aspnetcore* netstandard*\nPin: origin "packages.microsoft.com"\nPin-Priority: 1001\n' \
-    | as_root tee "$MS_PREFS" >/dev/null
+    >"$MS_PREFS"
 
   # Refresh only the Microsoft list (seconds), keeping the image's other lists as they
   # are; fall back to a full refresh if a dependency then cannot be resolved.
   log "Installing dotnet-sdk-8.0 from Microsoft's jammy feed."
-  as_root apt-get update -qq -o Dir::Etc::sourcelist=sources.list.d/microsoft-prod.list \
+  apt-get update -qq -o Dir::Etc::sourcelist=sources.list.d/microsoft-prod.list \
     -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
-  if ! as_root apt-get install -y -qq dotnet-sdk-8.0 >/dev/null; then
+  if ! apt-get install -y -qq dotnet-sdk-8.0 >/dev/null; then
     log "Retrying after a full apt refresh."
-    as_root apt-get update -qq
-    as_root apt-get install -y -qq dotnet-sdk-8.0 >/dev/null
+    apt-get update -qq
+    apt-get install -y -qq dotnet-sdk-8.0 >/dev/null
   fi
 }
 
@@ -122,8 +118,8 @@ case ":$PATH:" in *":${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools:"*) ;; *) PATH="$PA
 export PATH
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1'
-  if [ "$(cat "$profile" 2>/dev/null)" != "$want" ]; then
-    printf '%s\n' "$want" | as_root tee "$profile" >/dev/null
+  if is_root && [ "$(cat "$profile" 2>/dev/null)" != "$want" ]; then
+    printf '%s\n' "$want" >"$profile"
   fi
   # Once per file: a session can fire SessionStart more than once (resume, clear, compact),
   # and the block's first line is the marker that says it is already there.
@@ -133,10 +129,18 @@ export DOTNET_NOLOGO=1'
 }
 
 if ! sdk_ok; then
+  if ! is_root; then
+    log "ERROR: no .NET 8.0.4xx SDK under ${DOTNET_DIR}, and installing one needs root. This hook never escalates; install the SDK yourself."
+    exit 1
+  fi
   install_sdk
   sdk_ok || { log "ERROR: dotnet-sdk-8.0 installed, but no 8.0.4xx SDK is visible under ${DOTNET_DIR}."; exit 1; }
 fi
-[ "$(readlink -f /usr/bin/dotnet 2>/dev/null)" = "$DOTNET_DIR/dotnet" ] || as_root ln -sf "$DOTNET_DIR/dotnet" /usr/bin/dotnet
+if is_root; then
+  [ "$(readlink -f /usr/bin/dotnet 2>/dev/null)" = "$DOTNET_DIR/dotnet" ] || ln -sf "$DOTNET_DIR/dotnet" /usr/bin/dotnet
+else
+  log "Not root: /usr/bin/dotnet and /etc/profile.d/dotnet.sh are left as they are; the session environment is still written."
+fi
 write_profile
 
 export DOTNET_ROOT="$DOTNET_DIR" DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
