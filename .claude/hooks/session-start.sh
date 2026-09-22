@@ -46,20 +46,20 @@ REPO_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && p
 
 VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 
-# Installs the vouchfx global tool at exactly $1 (a NuGet version, no leading "v").
-# nuget.org is ADDED as a source, never replacing configured ones, as the CI install
-# step does. A different installed version is uninstalled first, because
-# `dotnet tool update` refuses to move to a lower version.
+# Installs the vouchfx global tool at exactly $1 (a NuGet version, no leading "v"), but
+# only into an EMPTY slot. When any vouchfx is already registered it is left untouched,
+# whatever its version and even when its shim cannot answer --version: that slot belongs
+# to whichever repo installed it (see the header), and removing it here could take away
+# the exact version another repo's tests gate on. nuget.org is ADDED as a source, never
+# replacing configured ones.
 install_cli() {
   local want="$1" have
   have="$(dotnet tool list -g 2>/dev/null | awk 'tolower($1)=="vouchfx" {print $2}')"
-  [ "$have" = "$want" ] && return 0
   if [ -n "$have" ]; then
-    log "Replacing vouchfx ${have} with ${want}."
-    dotnet tool uninstall -g vouchfx >/dev/null
-  else
-    log "Installing vouchfx ${want}."
+    log "vouchfx ${have} is already registered; left as is (this hook never replaces it)."
+    return 0
   fi
+  log "Installing vouchfx ${want}."
   dotnet tool install -g vouchfx --version "$want" --add-source https://api.nuget.org/v3/index.json >/dev/null
 }
 
@@ -118,14 +118,16 @@ write_profile() {
   want='# Written by .claude/hooks/session-start.sh (Claude Code on the web).
 export DOTNET_ROOT=/usr/share/dotnet
 case ":$PATH:" in *":/usr/share/dotnet:"*) ;; *) PATH="/usr/share/dotnet:$PATH" ;; esac
-case ":$PATH:" in *":$HOME/.dotnet/tools:"*) ;; *) PATH="$PATH:$HOME/.dotnet/tools" ;; esac
+case ":$PATH:" in *":${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools:"*) ;; *) PATH="$PATH:${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools" ;; esac
 export PATH
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1'
   if [ "$(cat "$profile" 2>/dev/null)" != "$want" ]; then
     printf '%s\n' "$want" | as_root tee "$profile" >/dev/null
   fi
-  if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  # Once per file: a session can fire SessionStart more than once (resume, clear, compact),
+  # and the block's first line is the marker that says it is already there.
+  if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qxF "# Written by .claude/hooks/session-start.sh (Claude Code on the web)." "$CLAUDE_ENV_FILE" 2>/dev/null; then
     printf '%s\n' "$want" >>"$CLAUDE_ENV_FILE"
   fi
 }
@@ -139,21 +141,34 @@ write_profile
 
 export DOTNET_ROOT="$DOTNET_DIR" DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 # ---- the engine CLI, for the pinned commit ----
-summary_cli="vouchfx not installed (see stderr)"
+summary_cli="no usable vouchfx (see stderr)"
 pin_sha="$(head -n1 "$REPO_DIR/ENGINE_PIN" | tr -d '[:space:]')"
 if [[ "$pin_sha" =~ ^[0-9a-f]{40}$ ]]; then
   actual="$(cli_version)"
   if [ -z "$actual" ]; then
     # Exact release tags only (never the floating v1-rc tag); an annotated tag's commit
-    # is the peeled "^{}" line.
-    tag="$(git ls-remote --tags https://github.com/tomas-rampas/vouchfx.git 'refs/tags/v*' 2>/dev/null \
-      | awk -v sha="$pin_sha" '$1 == sha { t = $2; sub(/^refs\/tags\//, "", t); sub(/\^\{\}$/, "", t); print t }' \
-      | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' | head -n1 || true)"
-    if [ -n "$tag" ]; then
-      install_cli "${tag#v}" || log "WARNING: could not install vouchfx ${tag#v}."
-      actual="$(cli_version)"
+    # is the peeled "^{}" line. A failed lookup (network, proxy) is reported as exactly
+    # that, never mistaken for "no release tag points at this commit".
+    refs="" lookup_ok=false
+    for attempt in 1 2; do
+      if refs="$(git ls-remote --tags https://github.com/tomas-rampas/vouchfx.git 'refs/tags/v*' 2>/dev/null)"; then
+        lookup_ok=true
+        break
+      fi
+      [ "$attempt" -eq 1 ] && sleep 2
+    done
+    if [ "$lookup_ok" != true ]; then
+      log "WARNING: could not list the engine's release tags (git ls-remote failed twice); the CLI was not installed. Re-run this hook, or install it by hand."
     else
-      log "NOTE: ENGINE_PIN ${pin_sha:0:12} is not a tagged engine release; no published CLI matches it."
+      tag="$(printf '%s\n' "$refs" \
+        | awk -v sha="$pin_sha" '$1 == sha { t = $2; sub(/^refs\/tags\//, "", t); sub(/\^\{\}$/, "", t); print t }' \
+        | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' | head -n1 || true)"
+      if [ -n "$tag" ]; then
+        install_cli "${tag#v}" || log "WARNING: could not install vouchfx ${tag#v}."
+        actual="$(cli_version)"
+      else
+        log "NOTE: ENGINE_PIN ${pin_sha:0:12} is not a tagged engine release; no published CLI matches it."
+      fi
     fi
   fi
   case "$actual" in
