@@ -52,15 +52,17 @@ VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 # to whichever repo installed it (see the header), and removing it here could take away
 # the exact version another repo's tests gate on. nuget.org is ADDED as a source, never
 # replacing configured ones.
+# dotnet is called by absolute path: a non-root run never links /usr/bin/dotnet, and
+# the PATH this hook writes only reaches later processes, not this one.
 install_cli() {
   local want="$1" have
-  have="$(dotnet tool list -g 2>/dev/null | awk 'tolower($1)=="vouchfx" {print $2}')"
+  have="$("$DOTNET_DIR/dotnet" tool list -g 2>/dev/null | awk 'tolower($1)=="vouchfx" {print $2}')"
   if [ -n "$have" ]; then
     log "vouchfx ${have} is already registered; left as is (this hook never replaces it)."
     return 0
   fi
   log "Installing vouchfx ${want}."
-  dotnet tool install -g vouchfx --version "$want" --add-source https://api.nuget.org/v3/index.json >/dev/null
+  "$DOTNET_DIR/dotnet" tool install -g vouchfx --version "$want" --add-source https://api.nuget.org/v3/index.json >/dev/null
 }
 
 # The installed CLI's informational version ("<version>+<commit-sha>"), or empty.
@@ -146,7 +148,8 @@ write_profile
 export DOTNET_ROOT="$DOTNET_DIR" DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 # ---- the engine CLI, for the pinned commit ----
 summary_cli="no usable vouchfx (see stderr)"
-pin_sha="$(head -n1 "$REPO_DIR/ENGINE_PIN" | tr -d '[:space:]')"
+# Lower-cased: ENGINE_PIN accepts either case (scripts/bootstrap.sh), git prints lower.
+pin_sha="$(head -n1 "$REPO_DIR/ENGINE_PIN" | tr -d '[:space:]' | tr 'A-F' 'a-f')"
 if [[ "$pin_sha" =~ ^[0-9a-f]{40}$ ]]; then
   actual="$(cli_version)"
   if [ -z "$actual" ]; then
