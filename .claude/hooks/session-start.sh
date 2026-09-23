@@ -5,6 +5,14 @@
 # container ($CLAUDE_CODE_REMOTE=true); a local machine keeps whatever SDK its owner
 # installed and is never touched.
 #
+# Trust model. This file comes from the checked-out branch, and the SessionStart hook
+# runs it at session start (as root in a web container) before anyone has read the
+# diff. So .claude/ is treated like .github/workflows/: it is code-owned in
+# .github/CODEOWNERS, and web sessions should be opened only on branches you trust.
+# The alternative is to move this bootstrap into the Claude Code environment's own
+# setup script, which no branch controls, and delete this file and its registration
+# in .claude/settings.json.
+#
 # What it guarantees, idempotently:
 #   1. A .NET 8 SDK that satisfies global.json (8.0.400, rollForward latestFeature).
 #      The web sandbox's egress proxy blocks builds.dotnet.microsoft.com (where
