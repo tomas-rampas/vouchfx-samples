@@ -1,4 +1,4 @@
-cc5e8efa9c84f59e1135568456f7c156261f6263
+93287ffbb0623ba253816ed4d909f50e1b26da93
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,28 @@ cc5e8efa9c84f59e1135568456f7c156261f6263
 #
 # Pin history
 # ------------
+# 2026-09-23: advanced to 93287ffb — the v1.0.0-rc.6 tag commit — tracking the
+# current release. Validated against a freshly fetched .vouchfx-src (no
+# pre-existing checkout to clear): `vouchfx validate` (the pinned rc.6 global
+# tool) passes clean for inventory-python, orders-dotnet, payments-java and
+# kafka-mtls (the last only once samples/kafka-mtls/setup.sh has generated its
+# ./certs/ material — a pre-existing requirement, unrelated to this bump).
+# ledger-jsonrpc's stock `vouchfx validate` still rejects rpc.json-rpc as an
+# unregistered step type — expected, not a regression: that Community-tier
+# provider is deliberately outside the stock CLI's registry and only the
+# sample's own LedgerRunner knows it (see runner/Program.cs). LedgerRunner was
+# rebuilt from source against this pin (dotnet build samples/ledger-jsonrpc/
+# runner -c Release, 0 warnings/errors): every ProjectReference path into the
+# engine tree still resolves and the ScenarioRunner.RunSuiteAsync signature it
+# calls is unchanged. packages.lock.json needed no genuine update — restoring
+# on Linux silently flips its two Aspire SDK entries from win-x64 to
+# linux-x64 (restore's documented drift behaviour; see LedgerRunner.csproj's
+# remarks) with no package or version change underneath, so that diff was
+# discarded rather than committed. No sample suite needed a semantic change
+# for this pin. No Docker daemon was available where this bump was prepared,
+# so no sample ran end-to-end here; samples-ci runs the full matrix on the
+# pull request.
+# Prior pin: cc5e8efa.
 # 2026-08-24: advanced to cc5e8efa — the v1.0.0-rc.5 tag commit — tracking the current
 # release; validated by a full-fleet green run (all five samples plus migrations).
 #   Headline of rc.5 is a managed dependency's env: map, plus security.clientKeyPassword
