@@ -58,12 +58,29 @@ REPO_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && p
 
 VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 
+# A NuGet config that holds nuget.org and nothing else, for the one install below.
+# `dotnet tool install` has no --source on this SDK, and --add-source only ADDS nuget.org
+# beside every feed already configured (machine, user, and any nuget.config above the
+# working directory), any of which could serve a same-version `vouchfx`. Measured on SDK
+# 8.0.425: a fake 1.0.0-rc.5 packed into a folder feed that a local nuget.config named was
+# installed instead of nuget.org's under --add-source, and nuget.org's was installed under
+# --configfile with this file. The version check after the install proves only the commit
+# a package claims, so it cannot stand in for choosing the source.
+nuget_org_only_config() {
+  local dir
+  dir="$(mktemp -d)"
+  printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' \
+    '    <clear />' '    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />' \
+    '  </packageSources>' '</configuration>' >"$dir/nuget.config"
+  printf '%s' "$dir"
+}
+
 # Installs the vouchfx global tool at exactly $1 (a NuGet version, no leading "v"), but
 # only into an EMPTY slot. When any vouchfx is already registered it is left untouched,
 # whatever its version and even when its shim cannot answer --version: that slot belongs
 # to whichever repo installed it (see the header), and removing it here could take away
-# the exact version another repo's tests gate on. nuget.org is ADDED as a source, never
-# replacing configured ones.
+# the exact version another repo's tests gate on. The package comes from nuget.org alone
+# (nuget_org_only_config, above).
 # dotnet is called by absolute path: a non-root run never links /usr/bin/dotnet, and
 # the PATH this hook writes only reaches later processes, not this one.
 install_cli() {
@@ -82,7 +99,11 @@ install_cli() {
     return 0
   fi
   log "Installing vouchfx ${want}."
-  "$DOTNET_DIR/dotnet" tool install -g vouchfx --version "$want" --add-source https://api.nuget.org/v3/index.json >/dev/null
+  local cfg status=0
+  cfg="$(nuget_org_only_config)"
+  "$DOTNET_DIR/dotnet" tool install -g vouchfx --version "$want" --configfile "$cfg/nuget.config" >/dev/null || status=$?
+  rm -rf "$cfg"
+  return "$status"
 }
 
 # The installed CLI's informational version ("<version>+<commit-sha>"), or empty.
