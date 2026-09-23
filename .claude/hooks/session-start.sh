@@ -32,6 +32,10 @@
 #      EMPTY slot and never replaces a different installed version: when several fleet
 #      repos share one session, vouchfx-mcp's hook owns the global tool, because its
 #      parity tests gate on an exact version and would otherwise silently skip.
+#      It owns it by replacing any other version it finds, so the order the hooks
+#      run in does not matter: measured both ways, the slot ends at vouchfx-mcp's
+#      pin whether this hook ran first (vouchfx-mcp's then replaced what it installed)
+#      or second (it left vouchfx-mcp's install alone).
 #
 # Synchronous by design: the session starts only once the SDK is present, so nothing
 # races a half-installed toolchain. On a container that already has the SDK (the web
