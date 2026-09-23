@@ -63,8 +63,16 @@ VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 # dotnet is called by absolute path: a non-root run never links /usr/bin/dotnet, and
 # the PATH this hook writes only reaches later processes, not this one.
 install_cli() {
-  local want="$1" have
-  have="$("$DOTNET_DIR/dotnet" tool list -g 2>/dev/null | awk 'tolower($1)=="vouchfx" {print $2}')"
+  local want="$1" listing have
+  # A listing that fails says nothing about the slot, and it cannot be treated as empty:
+  # `dotnet tool install` over a registered tool UPDATES it (measured on SDK 8.0.425,
+  # 1.0.0-rc.4 to 1.0.0-rc.5, exit 0), so installing blind could replace the version
+  # another repo installed. Decline instead, and say so.
+  if ! listing="$("$DOTNET_DIR/dotnet" tool list -g 2>/dev/null)"; then
+    log "WARNING: could not list the global tools, so vouchfx ${want} was not installed (this hook never installs into a slot it cannot inspect)."
+    return 0
+  fi
+  have="$(awk 'tolower($1)=="vouchfx" {print $2}' <<<"$listing")"
   if [ -n "$have" ]; then
     log "vouchfx ${have} is already registered; left as is (this hook never replaces it)."
     return 0
@@ -83,13 +91,11 @@ cli_version() { "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' ||
 # the system-wide writes.
 is_root() { [ "$(id -u)" -eq 0 ]; }
 
-# True when an SDK in the 8.0.4xx band or later is installed. Captured before grep so
-# `grep -q` exiting early cannot SIGPIPE `dotnet` into a pipefail.
-sdk_ok() {
-  local sdks
-  sdks="$("$DOTNET_DIR/dotnet" --list-sdks 2>/dev/null || true)"
-  grep -Eq '^8\.0\.[4-9][0-9]{2} ' <<<"$sdks"
-}
+# True when an SDK under $DOTNET_DIR resolves this repository's global.json. The dotnet
+# host applies the pinned version and its rollForward policy itself, and exits non-zero
+# (145) when no installed SDK satisfies them, so this check cannot drift from global.json
+# the way a hard-coded version band could.
+sdk_ok() { (cd "$REPO_DIR" && "$DOTNET_DIR/dotnet" --version) >/dev/null 2>&1; }
 
 install_sdk() {
   export DEBIAN_FRONTEND=noninteractive
@@ -140,11 +146,11 @@ export DOTNET_NOLOGO=1'
 
 if ! sdk_ok; then
   if ! is_root; then
-    log "ERROR: no .NET 8.0.4xx SDK under ${DOTNET_DIR}, and installing one needs root. This hook never escalates; install the SDK yourself."
+    log "ERROR: no SDK under ${DOTNET_DIR} satisfies global.json, and installing one needs root. This hook never escalates; install the SDK yourself."
     exit 1
   fi
   install_sdk
-  sdk_ok || { log "ERROR: dotnet-sdk-8.0 installed, but no 8.0.4xx SDK is visible under ${DOTNET_DIR}."; exit 1; }
+  sdk_ok || { log "ERROR: dotnet-sdk-8.0 installed, but no SDK under ${DOTNET_DIR} satisfies global.json."; exit 1; }
 fi
 if is_root; then
   [ "$(readlink -f /usr/bin/dotnet 2>/dev/null)" = "$DOTNET_DIR/dotnet" ] || ln -sf "$DOTNET_DIR/dotnet" /usr/bin/dotnet
