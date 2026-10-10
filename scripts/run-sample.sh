@@ -5,6 +5,8 @@
 # Usage:
 #   scripts/run-sample.sh <sample-name>   # e.g. orders-dotnet
 #   scripts/run-sample.sh all             # every sample, one at a time
+# Set VOUCHFX_SAMPLES_CLI and VOUCHFX_SAMPLES_CLI_VERSION together to test an
+# installed executable with an exact version, without bootstrapping source.
 #
 # Samples run strictly sequentially, even under "all": each suite stands up
 # its own Aspire/Testcontainers topology via DCP, and running two topologies
@@ -17,6 +19,8 @@ SAMPLES_DIR="${REPO_ROOT}/samples"
 VOUCHFX_SRC_DIR="${REPO_ROOT}/.vouchfx-src"
 CLI_PROJECT="${VOUCHFX_SRC_DIR}/src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj"
 OUT_DIR="${REPO_ROOT}/out"
+INSTALLED_CLI="${VOUCHFX_SAMPLES_CLI:-}"
+EXPECTED_CLI_VERSION="${VOUCHFX_SAMPLES_CLI_VERSION:-}"
 
 # ── Build-time network accommodations (all opt-in) ────────────────────────────
 # With none of the variables below set, the `docker build` invocation is exactly
@@ -119,43 +123,43 @@ if [[ "$TARGET" != "all" ]]; then
   fi
 fi
 
-# ── Ensure the engine CLI is bootstrapped, AT THE PINNED COMMIT ──────────────
-# Presence of .vouchfx-src is not enough: an existing checkout can be sitting at
-# a PREVIOUS pin, and then every suite here runs against the wrong engine while
-# reporting success. That is not hypothetical — advancing ENGINE_PIN to
-# v1.0.0-rc.5 and re-running produced a schema rejection of a field the pinned
-# engine supports, because the stale checkout was still at rc.4. ENGINE_PIN's
-# own instructions say to delete .vouchfx-src by hand; a step nobody can forget
-# is better than a step everybody must remember.
-# Strip carriage returns before matching. ENGINE_PIN is `text=auto` in
-# .gitattributes with no explicit `eol=lf` (unlike *.sh/*.yml/*.py), so a
-# Windows checkout has it as CRLF — measured, `git ls-files --eol ENGINE_PIN`
-# reports `i/lf w/crlf` there. Whether the anchored 40-hex match then fails
-# depends on the grep: Git Bash's tolerates a trailing \r before `$` (measured
-# — the unstripped form does match on such a checkout), GNU grep on Linux does
-# not. Relying on that difference is not worth it, because the failure is
-# silent in the worst way: pinned_sha comes back empty, the mismatch branch
-# below never runs, and the guard reintroduces exactly the stale-checkout
-# failure it exists to prevent. Matching \r in the regex instead would leave it
-# inside pinned_sha and break the comparison instead.
-pinned_sha="$(tr -d '\r' < "${REPO_ROOT}/ENGINE_PIN" | grep -m1 -E '^[0-9a-f]{40}$' || true)"
-checkout_sha=""
-if [[ -d "$VOUCHFX_SRC_DIR/.git" ]]; then
-  checkout_sha="$(git -C "$VOUCHFX_SRC_DIR" rev-parse HEAD 2>/dev/null || true)"
-fi
+# ── Select an installed artefact or the default pinned source ──────────────
+if [[ -n "$INSTALLED_CLI" || -n "$EXPECTED_CLI_VERSION" ]]; then
+  [[ -n "$INSTALLED_CLI" && -n "$EXPECTED_CLI_VERSION" ]] \
+    || fail "Set VOUCHFX_SAMPLES_CLI and VOUCHFX_SAMPLES_CLI_VERSION together, or unset both for pinned-source mode."
+  INSTALLED_CLI="$(command -v "$INSTALLED_CLI")" \
+    || fail "Installed CLI is not an executable. Set VOUCHFX_SAMPLES_CLI to its path or command name."
+  [[ -f "$INSTALLED_CLI" && -x "$INSTALLED_CLI" ]] \
+    || fail "Installed CLI '$INSTALLED_CLI' is not an executable."
+  if ! actual_version="$("$INSTALLED_CLI" --version 2>&1)"; then
+    fail "Installed CLI --version failed; no sample was started."
+  fi
+  actual_version="${actual_version%$'\r'}"
+  [[ "$actual_version" == "$EXPECTED_CLI_VERSION" ]] \
+    || fail "Installed CLI version '$actual_version' does not match expected '$EXPECTED_CLI_VERSION'; no sample was started."
+  log "Installed CLI: $INSTALLED_CLI (version $actual_version). ENGINE_PIN is not used in this mode."
+else
+  # An existing checkout may be at an older pin. Strip CRLF before matching
+  # ENGINE_PIN so Windows checkouts get the same stale-source check as Linux.
+  pinned_sha="$(tr -d '\r' < "${REPO_ROOT}/ENGINE_PIN" | grep -m1 -E '^[0-9a-f]{40}$' || true)"
+  checkout_sha=""
+  if [[ -d "$VOUCHFX_SRC_DIR/.git" ]]; then
+    checkout_sha="$(git -C "$VOUCHFX_SRC_DIR" rev-parse HEAD 2>/dev/null || true)"
+  fi
 
-if [[ ! -d "$VOUCHFX_SRC_DIR" ]]; then
-  log ".vouchfx-src not found — running scripts/bootstrap.sh first."
-  "${REPO_ROOT}/scripts/bootstrap.sh"
-elif [[ -n "$pinned_sha" && "$checkout_sha" != "$pinned_sha" ]]; then
-  log ".vouchfx-src is at ${checkout_sha:-<unknown>} but ENGINE_PIN says ${pinned_sha}."
-  log "Re-bootstrapping so this run uses the pinned engine, not the stale one."
-  rm -rf "$VOUCHFX_SRC_DIR"
-  "${REPO_ROOT}/scripts/bootstrap.sh"
-fi
+  if [[ ! -d "$VOUCHFX_SRC_DIR" ]]; then
+    log ".vouchfx-src not found — running scripts/bootstrap.sh first."
+    "${REPO_ROOT}/scripts/bootstrap.sh"
+  elif [[ -n "$pinned_sha" && "$checkout_sha" != "$pinned_sha" ]]; then
+    log ".vouchfx-src is at ${checkout_sha:-<unknown>} but ENGINE_PIN says ${pinned_sha}."
+    log "Re-bootstrapping so this run uses the pinned engine, not the stale one."
+    rm -rf "$VOUCHFX_SRC_DIR"
+    "${REPO_ROOT}/scripts/bootstrap.sh"
+  fi
 
-[[ -f "$CLI_PROJECT" ]] \
-  || fail "Engine CLI project not found at ${CLI_PROJECT} after bootstrap. Re-run scripts/bootstrap.sh and check its output."
+  [[ -f "$CLI_PROJECT" ]] \
+    || fail "Engine CLI project not found at ${CLI_PROJECT} after bootstrap. Re-run scripts/bootstrap.sh and check its output."
+fi
 
 mkdir -p "$OUT_DIR"
 
@@ -189,6 +193,10 @@ run_one() {
 
   if [[ ! -d "$tests_dir" ]]; then
     log "Sample '${name}' has no tests/ directory at ${tests_dir}."
+    return 1
+  fi
+  if [[ -n "$INSTALLED_CLI" ]] && has_runner_project "$runner_dir"; then
+    log "Sample '${name}' requires its custom provider runner, which references the pinned source engine. Unset VOUCHFX_SAMPLES_CLI and VOUCHFX_SAMPLES_CLI_VERSION to run it; this sample cannot validate the installed CLI."
     return 1
   fi
 
@@ -262,13 +270,14 @@ run_one() {
     set -e
   else
     log "=== ${name}: running suite (samples/${name}/tests) ==="
+    local -a cli_args=(run "$tests_dir" --junit "$junit_out" --html "$html_out"
+                       --fail-on-env-error --fail-on-inconclusive)
     set +e
-    dotnet run --project "$CLI_PROJECT" -c Release --no-build -- \
-      run "$tests_dir" \
-      --junit "$junit_out" \
-      --html "$html_out" \
-      --fail-on-env-error \
-      --fail-on-inconclusive
+    if [[ -n "$INSTALLED_CLI" ]]; then
+      "$INSTALLED_CLI" "${cli_args[@]}"
+    else
+      dotnet run --project "$CLI_PROJECT" -c Release --no-build -- "${cli_args[@]}"
+    fi
     rc=$?
     set -e
   fi

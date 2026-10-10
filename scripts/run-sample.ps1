@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Prepares a sample, builds its Docker image when app/ exists, and runs its
-    .e2e.yaml suite through the pinned vouchfx engine CLI.
+    .e2e.yaml suite through the pinned source CLI or an explicitly installed CLI.
 .PARAMETER SampleName
     The sample directory name under samples/ (e.g. orders-dotnet), or "all" to
     run every sample sequentially.
@@ -11,6 +11,8 @@
     its own Aspire/Testcontainers topology via DCP, and running two topologies
     concurrently on one machine causes DCP port/network contention (see
     docs/RUNNING.md).
+    Set VOUCHFX_SAMPLES_CLI and VOUCHFX_SAMPLES_CLI_VERSION together to test an
+    installed executable with an exact version, without bootstrapping source.
 .EXAMPLE
     ./scripts/run-sample.ps1 orders-dotnet
 .EXAMPLE
@@ -30,6 +32,9 @@ $SamplesDir    = Join-Path $RepoRoot 'samples'
 $VouchfxSrcDir = Join-Path $RepoRoot '.vouchfx-src'
 $CliProject    = Join-Path $VouchfxSrcDir 'src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj'
 $OutDir        = Join-Path $RepoRoot 'out'
+$InstalledCli  = $env:VOUCHFX_SAMPLES_CLI
+$ExpectedCliVersion = $env:VOUCHFX_SAMPLES_CLI_VERSION
+$UseInstalledCli = -not [string]::IsNullOrWhiteSpace($InstalledCli)
 
 # ── Build-time network accommodations (all opt-in) ────────────────────────────
 # Mirrors the identical block in scripts/run-sample.sh — see that file, or the
@@ -113,17 +118,38 @@ if ($SampleName -ne 'all' -and ($AvailableSamples -notcontains $SampleName)) {
     exit 2
 }
 
-# -- Ensure the engine CLI is bootstrapped ------------------------------------
-if (-not (Test-Path $VouchfxSrcDir)) {
-    Write-SampleLog ".vouchfx-src not found -- running scripts/bootstrap.ps1 first."
-    & (Join-Path $PSScriptRoot 'bootstrap.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        Write-Fail "bootstrap.ps1 failed; cannot continue."
+# -- Select the engine: installed artefact or the default pinned source -------
+if ($UseInstalledCli -or -not [string]::IsNullOrWhiteSpace($ExpectedCliVersion)) {
+    if (-not $UseInstalledCli -or [string]::IsNullOrWhiteSpace($ExpectedCliVersion)) {
+        Write-Fail "Set VOUCHFX_SAMPLES_CLI and VOUCHFX_SAMPLES_CLI_VERSION together, or unset both for pinned-source mode."
     }
+    $commands = @(Get-Command -Name $InstalledCli -CommandType Application -ErrorAction SilentlyContinue)
+    if ($commands.Count -ne 1) {
+        Write-Fail "Installed CLI '$InstalledCli' is not an executable. Set VOUCHFX_SAMPLES_CLI to its path or command name."
+    }
+    $InstalledCli = $commands[0].Source
+    $versionOutput = @(& $InstalledCli --version 2>&1)
+    $versionRc = [int]$LASTEXITCODE
+    $actualVersion = ($versionOutput -join "`n").TrimEnd([char[]]"`r`n")
+    if ($versionRc -ne 0) {
+        Write-Fail "Installed CLI --version failed (exit $versionRc); no sample was started."
+    }
+    if ($actualVersion -cne $ExpectedCliVersion) {
+        Write-Fail "Installed CLI version '$actualVersion' does not match expected '$ExpectedCliVersion'; no sample was started."
+    }
+    Write-SampleLog "Installed CLI: $InstalledCli (version $actualVersion). ENGINE_PIN is not used in this mode."
 }
-
-if (-not (Test-Path $CliProject)) {
-    Write-Fail "Engine CLI project not found at $CliProject after bootstrap. Re-run scripts/bootstrap.ps1 and check its output."
+else {
+    if (-not (Test-Path $VouchfxSrcDir)) {
+        Write-SampleLog ".vouchfx-src not found -- running scripts/bootstrap.ps1 first."
+        & (Join-Path $PSScriptRoot 'bootstrap.ps1')
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "bootstrap.ps1 failed; cannot continue."
+        }
+    }
+    if (-not (Test-Path $CliProject)) {
+        Write-Fail "Engine CLI project not found at $CliProject after bootstrap. Re-run scripts/bootstrap.ps1 and check its output."
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -158,6 +184,10 @@ function Invoke-Sample {
 
     if (-not (Test-Path -LiteralPath $testsDir -PathType Container)) {
         Write-SampleLog "Sample '$Name' has no tests/ directory at $testsDir."
+        return 1
+    }
+    if ($UseInstalledCli -and (Test-RunnerProject $runnerDir)) {
+        Write-SampleLog "Sample '$Name' requires its custom provider runner, which references the pinned source engine. Unset VOUCHFX_SAMPLES_CLI and VOUCHFX_SAMPLES_CLI_VERSION to run it; this sample cannot validate the installed CLI."
         return 1
     }
 
@@ -219,15 +249,20 @@ function Invoke-Sample {
     }
     else {
         Write-SampleLog "=== ${Name}: running suite (samples/$Name/tests) ==="
-        $dotnetArgs = @(
-            'run', '--project', $CliProject, '-c', 'Release', '--no-build', '--',
+        $cliArgs = @(
             'run', $testsDir,
             '--junit', $junitOut,
             '--html', $htmlOut,
             '--fail-on-env-error',
             '--fail-on-inconclusive'
         )
-        & dotnet @dotnetArgs | Out-Host
+        if ($UseInstalledCli) {
+            & $InstalledCli @cliArgs | Out-Host
+        }
+        else {
+            $dotnetArgs = @('run', '--project', $CliProject, '-c', 'Release', '--no-build', '--') + $cliArgs
+            & dotnet @dotnetArgs | Out-Host
+        }
         $rc = [int]$LASTEXITCODE
     }
 

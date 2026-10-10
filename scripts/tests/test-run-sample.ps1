@@ -22,7 +22,8 @@ $passed = 0
 $environmentNames = @(
     'PATH', 'VOUCHFX_SAMPLES_TEST_LOG', 'VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE',
     'VOUCHFX_SAMPLES_TEST_DOCKER_EXIT', 'VOUCHFX_SAMPLES_TEST_RUNNER_BUILD_EXIT',
-    'VOUCHFX_SAMPLES_TEST_CLI_EXIT'
+    'VOUCHFX_SAMPLES_TEST_CLI_EXIT', 'VOUCHFX_SAMPLES_TEST_VERSION',
+    'VOUCHFX_SAMPLES_TEST_VERSION_EXIT', 'VOUCHFX_SAMPLES_CLI', 'VOUCHFX_SAMPLES_CLI_VERSION'
 )
 $originalEnvironment = @{}
 foreach ($name in $environmentNames) {
@@ -41,16 +42,27 @@ function Assert-True {
 }
 
 function New-Case {
-    param([string]$Name)
+    param([string]$Name, [switch]$Installed)
     $root = Join-Path $scratch $Name
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $root 'scripts')
     Copy-Item -LiteralPath $source -Destination (Join-Path $root 'scripts/run-sample.ps1')
-    Write-File (Join-Path $root '.vouchfx-src/src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj') '<Project />'
+    if (-not $Installed) {
+        Write-File (Join-Path $root '.vouchfx-src/src/Cli/Vouchfx.Cli/Vouchfx.Cli.csproj') '<Project />'
+    }
+    Write-File (Join-Path $root 'scripts/bootstrap.ps1') '[System.IO.File]::AppendAllText($env:VOUCHFX_SAMPLES_TEST_LOG, "bootstrap`n"); exit 89'
     $env:VOUCHFX_SAMPLES_TEST_LOG = Join-Path $root 'calls.log'
     $env:VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE = ''
     $env:VOUCHFX_SAMPLES_TEST_DOCKER_EXIT = '0'
     $env:VOUCHFX_SAMPLES_TEST_RUNNER_BUILD_EXIT = '0'
     $env:VOUCHFX_SAMPLES_TEST_CLI_EXIT = '0'
+    $env:VOUCHFX_SAMPLES_TEST_VERSION = '1.0.0-sample-test+not-released'
+    $env:VOUCHFX_SAMPLES_TEST_VERSION_EXIT = '0'
+    $env:VOUCHFX_SAMPLES_CLI = ''
+    $env:VOUCHFX_SAMPLES_CLI_VERSION = ''
+    if ($Installed) {
+        $env:VOUCHFX_SAMPLES_CLI = Join-Path $bin $(if ($IsWindows) { 'candidate cli.cmd' } else { 'candidate cli' })
+        $env:VOUCHFX_SAMPLES_CLI_VERSION = $env:VOUCHFX_SAMPLES_TEST_VERSION
+    }
     return $root
 }
 
@@ -104,6 +116,18 @@ EXIT_RULE
 '@
         Write-File (Join-Path $bin 'docker.cmd') ($stub.Replace('COMMAND', 'docker').Replace('EXIT_RULE', 'exit /b %VOUCHFX_SAMPLES_TEST_DOCKER_EXIT%'))
         Write-File (Join-Path $bin 'dotnet.cmd') ($stub.Replace('COMMAND', 'dotnet').Replace('EXIT_RULE', "if `"%1`"==`"build`" exit /b %VOUCHFX_SAMPLES_TEST_RUNNER_BUILD_EXIT%`r`nexit /b %VOUCHFX_SAMPLES_TEST_CLI_EXIT%"))
+        $cliStub = @'
+@echo off
+echo cli %*>>"%VOUCHFX_SAMPLES_TEST_LOG%"
+if "%1"=="--version" (
+  echo %VOUCHFX_SAMPLES_TEST_VERSION%
+  exit /b %VOUCHFX_SAMPLES_TEST_VERSION_EXIT%
+)
+echo cli native output must not enter the integer result
+if defined VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE if not exist "%VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE%" exit /b 91
+exit /b %VOUCHFX_SAMPLES_TEST_CLI_EXIT%
+'@
+        Write-File (Join-Path $bin 'candidate cli.cmd') $cliStub
     }
     else {
         $stub = @'
@@ -115,7 +139,16 @@ EXIT_RULE
 '@
         Write-File (Join-Path $bin 'docker') ($stub.Replace('COMMAND', 'docker').Replace('EXIT_RULE', 'exit "$VOUCHFX_SAMPLES_TEST_DOCKER_EXIT"'))
         Write-File (Join-Path $bin 'dotnet') ($stub.Replace('COMMAND', 'dotnet').Replace('EXIT_RULE', "if [ `"`$1`" = build ]; then exit `"`$VOUCHFX_SAMPLES_TEST_RUNNER_BUILD_EXIT`"; fi`nexit `"`$VOUCHFX_SAMPLES_TEST_CLI_EXIT`""))
-        & chmod +x (Join-Path $bin 'docker') (Join-Path $bin 'dotnet')
+        $cliStub = @'
+#!/bin/sh
+printf '%s\n' "cli $*" >> "$VOUCHFX_SAMPLES_TEST_LOG"
+if [ "$1" = --version ]; then printf '%s\n' "$VOUCHFX_SAMPLES_TEST_VERSION"; exit "$VOUCHFX_SAMPLES_TEST_VERSION_EXIT"; fi
+printf '%s\n' 'cli native output must not enter the integer result'
+if [ -n "$VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE" ] && [ ! -f "$VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE" ]; then exit 91; fi
+exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
+'@
+        Write-File (Join-Path $bin 'candidate cli') $cliStub
+        & chmod +x (Join-Path $bin 'docker') (Join-Path $bin 'dotnet') (Join-Path $bin 'candidate cli')
         Assert-True ($LASTEXITCODE -eq 0) 'Could not make native stubs executable.'
     }
     $env:PATH = $bin + [System.IO.Path]::PathSeparator + $originalEnvironment['PATH']
@@ -190,7 +223,72 @@ EXIT_RULE
     }
     $passed++
 
-    Write-Host "$passed/9 sample-runner regressions passed."
+    $root = New-Case 'installed dependency' -Installed
+    $sample = New-Sample $root 'dependency' -Setup
+    $env:VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE = Join-Path $sample 'tests/generated.txt'
+    $result = Invoke-Case $root 'dependency' 0
+    Assert-True ($result.Calls.Count -eq 3 -and $result.Calls[0] -eq 'cli --version' -and $result.Calls[1] -eq 'setup dependency' -and $result.Calls[2] -like 'cli run *') 'Installed mode must check the version, prepare fixtures, and run without source or an image.'
+    Assert-True ($result.Calls[2] -like '*--fail-on-env-error*--fail-on-inconclusive*') 'Installed CLI must receive strict verdict flags.'
+    Assert-True (-not (Test-Path (Join-Path $root '.vouchfx-src'))) 'Installed mode must not bootstrap a source checkout.'
+    $passed++
+
+    $root = New-Case 'installed image ordering' -Installed
+    $null = New-Sample $root 'app' -App -Setup
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Calls.Count -eq 4 -and $result.Calls[0] -eq 'cli --version' -and $result.Calls[1] -eq 'setup app' -and $result.Calls[2] -like 'docker build *' -and $result.Calls[3] -like 'cli run *') 'Installed version verification must precede setup, Docker and CLI execution.'
+    $passed++
+
+    $root = New-Case 'installed version mismatch' -Installed
+    $null = New-Sample $root 'app' -App -Setup
+    $env:VOUCHFX_SAMPLES_TEST_VERSION = '1.0.0-wrong-build'
+    $result = Invoke-Case $root 'all' 1
+    Assert-True ($result.Calls.Count -eq 1 -and $result.Calls[0] -eq 'cli --version') 'A version mismatch must stop all before setup or Docker.'
+    $passed++
+
+    $root = New-Case 'installed version failure' -Installed
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLES_TEST_VERSION_EXIT = '9'
+    $result = Invoke-Case $root 'all' 1
+    Assert-True ($result.Calls.Count -eq 1) 'A failed version command must stop all.'
+    $passed++
+
+    $root = New-Case 'installed missing expected version' -Installed
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLES_CLI_VERSION = ''
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'Installed mode must require an explicit expected version.'
+    $passed++
+
+    $root = New-Case 'installed missing executable setting' -Installed
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLES_CLI = ''
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'An expected version alone must not fall back to source.'
+    $passed++
+
+    $root = New-Case 'installed missing executable file' -Installed
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLES_CLI = Join-Path $root 'missing executable'
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'A missing executable must fail without bootstrap or Docker.'
+    $passed++
+
+    $root = New-Case 'installed CLI environment failure' -Installed
+    $null = New-Sample $root 'dependency'
+    $env:VOUCHFX_SAMPLES_TEST_CLI_EXIT = '3'
+    $result = Invoke-Case $root 'all' 3
+    Assert-True ($result.Calls.Count -eq 2 -and $result.Calls[1] -like 'cli run *') 'Installed CLI failure must reach the aggregate exit.'
+    $passed++
+
+    $root = New-Case 'installed custom runner refusal' -Installed
+    $null = New-Sample $root 'a-custom' -Runner -App -Setup
+    $null = New-Sample $root 'b-standard'
+    $result = Invoke-Case $root 'all' 1
+    Assert-True ($result.Calls.Count -eq 2 -and $result.Calls[1] -like '*b-standard*') 'Installed all must reject the custom source runner and still execute standard samples.'
+    Assert-True ($result.Output.Contains('Unset VOUCHFX_SAMPLES_CLI') -and $result.Output.Contains('a-custom: exit 1') -and $result.Output.Contains('b-standard: exit 0')) 'Custom-runner refusal must be actionable and visible in the summary.'
+    $passed++
+
+    Write-Host "$passed/18 sample-runner regressions passed."
 }
 finally {
     foreach ($name in $environmentNames) {

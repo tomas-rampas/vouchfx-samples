@@ -43,18 +43,27 @@ See [developercertificate.org](https://developercertificate.org/) for what you a
 
 ## Runner regression tests
 
-For changes to the PowerShell sample runner, run the Docker-free subprocess regressions:
+For sample-runner changes, run the Docker-free native subprocess regressions for both shells:
 
 ```powershell
 pwsh -NoProfile -File scripts/tests/test-run-sample.ps1
 ```
 
-These checks cover setup ordering, optional image builds, failure propagation and `all` aggregation.
-They also run in Samples CI; they do not substitute for the live sample matrix.
+```bash
+bash scripts/tests/test-run-sample.sh
+```
+
+These checks cover setup ordering, optional image builds, installed-candidate version checks,
+custom-runner refusal, failure propagation and `all` aggregation. Both harnesses also run in
+Samples CI. Neither substitutes for live source or installed-candidate acceptance.
 
 ## Engine changes belong upstream
 
-This repository consumes the vouchfx engine at a pinned commit (`ENGINE_PIN`) — it builds against it, it does not modify it. If you find an engine bug, want a new provider, or want to change the DSL, take it to the engine repository instead:
+Default source mode consumes the engine at `ENGINE_PIN`; explicit installed mode consumes the
+executable/version selected by `VOUCHFX_SAMPLES_CLI` and `VOUCHFX_SAMPLES_CLI_VERSION`. See
+[installed candidate validation](docs/RUNNING.md#validate-an-installed-cli-candidate). Custom
+provider runners remain source-based. This repository does not modify the engine. If you find an
+engine bug, want a new provider, or want to change the DSL, take it to the engine repository:
 
 - Engine [`CONTRIBUTING.md`](https://github.com/tomas-rampas/vouchfx/blob/main/CONTRIBUTING.md)
 - Engine issues: <https://github.com/tomas-rampas/vouchfx/issues>

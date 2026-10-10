@@ -5,13 +5,13 @@ This page covers what you need installed, the two-command quick start, how to re
 ## Prerequisites
 
 - **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
-- **.NET 8 SDK**, version 8.0.400 or later (`global.json` pins the exact minimum and enables `rollForward: latestFeature`). Get it from <https://dotnet.microsoft.com/download/dotnet/8.0>.
+- **.NET 8 SDK**, version 8.0.400 or later, for the default source build and custom runners (`global.json` pins the minimum and enables `rollForward: latestFeature`). Installed CLI mode uses the runtime and orchestration prerequisites declared by the selected candidate. Get .NET from <https://dotnet.microsoft.com/download/dotnet/8.0>.
 - **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). The engine orchestrates every sample's dependencies — Postgres, Kafka, SQL Server, and so on — as containers via .NET Aspire + Testcontainers; nothing here runs against infrastructure you install by hand.
-- **Git**, reachable on `PATH` (used to shallow-fetch the pinned engine commit).
+- **Git**, reachable on `PATH`, for source mode (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-The vouchfx engine CLI is published as pre-release packages on NuGet.org (`dotnet tool install --global vouchfx --prerelease`). This repository **builds the engine from source** at a pinned commit to preserve reproducibility. That source build is the supported sample-runner path and supplies the engine's Aspire orchestration dependencies; it does not prove that a separately installed package works on a clean machine. See [`ENGINE_PIN`](../ENGINE_PIN) for the exact commit and design rationale. Candidate validation must check packaged-CLI installation separately.
+The vouchfx engine CLI is published as pre-release packages on NuGet.org. These runners default to a source build at the commit in [`ENGINE_PIN`](../ENGINE_PIN). They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
 
 ## Quick start
 
@@ -42,7 +42,52 @@ Run every sample, one at a time (`all` is intentionally sequential — see [Why 
 ./scripts/run-sample.sh all
 ```
 
-`scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2.
+In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2.
+
+## Validate an installed CLI candidate
+
+Install the candidate using its release or candidate-artifact instructions. Select the executable and
+the exact version declared in its manifest or release metadata; include any `+build` suffix. Replace
+the example values below. Do not derive the expected version from the executable being checked.
+
+```bash
+export VOUCHFX_SAMPLES_CLI='/path/with spaces/vouchfx'
+export VOUCHFX_SAMPLES_CLI_VERSION='VERSION_FROM_CANDIDATE_MANIFEST'
+./scripts/run-sample.sh orders-dotnet
+```
+
+```powershell
+$env:VOUCHFX_SAMPLES_CLI = 'C:\candidate tools\vouchfx.exe'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = 'VERSION_FROM_CANDIDATE_MANIFEST'
+.\scripts\run-sample.ps1 orders-dotnet
+```
+
+`VOUCHFX_SAMPLES_CLI` may also be an executable command on `PATH`. Set both variables together.
+Inspect its full version with `"$VOUCHFX_SAMPLES_CLI" --version` in Bash or
+`& $env:VOUCHFX_SAMPLES_CLI --version` in PowerShell and compare it with the candidate metadata.
+The runner checks `--version` before fixture setup, image builds or suite execution; a missing
+executable, failed version command or mismatch exits nonzero. Installed mode neither bootstraps
+nor restores the engine checkout, and does not use `ENGINE_PIN`. Standard suites retain
+`--fail-on-env-error` and `--fail-on-inconclusive`; their failure reaches the runner's exit code.
+Version matching identifies the declared candidate version; retain its artifact digest separately
+when recording release evidence.
+
+`ledger-jsonrpc` uses a custom host referencing the pinned source engine and Community provider.
+Installed mode rejects custom-runner samples before setup/build rather than silently switching
+engines. With `all`, standard samples continue, the refusal appears in the summary, and the final
+exit remains nonzero. Run the custom-provider journey separately in source mode:
+
+```bash
+unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
+./scripts/run-sample.sh ledger-jsonrpc
+```
+
+```powershell
+Remove-Item Env:VOUCHFX_SAMPLES_CLI, Env:VOUCHFX_SAMPLES_CLI_VERSION -ErrorAction SilentlyContinue
+.\scripts\run-sample.ps1 ledger-jsonrpc
+```
+
+## Reports
 
 Reports land in `out/`:
 
@@ -159,7 +204,7 @@ Each suite brings up its own topology through .NET Aspire's orchestrator (DCP). 
 `.github/workflows/samples-ci.yml` runs on code pushes and pull requests to `main`, plus manual dispatch; documentation-only changes are excluded. It uses a **matrix of separate runners** — one per sample — rather than running all five on one machine:
 
 - Each matrix job independently checks out the repo, sets up the pinned .NET SDK, bootstraps the pinned engine commit, and runs exactly one sample via `scripts/run-sample.sh <sample>`.
-- A separate Windows job runs Docker-free PowerShell sample-runner regressions. It checks dispatch and exit handling; live containers remain covered by the Linux sample matrix.
+- Separate Windows and Linux jobs run Docker-free PowerShell and Bash sample-runner regressions. These check source/installed dispatch, version rejection and exit handling; live containers remain covered by the source-engine Linux matrix. Installed-mode subprocess stubs do not constitute live candidate acceptance.
 - Because each sample gets its own runner, there's no DCP contention between samples in CI even though they execute at the same time — the sequential constraint above is about *one machine*, not about the samples being inherently unable to run in parallel.
 - `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all five every time.
 - Each sample matrix job uploads its `out/` directory as an artifact (`reports-<sample>`) regardless of outcome (`if: always()`), so you can open the HTML report for a failed CI run without reproducing it locally first.

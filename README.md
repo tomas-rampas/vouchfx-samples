@@ -8,7 +8,7 @@ Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx
 
 ## The Sample Catalogue
 
-Each sample is a **real service** (not a toy echo), with its own database, broker, or cache. The suite drives one complete business transaction through every hop. Browse the exact providers exercised and the technology pairing for each:
+Application samples drive a business transaction through a real service and its database, broker or cache. Infrastructure-only samples exercise a dependency directly. Browse the providers and technology pairing for each:
 
 | Sample | Language / Stack | Transaction Under Test | vouchfx Providers Exercised |
 |--------|------------------|------------------------|-----------------------------|
@@ -52,6 +52,12 @@ To run all five samples back-to-back:
 The [Kafka mutual-TLS sample](samples/kafka-mtls/README.md) documents its certificate setup and
 broker prerequisites. The runner invokes its setup script before running the suite.
 
+To validate an **installed CLI candidate**, set `VOUCHFX_SAMPLES_CLI` to its executable path or
+command name and `VOUCHFX_SAMPLES_CLI_VERSION` to the exact version declared by that candidate.
+Both runners check `--version` before setup or Docker, and bypass source bootstrap entirely.
+See [installed candidate validation](docs/RUNNING.md#validate-an-installed-cli-candidate) for commands
+and the custom-provider limitation. This mode does not use `ENGINE_PIN`.
+
 Reports land in `out/`:
 
 - `out/<sample>-results.xml` — JUnit XML (for IDE test-result integrations and CI)
@@ -78,7 +84,7 @@ environment:
       type: kafka
 ```
 
-The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. These samples use the inline environment model and the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN); consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. User-supplied Docker Compose, SaaS orchestration and Kubernetes environments are not supported execution modes here. Compose examples will be added when the engine implements that path.
+The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. These samples use the inline environment model and, by default, the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN). Installed candidate validation uses the explicitly selected executable instead; consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. User-supplied Docker Compose, SaaS orchestration and Kubernetes environments are not supported execution modes here. Compose examples will be added when the engine implements that path.
 
 ## What "Proven" Means
 
@@ -167,9 +173,9 @@ Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for t
 
 ## Status
 
-**Samples:** All four samples are validated live against local Docker and orchestrated end-to-end with vouchfx.
+**Samples:** Five reference suites are maintained. The [Samples CI workflow](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml) records live container results for the pinned source engine. Docker-free runner regressions verify dispatch and failure handling separately.
 
-**Engine consumption:** vouchfx v1.0.0-alpha pre-releases are live on NuGet.org and GitHub. This repository **deliberately builds from source** at the pinned SHA in [`ENGINE_PIN`](ENGINE_PIN) for reproducibility and DCP binary path portability — the packaged CLI's embedded absolute paths only work on systems whose ~/.nuget/packages already holds matching aspire.hosting.orchestration versions. Building from source guarantees a self-sufficient CI run.
+**Engine consumption:** Pre-releases are published on NuGet.org and GitHub. The default runner builds from the SHA in [`ENGINE_PIN`](ENGINE_PIN) for reproducibility. Explicit installed mode validates a separately installed executable and its declared version without building engine source; passing source CI does not establish that an installed candidate works. `ledger-jsonrpc` requires its custom source runner and is rejected in installed mode.
 
 **Documentation:** British English throughout. Samples are living documentation: every `.e2e.yaml` file is a worked example of the YAML DSL, and every sample's README cross-references the engine's architecture blueprint and language reference so authors can verify their understanding against the canonical source.
 
