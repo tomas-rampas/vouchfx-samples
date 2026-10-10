@@ -84,7 +84,7 @@ environment:
       type: kafka
 ```
 
-The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. These samples use the inline environment model and, by default, the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN). Installed candidate validation uses the explicitly selected executable instead; consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. User-supplied Docker Compose, SaaS orchestration and Kubernetes environments are not supported execution modes here. Compose examples will be added when the engine implements that path.
+The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. These samples use the inline environment model and, by default, the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN). Installed candidate validation uses the explicitly selected executable instead; consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. User-supplied Docker Compose, SaaS orchestration and Kubernetes environments are not supported execution modes here. This checkout currently supplies inline examples. In a matching core engine source checkout containing Compose support, follow `examples/compose-orders/README.md` with that source CLI or an explicitly selected Compose-capable candidate; the published/pinned `1.0.0-rc.6` engine does not support it.
 
 ## What "Proven" Means
 
