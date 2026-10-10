@@ -4,14 +4,14 @@ This page covers what you need installed, the two-command quick start, how to re
 
 ## Prerequisites
 
-- **Operating system:** Windows, macOS, or Linux. `scripts/*.sh` and `scripts/*.ps1` are feature-parity pairs — use whichever matches your shell.
+- **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
 - **.NET 8 SDK**, version 8.0.400 or later (`global.json` pins the exact minimum and enables `rollForward: latestFeature`). Get it from <https://dotnet.microsoft.com/download/dotnet/8.0>.
 - **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). The engine orchestrates every sample's dependencies — Postgres, Kafka, SQL Server, and so on — as containers via .NET Aspire + Testcontainers; nothing here runs against infrastructure you install by hand.
 - **Git**, reachable on `PATH` (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-The vouchfx engine CLI is published as pre-release packages on NuGet.org (`dotnet tool install --global vouchfx --prerelease`). This repository **deliberately builds the engine from source** at a pinned commit to preserve reproducibility — every CI run is self-sufficient at an exact, auditable engine revision. (Packages up to v1.0.0-alpha.5 also had a DCP binary path portability issue; v1.0.0-alpha.6 fixed it, and the stock-CLI samples here pass under the packaged tool too. The source build remains this repository's canonical path until the GA revisit noted in `ENGINE_PIN`.) See [`ENGINE_PIN`](../ENGINE_PIN) for the exact commit and design rationale.
+The vouchfx engine CLI is published as pre-release packages on NuGet.org (`dotnet tool install --global vouchfx --prerelease`). This repository **builds the engine from source** at a pinned commit to preserve reproducibility. That source build is the supported sample-runner path and supplies the engine's Aspire orchestration dependencies; it does not prove that a separately installed package works on a clean machine. See [`ENGINE_PIN`](../ENGINE_PIN) for the exact commit and design rationale. Candidate validation must check packaged-CLI installation separately.
 
 ## Quick start
 
@@ -31,6 +31,10 @@ On Windows (PowerShell):
 .\scripts\bootstrap.ps1
 .\scripts\run-sample.ps1 orders-dotnet
 ```
+
+Both runners invoke a sample's optional `setup.sh` / `setup.ps1` before building or running it.
+Setup failure stops that sample. A sample without `app/`, such as `kafka-mtls`, skips the image build
+and runs its suite against the containers declared in `environment:`.
 
 Run every sample, one at a time (`all` is intentionally sequential — see [Why samples don't run concurrently](#why-samples-dont-run-concurrently-on-one-machine) below):
 
@@ -152,12 +156,13 @@ Each suite brings up its own topology through .NET Aspire's orchestrator (DCP). 
 
 ## CI notes
 
-`.github/workflows/samples-ci.yml` runs on every push and pull request to `main`, plus manual dispatch. It uses a **matrix of separate runners** — one per sample — rather than running all four on one machine:
+`.github/workflows/samples-ci.yml` runs on code pushes and pull requests to `main`, plus manual dispatch; documentation-only changes are excluded. It uses a **matrix of separate runners** — one per sample — rather than running all five on one machine:
 
 - Each matrix job independently checks out the repo, sets up the pinned .NET SDK, bootstraps the pinned engine commit, and runs exactly one sample via `scripts/run-sample.sh <sample>`.
+- A separate Windows job runs Docker-free PowerShell sample-runner regressions. It checks dispatch and exit handling; live containers remain covered by the Linux sample matrix.
 - Because each sample gets its own runner, there's no DCP contention between samples in CI even though they execute at the same time — the sequential constraint above is about *one machine*, not about the samples being inherently unable to run in parallel.
-- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all four every time.
-- Every job uploads its `out/` directory as an artifact (`reports-<sample>`) regardless of outcome (`if: always()`), so you can open the HTML report for a failed CI run without reproducing it locally first.
+- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all five every time.
+- Each sample matrix job uploads its `out/` directory as an artifact (`reports-<sample>`) regardless of outcome (`if: always()`), so you can open the HTML report for a failed CI run without reproducing it locally first.
 - The job timeout is generous (25 minutes) to comfortably cover image pulls, Aspire/DCP startup (roughly 20 seconds per managed resource), and the heavier samples' dependencies (e.g. SQL Server) — a run taking the full 25 minutes is itself worth investigating, but isn't expected in the normal case.
 
 If a sample fails only in CI and not locally, the most common causes are: a cold image cache (first pull is slow — re-run), or a timeout tuned for a faster local machine than the CI runner (adjust the suite's `timeout`/`verifyMode: RETRY` backoff, not the CI job timeout).

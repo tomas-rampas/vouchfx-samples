@@ -16,6 +16,7 @@ Each sample is a **real service** (not a toy echo), with its own database, broke
 | **[inventory-python](samples/inventory-python/)** | FastAPI + Python 3.12 | Create item → MySQL row + Redis cache entry → RabbitMQ event | `http.rest`, `db-assert.mysql`, `cache-assert.redis`, `mq-expect.rabbitmq` |
 | **[payments-java](samples/payments-java/)** | Spring Boot 3.3 + Java 17 | Authorise payment → SQL Server row → NATS JetStream event → SMTP receipt email | `http.rest`, `db-assert.sqlserver`, `mq-expect.nats`, `mail-expect.smtp` |
 | **[ledger-jsonrpc](samples/ledger-jsonrpc/)** | Node.js 22 + JSON-RPC 2.0 | Ledger transactions (REST) → Postgres row → Kafka event → independent worker role consuming an injected adjustment | `rpc.json-rpc` (Community), `db-assert.postgres`, `mq-publish.kafka`, `mq-expect.kafka`, `script.csharp` — **custom runner** |
+| **[kafka-mtls](samples/kafka-mtls/)** | Kafka + PEM certificates | Produce and consume over a mutually authenticated broker listener | `mq-publish.kafka`, `mq-expect.kafka` |
 
 Each sample's `README.md` walks through the transaction, the code, the suite design, and what success looks like.
 
@@ -42,11 +43,14 @@ On Windows (PowerShell):
 .\scripts\run-sample.ps1 orders-dotnet
 ```
 
-To run all four samples back-to-back:
+To run all five samples back-to-back:
 
 ```bash
 ./scripts/run-sample.sh all
 ```
+
+The [Kafka mutual-TLS sample](samples/kafka-mtls/README.md) documents its certificate setup and
+broker prerequisites. The runner invokes its setup script before running the suite.
 
 Reports land in `out/`:
 
@@ -74,7 +78,7 @@ environment:
       type: kafka
 ```
 
-The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to the container-reachable network addresses at topology build time. This decouples the sample's suite from any hardcoded hostnames or ports, enabling the same suite to run identically against local Docker, a SaaS orchestrator, or on-premises Kubernetes. **Requires the vouchfx engine at or after the commit pinned in [`ENGINE_PIN`](ENGINE_PIN)** — consult that file and [`docs/RUNNING.md`](docs/RUNNING.md) for version compatibility.
+The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. These samples use the inline environment model and the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN); consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. User-supplied Docker Compose, SaaS orchestration and Kubernetes environments are not supported execution modes here. Compose examples will be added when the engine implements that path.
 
 ## What "Proven" Means
 

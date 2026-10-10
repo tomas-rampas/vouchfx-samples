@@ -1,8 +1,8 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    Builds a sample's Docker image and runs its .e2e.yaml suite through the
-    pinned vouchfx engine CLI.
+    Prepares a sample, builds its Docker image when app/ exists, and runs its
+    .e2e.yaml suite through the pinned vouchfx engine CLI.
 .PARAMETER SampleName
     The sample directory name under samples/ (e.g. orders-dotnet), or "all" to
     run every sample sequentially.
@@ -152,31 +152,42 @@ function Invoke-Sample {
     $appDir    = Join-Path (Join-Path $SamplesDir $Name) 'app'
     $testsDir  = Join-Path (Join-Path $SamplesDir $Name) 'tests'
     $runnerDir = Join-Path (Join-Path $SamplesDir $Name) 'runner'
+    $setupScript = Join-Path (Join-Path $SamplesDir $Name) 'setup.ps1'
     $junitOut  = Join-Path $OutDir "$Name-results.xml"
     $htmlOut   = Join-Path $OutDir "$Name-report.html"
 
-    if (-not (Test-Path $appDir)) {
-        Write-SampleLog "Sample '$Name' has no app/ directory at $appDir."
-        return 1
-    }
-    if (-not (Test-Path $testsDir)) {
+    if (-not (Test-Path -LiteralPath $testsDir -PathType Container)) {
         Write-SampleLog "Sample '$Name' has no tests/ directory at $testsDir."
         return 1
     }
 
-    Write-SampleLog "=== ${Name}: docker build $image ==="
-    # Pipe to Out-Host: native stdout/stderr still streams live to the console (Out-Host
-    # writes each line as it arrives), but it no longer folds into this function's success
-    # stream. Without this, the bare native call's captured output becomes part of what
-    # `return` emits, turning the caller's `$rc = Invoke-Sample ...` into an array instead
-    # of an int, and `exit $overallRc` on that array silently coerces to a 0 exit code even
-    # when the sample genuinely failed (the false-green this fixes).
-    $buildFlags = @(Get-DockerBuildFlag)
-    docker build @buildFlags -t $image "$appDir" | Out-Host
-    $buildRc = [int]$LASTEXITCODE
-    if ($buildRc -ne 0) {
-        Write-SampleLog "docker build failed for $Name (exit $buildRc)."
-        return [int]$buildRc
+    # Match setup.sh discovery in run-sample.sh. Generate certificates and other
+    # fixtures before a build or runner can read suite paths. A child process keeps
+    # setup's exit statement local; Out-Host keeps its output out of our integer result.
+    if (Test-Path -LiteralPath $setupScript -PathType Leaf) {
+        Write-SampleLog "=== ${Name}: running setup script (samples/$Name/setup.ps1) ==="
+        pwsh -NoProfile -File $setupScript | Out-Host
+        $setupRc = [int]$LASTEXITCODE
+        if ($setupRc -ne 0) {
+            Write-SampleLog "setup.ps1 failed for $Name (exit $setupRc)."
+            return [int]$setupRc
+        }
+    }
+
+    if (Test-Path -LiteralPath $appDir -PathType Container) {
+        Write-SampleLog "=== ${Name}: docker build $image ==="
+        # Native output must not join the success stream: the caller expects one
+        # integer, and an output array can otherwise produce a false-green exit.
+        $buildFlags = @(Get-DockerBuildFlag)
+        docker build @buildFlags -t $image "$appDir" | Out-Host
+        $buildRc = [int]$LASTEXITCODE
+        if ($buildRc -ne 0) {
+            Write-SampleLog "docker build failed for $Name (exit $buildRc)."
+            return [int]$buildRc
+        }
+    }
+    else {
+        Write-SampleLog "Sample '$Name' has no app/ directory -- skipping docker build (no system under test)."
     }
 
     $rc = 0
