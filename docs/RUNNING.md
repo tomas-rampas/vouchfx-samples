@@ -6,7 +6,7 @@ This page covers what you need installed, the two-command quick start, how to re
 
 - **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
 - **.NET 8 SDK**, version 8.0.400 or later, for the default source build and custom runners (`global.json` pins the minimum and enables `rollForward: latestFeature`). Installed CLI mode uses the runtime and orchestration prerequisites declared by the selected candidate. Get .NET from <https://dotnet.microsoft.com/download/dotnet/8.0>.
-- **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). The engine orchestrates every sample's dependencies — Postgres, Kafka, SQL Server, and so on — as containers via .NET Aspire + Testcontainers; nothing here runs against infrastructure you install by hand.
+- **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). Inline suites use .NET Aspire + Testcontainers; the Compose variant uses its selected native adapter to own the application and dependencies; nothing here runs against infrastructure you install by hand.
 - **Git**, reachable on `PATH`, for source mode (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
@@ -86,6 +86,23 @@ unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
 Remove-Item Env:VOUCHFX_SAMPLES_CLI, Env:VOUCHFX_SAMPLES_CLI_VERSION -ErrorAction SilentlyContinue
 .\scripts\run-sample.ps1 ledger-jsonrpc
 ```
+
+## User-supplied Docker Compose
+
+[orders-dotnet-compose](../samples/orders-dotnet-compose/README.md) reuses the Orders
+application and five assertions with an isolated Compose-owned database, Kafka broker
+and application. Set `VOUCHFX_COMPOSE_PASSWORD` to a disposable credential and select
+a CLI supporting TCP service bindings plus native healthcheck readiness using the
+candidate variables above. Then run `./scripts/run-sample.sh orders-dotnet-compose`
+or `./scripts/run-sample.ps1 orders-dotnet-compose`. Compose builds the shared app;
+the standard runner does not build a duplicated `app/` for this variant.
+
+The current `ENGINE_PIN` and published `1.0.0-rc.6` default cannot run this suite.
+Consequently `all` requires a Compose-capable candidate to include the variant;
+the pinned-source CI matrix currently excludes it. Source CLI/native Docker evidence
+and installed-package acceptance remain separate. Keep Kafka's external loopback
+port 19092 free, and preserve both listener routes and `host-gateway` callback mapping.
+The sample README documents readiness, digest pins and ownership-journal recovery.
 
 ## Reports
 
@@ -197,16 +214,16 @@ The other three samples need no CA handling: the .NET build reaches NuGet throug
 
 ## Why samples don't run concurrently on one machine
 
-Each suite brings up its own topology through .NET Aspire's orchestrator (DCP). Running two topologies at once on one host causes DCP port/network contention — the symptoms are usually a spurious `EnvironmentError` with a health-gate timeout that has nothing to do with either sample's actual code. `scripts/run-sample.* all` therefore always runs samples one after another, never in parallel, regardless of how many CPU cores are available.
+Inline suites bring up their topology through .NET Aspire's orchestrator (DCP); the Compose variant also reserves a fixed Kafka host port. Running two topologies at once on one host causes DCP port/network contention — the symptoms are usually a spurious `EnvironmentError` with a health-gate timeout that has nothing to do with either sample's actual code. `scripts/run-sample.* all` therefore always runs samples one after another, never in parallel, regardless of how many CPU cores are available.
 
 ## CI notes
 
-`.github/workflows/samples-ci.yml` runs on code pushes and pull requests to `main`, plus manual dispatch; documentation-only changes are excluded. It uses a **matrix of separate runners** — one per sample — rather than running all five on one machine:
+`.github/workflows/samples-ci.yml` runs on code pushes and pull requests to `main`, plus manual dispatch; documentation-only changes are excluded. It uses a **matrix of separate runners** — one per sample — rather than running its selected samples on one machine:
 
 - Each matrix job independently checks out the repo, sets up the pinned .NET SDK, bootstraps the pinned engine commit, and runs exactly one sample via `scripts/run-sample.sh <sample>`.
 - Separate Windows and Linux jobs run Docker-free PowerShell and Bash sample-runner regressions. These check source/installed dispatch, version rejection and exit handling; live containers remain covered by the source-engine Linux matrix. Installed-mode subprocess stubs do not constitute live candidate acceptance.
 - Because each sample gets its own runner, there's no DCP contention between samples in CI even though they execute at the same time — the sequential constraint above is about *one machine*, not about the samples being inherently unable to run in parallel.
-- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a complete picture of all five every time.
+- `fail-fast: false` — one sample's failure doesn't cancel the others; you get a result for every selected matrix sample.
 - Each sample matrix job uploads its `out/` directory as an artifact (`reports-<sample>`) regardless of outcome (`if: always()`), so you can open the HTML report for a failed CI run without reproducing it locally first.
 - The job timeout is generous (25 minutes) to comfortably cover image pulls, Aspire/DCP startup (roughly 20 seconds per managed resource), and the heavier samples' dependencies (e.g. SQL Server) — a run taking the full 25 minutes is itself worth investigating, but isn't expected in the normal case.
 

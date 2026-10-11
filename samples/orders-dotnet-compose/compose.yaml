@@ -1,0 +1,59 @@
+services:
+  orders-api:
+    build:
+      context: ../orders-dotnet/app
+    ports:
+      - target: 8080
+        host_ip: 127.0.0.1
+    environment:
+      ConnectionStrings__orders: "Host=postgres;Port=5432;Database=orders;Username=orders;Password=${VOUCHFX_COMPOSE_PASSWORD}"
+      KAFKA_BOOTSTRAP: broker:29092
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      postgres: { condition: service_healthy }
+      broker: { condition: service_healthy }
+  postgres:
+    image: docker.io/library/postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    ports:
+      - target: 5432
+        host_ip: 127.0.0.1
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: "${VOUCHFX_COMPOSE_PASSWORD}"
+    healthcheck:
+      test: [CMD, pg_isready, -U, orders, -d, orders]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  broker:
+    image: docker.io/confluentinc/cp-kafka@sha256:620734d9fc0bb1f9886932e5baf33806074469f40e3fe246a3fdbb59309535fa
+    ports:
+      - target: 9092
+        published: "19092"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://broker:29092,EXTERNAL://127.0.0.1:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: [CMD, cub, kafka-ready, "1", "10", -b, broker:29092]
+      interval: 2s
+      timeout: 15s
+      retries: 30
+      start_period: 20s
+volumes:
+  postgres-data:

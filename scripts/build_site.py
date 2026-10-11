@@ -2,7 +2,7 @@
 """Build the vouchfx-samples GitHub Pages site.
 
 Copies the static landing page (site/) into the output directory, then renders
-the repository's markdown — the running/custom-runner guides, the four sample
+the repository's markdown — the running/custom-runner guides, the sample
 READMEs and the project documents — into styled HTML that matches the engine
 and provider-hub project sites. The markdown files remain the single source of
 truth; this generates their HTML on every run, so a CI deploy keeps the
@@ -96,6 +96,8 @@ DOCS: list[tuple[str, str, str, str]] = [
     # Samples
     ("samples/orders-dotnet/README.md", "Samples", "Orders · C# + ASP.NET",
      "REST to Postgres row to Kafka event to outbound webhook callback. Five steps."),
+    ("samples/orders-dotnet-compose/README.md", "Samples", "Orders · Docker Compose",
+     "The same five business assertions against a user-owned Compose environment and the existing C# app."),
     ("samples/inventory-python/README.md", "Samples", "Inventory · Python + FastAPI",
      "REST to MySQL row to Redis cache entry to RabbitMQ event, with a read-through cache proof. Five steps."),
     ("samples/payments-java/README.md", "Samples", "Payments · Java + Spring Boot",

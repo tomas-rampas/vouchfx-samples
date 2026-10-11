@@ -191,4 +191,21 @@ grep -q 'a-custom: exit 1' "$ROOT/console.log" || fail 'Missing custom-runner su
 grep -q 'b-standard: exit 0' "$ROOT/console.log" || fail 'Missing standard-sample summary.'
 pass
 
-printf '%s/13 Bash sample-runner regressions passed.\n' "$PASSED"
+new_case 'source Compose variant discovery'
+sample orders-dotnet app
+sample orders-dotnet-compose
+run_case 0 all; count_is 3
+line_is 1 'docker build *orders-dotnet:local*'
+line_is 2 'dotnet run *orders-dotnet/tests*'
+line_is 3 'dotnet run *orders-dotnet-compose/tests*'
+pass
+
+new_case 'installed Compose variant selection' installed
+sample orders-dotnet-compose
+run_case 0 orders-dotnet-compose; count_is 2
+line_is 1 'cli --version'
+line_is 2 'cli run *orders-dotnet-compose/tests*--fail-on-env-error*--fail-on-inconclusive*'
+[[ ! -d "$ROOT/.vouchfx-src" ]] || fail 'Compose candidate mode created a source checkout.'
+pass
+
+printf '%s/15 Bash sample-runner regressions passed.\n' "$PASSED"

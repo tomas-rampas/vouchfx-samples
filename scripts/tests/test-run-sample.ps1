@@ -288,7 +288,24 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($result.Output.Contains('Unset VOUCHFX_SAMPLES_CLI') -and $result.Output.Contains('a-custom: exit 1') -and $result.Output.Contains('b-standard: exit 0')) 'Custom-runner refusal must be actionable and visible in the summary.'
     $passed++
 
-    Write-Host "$passed/18 sample-runner regressions passed."
+    $root = New-Case 'source Compose variant discovery'
+    $null = New-Sample $root 'orders-dotnet' -App
+    $null = New-Sample $root 'orders-dotnet-compose'
+    $result = Invoke-Case $root 'all' 0
+    Assert-True ($result.Calls.Count -eq 3) 'Source discovery must build only the inline app, then dispatch both suites.'
+    Assert-True ($result.Calls[0] -like 'docker build *orders-dotnet:local*') 'The inline app must retain its build.'
+    Assert-True ($result.Calls[1] -like 'dotnet run *orders-dotnet*tests*' -and $result.Calls[2] -like 'dotnet run *orders-dotnet-compose*tests*') 'Both sample directories must be selected in order.'
+    $passed++
+
+    $root = New-Case 'installed Compose variant selection' -Installed
+    $null = New-Sample $root 'orders-dotnet-compose'
+    $result = Invoke-Case $root 'orders-dotnet-compose' 0
+    Assert-True ($result.Calls.Count -eq 2 -and $result.Calls[0] -eq 'cli --version') 'Compose mode must not manually build a duplicated app.'
+    Assert-True ($result.Calls[1] -like 'cli run *orders-dotnet-compose*tests*--fail-on-env-error*--fail-on-inconclusive*') 'The explicit candidate must receive the Compose suite and strict verdict flags.'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $root '.vouchfx-src'))) 'Compose candidate mode must not bootstrap source.'
+    $passed++
+
+    Write-Host "$passed/20 sample-runner regressions passed."
 }
 finally {
     foreach ($name in $environmentNames) {
