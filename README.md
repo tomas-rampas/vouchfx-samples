@@ -44,11 +44,15 @@ On Windows (PowerShell):
 .\scripts\run-sample.ps1 orders-dotnet
 ```
 
-To run all five samples back-to-back:
+After bootstrapping, run the five samples compatible with the default source engine one at a time:
 
 ```bash
-./scripts/run-sample.sh all
+for sample in orders-dotnet inventory-python payments-java ledger-jsonrpc kafka-mtls; do
+  ./scripts/run-sample.sh "$sample" || exit $?
+done
 ```
+
+`all` enumerates all six sample directories, including `orders-dotnet-compose`. That variant requires an explicitly selected Compose-capable CLI; the default source pin cannot run it. Installed CLI mode also refuses `ledger-jsonrpc` because it needs its custom source runner, so installed `all` reports a nonzero result. Run that custom-provider sample separately in source mode; see [candidate selection and custom-runner limits](docs/RUNNING.md#validate-an-installed-cli-candidate).
 
 The [Kafka mutual-TLS sample](samples/kafka-mtls/README.md) documents its certificate setup and
 broker prerequisites. The runner invokes its setup script before running the suite.
