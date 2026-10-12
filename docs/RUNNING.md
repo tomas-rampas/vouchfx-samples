@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-The vouchfx engine CLI is published as pre-release packages on NuGet.org. These runners default to a source build at the commit in [`ENGINE_PIN`](../ENGINE_PIN). They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
+These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). Fresh public bootstrap requires that exact commit to be reachable on GitHub; the pin does not establish publication. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
 
 ## Quick start
 
@@ -36,17 +36,18 @@ Both runners invoke a sample's optional `setup.sh` / `setup.ps1` before building
 Setup failure stops that sample. A sample without `app/`, such as `kafka-mtls`, skips the image build
 and runs its suite against the containers declared in `environment:`.
 
-Run the five samples compatible with the default source engine one at a time (see [Why samples don't run concurrently](#why-samples-dont-run-concurrently-on-one-machine) below):
+Run all six samples sequentially in source mode (see [Why samples don't run concurrently](#why-samples-dont-run-concurrently-on-one-machine) below). Supply a fresh disposable credential for the Compose variant:
 
 ```bash
-for sample in orders-dotnet inventory-python payments-java ledger-jsonrpc kafka-mtls; do
-  ./scripts/run-sample.sh "$sample" || exit $?
-done
+unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
+read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
+export VOUCHFX_COMPOSE_PASSWORD
+./scripts/run-sample.sh all
 ```
 
-`all` enumerates all six sample directories, including `orders-dotnet-compose`, which the default `ENGINE_PIN` cannot run. Installed mode also refuses `ledger-jsonrpc` because it requires its custom source runner, so `all` is not a successful default-source or installed-mode quick start. See [candidate selection and custom-runner limits](#validate-an-installed-cli-candidate) below.
+`all` enumerates all six sample directories, including `orders-dotnet-compose`, which the pinned source engine supports. Installed mode refuses `ledger-jsonrpc` because it requires its custom source runner, so installed `all` reports a nonzero result. See [candidate selection and custom-runner limits](#validate-an-installed-cli-candidate) below.
 
-In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2.
+In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2. After advancing `ENGINE_PIN`, run bootstrap explicitly to replace an existing source checkout with the new pin.
 
 ## Validate an installed CLI candidate
 
@@ -95,17 +96,16 @@ Remove-Item Env:VOUCHFX_SAMPLES_CLI, Env:VOUCHFX_SAMPLES_CLI_VERSION -ErrorActio
 
 [orders-dotnet-compose](../samples/orders-dotnet-compose/README.md) reuses the Orders
 application and five assertions with an isolated Compose-owned database, Kafka broker
-and application. Set `VOUCHFX_COMPOSE_PASSWORD` to a disposable credential and select
-a CLI supporting TCP service bindings plus native healthcheck readiness using the
-candidate variables above. Then run `./scripts/run-sample.sh orders-dotnet-compose`
+and application. The pinned source engine supports TCP service bindings and native
+healthcheck readiness. Set `VOUCHFX_COMPOSE_PASSWORD` to a disposable credential,
+bootstrap the pinned source, then run `./scripts/run-sample.sh orders-dotnet-compose`
 or `./scripts/run-sample.ps1 orders-dotnet-compose`. Compose builds the shared app;
 the standard runner does not build a duplicated `app/` for this variant.
 
-The current `ENGINE_PIN` and published `1.0.0-rc.6` default cannot run this suite.
-Consequently `all` requires a Compose-capable candidate to include the variant;
-the pinned-source CI matrix currently excludes it. Source CLI/native Docker evidence
-and installed-package acceptance remain separate. Keep Kafka's external loopback
-port 19092 free, and preserve both listener routes and `host-gateway` callback mapping.
+For installed mode, select a Compose-capable candidate using the variables above.
+The pinned-source CI matrix currently covers five samples and excludes this variant.
+Source CLI/native Docker evidence and installed-package acceptance remain separate.
+Keep Kafka's external loopback port 19092 free, and preserve both listener routes and `host-gateway` callback mapping.
 The sample README documents readiness, digest pins and ownership-journal recovery.
 
 ## Reports

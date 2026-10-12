@@ -1,4 +1,4 @@
-93287ffbb0623ba253816ed4d909f50e1b26da93
+39dfed56e2bf67efa051e6337dee00e35a6df8cc
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,27 @@
 #
 # Pin history
 # ------------
+# 2026-10-12: advanced to 39dfed56 — the reviewed v1.0.0 candidate source.
+# Includes redirected standard-stream test probe transport fixes; production engine
+# and provider sources are unchanged. Public bootstrap requires this exact commit to
+# be reachable on GitHub. Ledger and migration runtime acceptance remain separate
+# gates; this entry does not claim those new-pin runs passed.
+# Prior committed sample pin: 93287ffb (base e8b8f2b).
+# Intermediate release-work candidate selections (not committed sample pin advances):
+# 2026-10-12: selected candidate f23f7c7d — the v1.0.0 release-candidate source.
+# Supersedes 636d48cd with hosted CI-check fixes and solution configuration mappings;
+# production C# and TypeScript sources are unchanged. Public bootstrap requires this
+# exact commit to be reachable on GitHub. Ledger and migration runtime acceptance
+# remain separate gates; this entry makes no claim that those new-pin runs passed.
+# Prior candidate selection: 636d48cd.
+# 2026-10-12: selected candidate 636d48cd — the source commit selected for v1.0.0.
+# Includes Compose TCP bindings, native healthcheck readiness and Kafka retained-log
+# partition assignment, so all six samples are supported in source mode.
+# Stock source SDK builds retain 1.0.0-0.local; this is a ProjectReference identity,
+# not evidence of the public 1.0.0 SDK package. Public bootstrap requires this exact
+# commit to be reachable on GitHub. New-pin ledger and migration acceptance are
+# separate runtime gates; this pin entry does not claim those runs.
+# Prior committed sample pin: 93287ffb.
 # 2026-09-23: advanced to 93287ffb — the v1.0.0-rc.6 tag commit — tracking the
 # current release. Validated against a freshly fetched .vouchfx-src (no
 # pre-existing checkout to clear): `vouchfx validate` (the pinned rc.6 global

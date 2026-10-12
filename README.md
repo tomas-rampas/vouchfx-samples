@@ -13,7 +13,7 @@ Application samples drive a business transaction through a real service and its 
 | Sample | Language / Stack | Transaction Under Test | vouchfx Providers Exercised |
 |--------|------------------|------------------------|-----------------------------|
 | **[orders-dotnet](samples/orders-dotnet/)** | ASP.NET Core 8 + C# | Customer places order → Postgres row → Kafka event → outbound webhook callback | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
-| **[orders-dotnet-compose](samples/orders-dotnet-compose/)** | Shared ASP.NET Core 8 app + user-supplied Compose | The same five assertions with Compose-owned PostgreSQL, Kafka and callback routing; requires an explicitly selected Compose-capable CLI | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
+| **[orders-dotnet-compose](samples/orders-dotnet-compose/)** | Shared ASP.NET Core 8 app + user-supplied Compose | The same five assertions with Compose-owned PostgreSQL, Kafka and callback routing; supported by the pinned source engine | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
 | **[inventory-python](samples/inventory-python/)** | FastAPI + Python 3.12 | Create item → MySQL row + Redis cache entry → RabbitMQ event | `http.rest`, `db-assert.mysql`, `cache-assert.redis`, `mq-expect.rabbitmq` |
 | **[payments-java](samples/payments-java/)** | Spring Boot 3.3 + Java 17 | Authorise payment → SQL Server row → NATS JetStream event → SMTP receipt email | `http.rest`, `db-assert.sqlserver`, `mq-expect.nats`, `mail-expect.smtp` |
 | **[ledger-jsonrpc](samples/ledger-jsonrpc/)** | Node.js 22 + JSON-RPC 2.0 | Ledger transactions (REST) → Postgres row → Kafka event → independent worker role consuming an injected adjustment | `rpc.json-rpc` (Community), `db-assert.postgres`, `mq-publish.kafka`, `mq-expect.kafka`, `script.csharp` — **custom runner** |
@@ -26,6 +26,10 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 ## Quick Start
 
 **Prerequisites:** .NET 8 SDK (8.0.400+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
+
+This release-candidate checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
+Public bootstrap requires that exact commit to be reachable on GitHub; the pin alone
+does not establish publication.
 
 Two commands from the repository root:
 
@@ -44,15 +48,17 @@ On Windows (PowerShell):
 .\scripts\run-sample.ps1 orders-dotnet
 ```
 
-After bootstrapping, run the five samples compatible with the default source engine one at a time:
+After bootstrapping, run all six samples sequentially in source mode. Supply a fresh
+disposable credential for the Compose variant:
 
 ```bash
-for sample in orders-dotnet inventory-python payments-java ledger-jsonrpc kafka-mtls; do
-  ./scripts/run-sample.sh "$sample" || exit $?
-done
+unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
+read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
+export VOUCHFX_COMPOSE_PASSWORD
+./scripts/run-sample.sh all
 ```
 
-`all` enumerates all six sample directories, including `orders-dotnet-compose`. That variant requires an explicitly selected Compose-capable CLI; the default source pin cannot run it. Installed CLI mode also refuses `ledger-jsonrpc` because it needs its custom source runner, so installed `all` reports a nonzero result. Run that custom-provider sample separately in source mode; see [candidate selection and custom-runner limits](docs/RUNNING.md#validate-an-installed-cli-candidate).
+`all` enumerates all six sample directories, including `orders-dotnet-compose`, which the pinned source engine supports. Installed CLI mode refuses `ledger-jsonrpc` because it needs its custom source runner, so installed `all` reports a nonzero result. Run that custom-provider sample separately in source mode; see [candidate selection and custom-runner limits](docs/RUNNING.md#validate-an-installed-cli-candidate).
 
 The [Kafka mutual-TLS sample](samples/kafka-mtls/README.md) documents its certificate setup and
 broker prerequisites. The runner invokes its setup script before running the suite.
@@ -89,7 +95,7 @@ environment:
       type: kafka
 ```
 
-The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. Most samples use the inline environment model and, by default, the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN). [orders-dotnet-compose](samples/orders-dotnet-compose/) instead selects a user-supplied Docker Compose environment through `environment.source`, while retaining the same five business assertions and shared application. It requires an explicitly selected CLI supporting TCP bindings and native healthcheck readiness; the published/pinned `1.0.0-rc.6` default does not support this variant. Candidate execution uses the selected executable; consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. SaaS and Kubernetes are not execution formats supplied by this checkout. A matching core source checkout also supplies the separate three-step `examples/compose-orders` HTTP/PostgreSQL control.
+The engine resolves `${conn:<dependency>}` and `${conn:<dependency>.<field>}` tokens (e.g. `.host`, `.port`, `.database`, `.username`, `.password`) to container-reachable addresses at topology build time. Most samples use the inline environment model and, by default, the engine commit pinned in [`ENGINE_PIN`](ENGINE_PIN). [orders-dotnet-compose](samples/orders-dotnet-compose/) instead selects a user-supplied Docker Compose environment through `environment.source`, while retaining the same five business assertions and shared application. The pinned source engine supports its TCP bindings and native healthcheck readiness. Installed candidate execution uses the selected executable; consult [`docs/RUNNING.md`](docs/RUNNING.md) for compatibility and prerequisites. SaaS and Kubernetes are not execution formats supplied by this checkout. A matching core source checkout also supplies the separate three-step `examples/compose-orders` HTTP/PostgreSQL control.
 
 ## What "Proven" Means
 
@@ -178,9 +184,9 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 
 ## Status
 
-**Samples:** Five reference suites are maintained. The [Samples CI workflow](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml) records live container results for the pinned source engine. Docker-free runner regressions verify dispatch and failure handling separately.
+**Samples:** Six reference suites are maintained. The [Samples CI workflow](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml) covers five source-engine samples; its matrix excludes `orders-dotnet-compose`. Docker-free runner regressions verify dispatch and failure handling separately.
 
-**Engine consumption:** Pre-releases are published on NuGet.org and GitHub. The default runner builds from the SHA in [`ENGINE_PIN`](ENGINE_PIN) for reproducibility. Explicit installed mode validates a separately installed executable and its declared version without building engine source; passing source CI does not establish that an installed candidate works. `ledger-jsonrpc` requires its custom source runner and is rejected in installed mode.
+**Engine consumption:** The default runner targets the source commit selected for the v1 release in [`ENGINE_PIN`](ENGINE_PIN). Fresh public bootstrap requires that commit to be reachable on GitHub; source pinning and package publication are separate gates. Explicit installed mode validates a separately installed executable and its declared version without building engine source; passing source CI does not establish that an installed candidate works. `ledger-jsonrpc` requires its custom source runner and is rejected in installed mode.
 
 **Documentation:** British English throughout. Samples are living documentation: every `.e2e.yaml` file is a worked example of the YAML DSL, and every sample's README cross-references the engine's architecture blueprint and language reference so authors can verify their understanding against the canonical source.
 

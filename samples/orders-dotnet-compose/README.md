@@ -10,20 +10,22 @@ parameter cast and container-reachable callback placeholder used by the inline e
 The suite selects the adapter through `environment.source`; ordinary HTTP, PostgreSQL,
 Kafka and webhook providers perform the assertions. No custom provider is required.
 
-## Run with a Compose-capable CLI
+## Run with pinned source or an installed candidate
 
-Use Docker with Linux containers and an explicitly selected CLI candidate supporting
-TCP service bindings, native healthcheck readiness and Kafka retained-log partition
-assignment. The Kafka assertion must read all actual partitions from earliest offsets
-without waiting for a fresh consumer group rebalance; its one-second attempt budget
-remains unchanged. The current `ENGINE_PIN`
-and published `1.0.0-rc.6` default do not support this variant. Follow the candidate's
-build/install instructions and retain its version and artifact digest; a source run
-does not prove installed-package compatibility.
+Use Docker with Linux containers. The engine source in `ENGINE_PIN` supports TCP
+service bindings, native healthcheck readiness and Kafka retained-log partition
+assignment for this variant. Public bootstrap requires that exact commit to be
+reachable on GitHub. The Kafka assertion reads all actual partitions from earliest
+offsets without waiting for a fresh consumer group rebalance; its one-second attempt
+budget remains unchanged. For installed mode, select a candidate with those capabilities
+and follow its build/install instructions. Retain its version and artifact digest;
+a source run does not prove installed-package compatibility.
 
-From the repository root, validate and run the exact built source CLI DLL:
+From the repository root, bootstrap the pinned source, then validate and run its
+exact built CLI DLL (replace the path below):
 
 ```powershell
+.\scripts\bootstrap.ps1
 $cli = 'C:\path\to\vouchfx.dll'
 dotnet $cli validate samples/orders-dotnet-compose/tests/orders.e2e.yaml
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
@@ -32,17 +34,19 @@ dotnet $cli run samples/orders-dotnet-compose/tests/orders.e2e.yaml `
   --junit orders-compose.xml --events orders-compose.jsonl
 ```
 
-Validation binds authoring inputs; credentials are resolved at acquisition. Select
-a matching candidate executable with `VOUCHFX_SAMPLES_CLI` and its externally supplied
-`VOUCHFX_SAMPLES_CLI_VERSION` to use the [standard runner](../../docs/RUNNING.md#validate-an-installed-cli-candidate):
+Validation binds authoring inputs; credentials are resolved at acquisition. After
+bootstrap, the standard runner uses the pinned source by default:
 
 ```bash
+unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
-The PowerShell equivalent is `./scripts/run-sample.ps1 orders-dotnet-compose`.
+The PowerShell equivalent is `./scripts/run-sample.ps1 orders-dotnet-compose`. To
+validate an installed candidate instead, set `VOUCHFX_SAMPLES_CLI` and its externally
+supplied `VOUCHFX_SAMPLES_CLI_VERSION`; see [installed candidate validation](../../docs/RUNNING.md#validate-an-installed-cli-candidate).
 The variant has no duplicated `app/`; Compose builds the shared application itself.
 Require all five assertions to execute and pass. HTTP 201 alone does not prove Kafka
 delivery: the application catches broker delivery failures before returning its response.
