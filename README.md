@@ -28,8 +28,9 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 **Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This release-candidate checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
-Public bootstrap requires that exact commit to be reachable on GitHub; the pin alone
-does not establish publication.
+The pinned candidate source is public in [Core PR #612](https://github.com/tomas-rampas/vouchfx/pull/612).
+Stable CLI and SDK `1.0.0` package publication remains a separate gate. Stock final-source
+ledger-jsonrpc and migration validation is pending; earlier passes in `ENGINE_PIN` are historical.
 
 Two commands from the repository root:
 

@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). Fresh public bootstrap requires that exact commit to be reachable on GitHub; the pin does not establish publication. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
+These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). The pinned candidate source is public in [Core PR #612](https://github.com/tomas-rampas/vouchfx/pull/612); stable CLI and SDK `1.0.0` package publication remains separate. Stock final-source ledger-jsonrpc and migration validation is pending; earlier passes recorded in `ENGINE_PIN` are historical. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
 
 ## Quick start
 

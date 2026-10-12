@@ -1,4 +1,4 @@
-39dfed56e2bf67efa051e6337dee00e35a6df8cc
+907baa8c9891059319695b436b23ec0039b1ad04
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,13 @@
 #
 # Pin history
 # ------------
+# 2026-10-12: advanced to 907baa8c — the final reviewed v1.0.0 candidate source.
+# This exact source is publicly reachable in Core PR #612. Stable CLI and SDK
+# 1.0.0 package publication remains a separate release gate. Stock final-source
+# ledger-jsonrpc and migration validation remains pending; earlier candidate and
+# rc.6 passes below are historical and do not establish validation at this pin.
+# Prior committed sample pin: 39dfed56e2bf67efa051e6337dee00e35a6df8cc (base 0816148a).
+# Historical committed sample pin:
 # 2026-10-12: advanced to 39dfed56 — the reviewed v1.0.0 candidate source.
 # Includes redirected standard-stream test probe transport fixes; production engine
 # and provider sources are unchanged. Public bootstrap requires this exact commit to
