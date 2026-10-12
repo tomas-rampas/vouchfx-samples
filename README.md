@@ -25,7 +25,7 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 
 ## Quick Start
 
-**Prerequisites:** .NET 8 SDK (8.0.400+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
+**Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This release-candidate checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
 Public bootstrap requires that exact commit to be reachable on GitHub; the pin alone

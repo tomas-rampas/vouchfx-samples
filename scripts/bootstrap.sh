@@ -33,7 +33,7 @@ fail() {
 command -v git >/dev/null 2>&1 \
   || fail "git is not installed or not on PATH. Install it from https://git-scm.com/downloads and re-run."
 command -v dotnet >/dev/null 2>&1 \
-  || fail ".NET SDK is not installed or not on PATH. Install .NET 8 SDK (8.0.400 or later) from https://dotnet.microsoft.com/download/dotnet/8.0 and re-run."
+  || fail ".NET SDK is not installed or not on PATH. Install .NET 8 SDK (8.0.424 or later) from https://dotnet.microsoft.com/download/dotnet/8.0 and re-run."
 command -v docker >/dev/null 2>&1 \
   || fail "Docker is not installed or not on PATH. Install Docker Desktop (or the Docker Engine) from https://www.docker.com/products/docker-desktop/ — the engine orchestrates test topology via containers and cannot run without it."
 docker info >/dev/null 2>&1 \

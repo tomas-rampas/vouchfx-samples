@@ -5,7 +5,7 @@ This page covers what you need installed, the two-command quick start, how to re
 ## Prerequisites
 
 - **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
-- **.NET 8 SDK**, version 8.0.400 or later, for the default source build and custom runners (`global.json` pins the minimum and enables `rollForward: latestFeature`). Installed CLI mode uses the runtime and orchestration prerequisites declared by the selected candidate. Get .NET from <https://dotnet.microsoft.com/download/dotnet/8.0>.
+- **.NET 8 SDK**, version 8.0.424 or later, for the default source build and custom runners (`global.json` pins the minimum and enables `rollForward: latestFeature`). Installed CLI mode uses the runtime and orchestration prerequisites declared by the selected candidate. Get .NET from <https://dotnet.microsoft.com/download/dotnet/8.0>.
 - **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). Inline suites use .NET Aspire + Testcontainers; the Compose variant uses its selected native adapter to own the application and dependencies; nothing here runs against infrastructure you install by hand.
 - **Git**, reachable on `PATH`, for source mode (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
