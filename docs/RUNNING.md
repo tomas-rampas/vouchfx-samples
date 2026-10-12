@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). The pinned candidate source is public in [Core PR #612](https://github.com/tomas-rampas/vouchfx/pull/612); stable CLI and SDK `1.0.0` package publication remains separate. Stock final-source ledger-jsonrpc and migration validation is pending; earlier passes recorded in `ENGINE_PIN` are historical. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
+These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). The pinned source is public in [Core source commit](https://github.com/tomas-rampas/vouchfx/commit/22fc60c51357b9618957ddd5a945813da054c5cc); source bootstrap is independent of stable CLI and SDK package publication. Validate source and installed-package runs separately; earlier passes recorded in `ENGINE_PIN` are historical evidence. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
 
 ## Quick start
 
@@ -107,6 +107,30 @@ The pinned-source CI matrix currently covers five samples and excludes this vari
 Source CLI/native Docker evidence and installed-package acceptance remain separate.
 Keep Kafka's external loopback port 19092 free, and preserve both listener routes and `host-gateway` callback mapping.
 The sample README documents readiness, digest pins and ownership-journal recovery.
+
+### One-shot setup jobs
+
+Declare setup work as a native Compose dependency of the long-running service you
+export to Vouchfx. Set the setup service's restart policy to `"no"` and use
+`service_completed_successfully`:
+
+```yaml
+services:
+  setup:
+    build: ./setup
+    restart: "no"
+  app:
+    build: ./app
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+```
+
+Compose starts `app` only after `setup` exits successfully. A failed setup blocks
+the dependent service and suite startup. Keep the setup service internal; export
+the long-running service through the existing bindings. Vouchfx performs readiness
+checks on exported endpoints; it does not independently check every exited Compose
+service. See [Docker's startup-order guide](https://docs.docker.com/compose/how-tos/startup-order/).
 
 ## Reports
 
