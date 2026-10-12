@@ -36,11 +36,15 @@ Both runners invoke a sample's optional `setup.sh` / `setup.ps1` before building
 Setup failure stops that sample. A sample without `app/`, such as `kafka-mtls`, skips the image build
 and runs its suite against the containers declared in `environment:`.
 
-Run every sample, one at a time (`all` is intentionally sequential — see [Why samples don't run concurrently](#why-samples-dont-run-concurrently-on-one-machine) below):
+Run the five samples compatible with the default source engine one at a time (see [Why samples don't run concurrently](#why-samples-dont-run-concurrently-on-one-machine) below):
 
 ```bash
-./scripts/run-sample.sh all
+for sample in orders-dotnet inventory-python payments-java ledger-jsonrpc kafka-mtls; do
+  ./scripts/run-sample.sh "$sample" || exit $?
+done
 ```
+
+`all` enumerates all six sample directories, including `orders-dotnet-compose`, which the default `ENGINE_PIN` cannot run. Installed mode also refuses `ledger-jsonrpc` because it requires its custom source runner, so `all` is not a successful default-source or installed-mode quick start. See [candidate selection and custom-runner limits](#validate-an-installed-cli-candidate) below.
 
 In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2.
 

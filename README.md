@@ -100,7 +100,7 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 - **Environment Error** — infrastructure broke before the system under test was meaningfully exercised (a container failed to start, an image pull failed, a health check never turned green). This is not a code defect.
 - **Inconclusive** — the engine could not determine correctness in time (a timeout, a network partition, an upstream event that never arrived). Not a verdict on the code itself.
 
-Only `Fail` breaks the exit code. See [`docs/RUNNING.md`](docs/RUNNING.md) for the complete exit-code table and how to interpret each result.
+`Fail` always returns exit `1`. The standard sample runner also gates `EnvironmentError` (exit `3`) with `--fail-on-env-error` and `Inconclusive` (exit `4`) with `--fail-on-inconclusive`. See [`docs/RUNNING.md`](docs/RUNNING.md) for the complete exit-code table and how to interpret each result.
 
 ## Directory Layout
 
