@@ -89,8 +89,10 @@
 # 2026-10-13: advanced to 22fc60c5 — the reviewed v1.0.0 source selection.
 # This exact source is publicly reachable at Core commit 22fc60c5. It supersedes
 # Core 907baa8c; stable CLI and SDK package publication remains a separate gate.
-# Stock ledger-jsonrpc and migration validation at this pin remains pending;
-# earlier source/package runs and rc.6 records below are historical evidence.
+# Source CI 38325469095 at this pin passed all five matrix samples (including
+# ledger-jsonrpc) and all three migration suites. Its matrix excludes
+# orders-dotnet-compose. Source runs do not prove installed-package acceptance;
+# earlier package runs and rc.6 records below remain historical evidence.
 # Prior committed sample pin: 907baa8c9891059319695b436b23ec0039b1ad04 (base 2e2f97dd).
 # Historical committed sample pin:
 # 2026-10-12: advanced to 907baa8c — the final reviewed v1.0.0 candidate source.

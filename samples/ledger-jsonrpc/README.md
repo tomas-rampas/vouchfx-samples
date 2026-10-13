@@ -98,8 +98,11 @@ logic.
 dotnet run --project samples/ledger-jsonrpc/runner --list
 
 # Run the suite (run-sample.sh auto-detects the custom runner)
-dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \
-  samples/ledger-jsonrpc/tests --html out/ledger-report.html --junit out/ledger-results.xml
+repo_root="$(pwd)"
+dotnet run --project "$repo_root/samples/ledger-jsonrpc/runner" -c Release -- \
+  "$repo_root/samples/ledger-jsonrpc/tests" \
+  --html "$repo_root/out/ledger-report.html" \
+  --junit "$repo_root/out/ledger-results.xml"
 ```
 
 See the **How to run** section below for the production convenience script.
@@ -274,10 +277,11 @@ This sample runs via its **custom runner**. The everyday path is the same as eve
 docker build -t vouchfx-samples-ledger-jsonrpc:local samples/ledger-jsonrpc/app
 
 # 3. Run via the custom runner (produces HTML + JUnit reports)
-dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \
-  samples/ledger-jsonrpc/tests \
-  --html out/ledger-report.html \
-  --junit out/ledger-results.xml
+repo_root="$(pwd)"
+dotnet run --project "$repo_root/samples/ledger-jsonrpc/runner" -c Release -- \
+  "$repo_root/samples/ledger-jsonrpc/tests" \
+  --html "$repo_root/out/ledger-report.html" \
+  --junit "$repo_root/out/ledger-results.xml"
 ```
 
 On Windows (PowerShell):
@@ -287,10 +291,11 @@ On Windows (PowerShell):
 
 docker build -t vouchfx-samples-ledger-jsonrpc:local samples/ledger-jsonrpc/app
 
-dotnet run --project samples/ledger-jsonrpc/runner -c Release -- `
-  samples/ledger-jsonrpc/tests `
-  --html out\ledger-report.html `
-  --junit out\ledger-results.xml
+$repoRoot = (Get-Location).Path
+dotnet run --project (Join-Path $repoRoot 'samples/ledger-jsonrpc/runner') -c Release -- `
+  (Join-Path $repoRoot 'samples/ledger-jsonrpc/tests') `
+  --html (Join-Path $repoRoot 'out/ledger-report.html') `
+  --junit (Join-Path $repoRoot 'out/ledger-results.xml')
 ```
 
 ## Expected output
