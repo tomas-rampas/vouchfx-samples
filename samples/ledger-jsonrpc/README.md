@@ -101,8 +101,8 @@ dotnet run --project samples/ledger-jsonrpc/runner --list
 repo_root="$(pwd)"
 dotnet run --project "$repo_root/samples/ledger-jsonrpc/runner" -c Release -- \
   "$repo_root/samples/ledger-jsonrpc/tests" \
-  --html "$repo_root/out/ledger-report.html" \
-  --junit "$repo_root/out/ledger-results.xml"
+  --html "$repo_root/out/ledger-jsonrpc-report.html" \
+  --junit "$repo_root/out/ledger-jsonrpc-results.xml"
 ```
 
 See the **How to run** section below for the production convenience script.
@@ -241,7 +241,7 @@ this repo's `ENGINE_PIN` (see that file's header) is pinned at or past that comm
 
 | Family | Provider | Tier | Package (version) | Reference |
 |--------|----------|------|-------------------|-----------|
-| `rpc` | `json-rpc` | Community | `Vouchfx.Community.JsonRpc` 1.0.0-alpha.1 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
+| `rpc` | `json-rpc` | Community | `Vouchfx.Community.JsonRpc` 1.0.0 | [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers/tree/main/community/Vouchfx.Community.JsonRpc) |
 | `db-assert` | `postgres` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 | `mq-publish` | `kafka` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
 | `mq-expect` | `kafka` | Core | Engine-shipped (pinned via [`ENGINE_PIN`](../../ENGINE_PIN)) | [vouchfx](https://github.com/tomas-rampas/vouchfx) |
@@ -263,7 +263,7 @@ and the vouchfx-providers hub (`src/Providers/Core/**/*Provider.cs` and `communi
 ## Engine contract
 
 This suite exercises the engine's SUT-configuration surface: `environment.services` with dual-role
-containers selected via the `ROLE` environment variable, and `${conn:<dependency>.<field>}` placeholder forms (`.host`, `.port`, `.username`, `.password`, `.database` for PostgreSQL; the bare `${conn:broker}` full-URL form for Kafka, which resolves to the internal `host:port`). Both container roles receive identical connection configuration but execute different code paths selected by the `ROLE` variable — a production pattern the suite proves end-to-end. All of it has been validated **live, end-to-end**, against the vouchfx engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) — the topology stands up, both `ledger-api` and `ledger-worker` containers receive their `env:` values and connection tokens, the custom runner loads the Community `rpc.json-rpc` provider alongside the Core providers, and all ten suite steps pass against the real containers.
+containers selected via the `ROLE` environment variable, and `${conn:<dependency>.<field>}` placeholder forms (`.host`, `.port`, `.username`, `.password`, `.database` for PostgreSQL; the bare `${conn:broker}` full-URL form for Kafka, which resolves to the internal `host:port`). Both container roles receive identical connection configuration but execute different code paths selected by the `ROLE` variable — a production pattern the suite proves end-to-end. The custom runner uses the engine commit pinned in [`../../ENGINE_PIN`](../../ENGINE_PIN) to start both container roles, resolve their connection tokens and load the Community provider alongside the Core registry. Its ten suite steps assert the ledger transaction against those real containers.
 
 ## How to run
 
@@ -280,8 +280,8 @@ docker build -t vouchfx-samples-ledger-jsonrpc:local samples/ledger-jsonrpc/app
 repo_root="$(pwd)"
 dotnet run --project "$repo_root/samples/ledger-jsonrpc/runner" -c Release -- \
   "$repo_root/samples/ledger-jsonrpc/tests" \
-  --html "$repo_root/out/ledger-report.html" \
-  --junit "$repo_root/out/ledger-results.xml"
+  --html "$repo_root/out/ledger-jsonrpc-report.html" \
+  --junit "$repo_root/out/ledger-jsonrpc-results.xml"
 ```
 
 On Windows (PowerShell):
@@ -294,8 +294,8 @@ docker build -t vouchfx-samples-ledger-jsonrpc:local samples/ledger-jsonrpc/app
 $repoRoot = (Get-Location).Path
 dotnet run --project (Join-Path $repoRoot 'samples/ledger-jsonrpc/runner') -c Release -- `
   (Join-Path $repoRoot 'samples/ledger-jsonrpc/tests') `
-  --html (Join-Path $repoRoot 'out/ledger-report.html') `
-  --junit (Join-Path $repoRoot 'out/ledger-results.xml')
+  --html (Join-Path $repoRoot 'out/ledger-jsonrpc-report.html') `
+  --junit (Join-Path $repoRoot 'out/ledger-jsonrpc-results.xml')
 ```
 
 ## Expected output
@@ -303,8 +303,8 @@ dotnet run --project (Join-Path $repoRoot 'samples/ledger-jsonrpc/runner') -c Re
 All 10 steps expected to pass in ~40 seconds (depending on topology startup time, which dominates).
 
 Artefact paths (when run via the sample runner or custom runner directly):
-- `out/ledger-results.xml` — JUnit XML for IDE/CI integrations
-- `out/ledger-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/ledger-jsonrpc-results.xml` — JUnit XML for IDE/CI integrations
+- `out/ledger-jsonrpc-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
 
 ### Diagnostic: list registered step kinds
 
@@ -319,7 +319,7 @@ explicitly references, demonstrating the minimal-bundle pattern for hub consumpt
 
 ## Troubleshooting
 
-- **`Discovery root ... does not exist` when invoking the runner directly.** `dotnet run --project <p>` sets the spawned process's working directory to `<p>`'s own directory, not the invoking shell's cwd. Paths passed to the runner (the `<tests-dir>` argument, `--junit`, `--html`) are resolved relative to the runner project's directory, not the repo root. Use either: (a) `../tests` (relative from `runner/` up to the sibling `tests/` directory) as shown in this README, or (b) absolute paths — this is what CI does. Avoid paths relative to the repo root (e.g., `samples/ledger-jsonrpc/tests`) as they silently resolve to a nonsense nested path under `runner/` and fail.
+- **`Discovery root ... does not exist` when invoking the runner directly.** `dotnet run --project <p>` sets the spawned process's working directory to `<p>`'s own directory, not the invoking shell's cwd. Paths passed to the runner (the `<tests-dir>` argument, `--junit`, `--html`) are resolved relative to the runner project's directory, not the repo root. Use absolute paths as shown in this README and in CI. If invoking from the runner directory, `../tests` also points to the sibling suite directory. Avoid paths relative to the repo root (e.g., `samples/ledger-jsonrpc/tests`) as they silently resolve to a nonsense nested path under `runner/` and fail.
 
 - **`rpc.json-rpc` step times out or returns `Inconclusive`.** Confirm the `ledger-api` container is healthy (check `docker logs ledger-api` for startup errors), the container's port is reachable (manually curl `http://localhost:8080/` if you know the mapped port), and the `url:` field exactly matches the discovered service's base URL. The `bridge-ledger-url` step (step 1) must execute before any `rpc.json-rpc` step; if step 1 fails, later steps that reference `{ledger_url}` are starved of a valid value.
 

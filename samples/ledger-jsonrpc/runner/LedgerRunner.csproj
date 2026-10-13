@@ -51,7 +51,7 @@
   </ItemGroup>
 
   <ItemGroup Label="The community provider under test">
-    <PackageReference Include="Vouchfx.Community.JsonRpc" Version="1.0.0-alpha.1" />
+    <PackageReference Include="Vouchfx.Community.JsonRpc" Version="[1.0.0]" />
   </ItemGroup>
 
   <ItemGroup Label="Engine + SDK + Core providers — source ProjectReferences into .vouchfx-src, pinned via ../../../ENGINE_PIN">
@@ -62,7 +62,7 @@
                        IsAspireProjectResource="false" />
     <!-- DIRECT reference to the Sdk project (not just transitive via
          Engine.Runtime): this locks NuGet's project-over-package precedence,
-         so the community package's "Vouchfx.Sdk >= 1.0.0-alpha.4" dependency
+         so the community package's "Vouchfx.Sdk >= 1.0.0" dependency
          unifies onto THIS source project instead of pulling down the
          Vouchfx.Sdk NuGet package. Verified by `dotnet list package
          (with the include-transitive flag)` showing no Vouchfx.Sdk package node. -->
@@ -92,7 +92,7 @@
     <PackageReference Include="Confluent.SchemaRegistry" Version="2.14.2" />
     <PackageReference Include="Confluent.SchemaRegistry.Serdes.Avro" Version="2.14.2" />
     <PackageReference Include="Apache.Avro" Version="1.12.1" />
-    <!-- Also a direct dependency of Vouchfx.Community.JsonRpc 1.0.0-alpha.1
+    <!-- Also a direct dependency of Vouchfx.Community.JsonRpc 1.0.0
          (3.0.2) — pinning the identical version here keeps restore from ever
          needing to arbitrate between two versions of the same package. -->
     <PackageReference Include="JsonPath.Net" Version="3.0.2" />

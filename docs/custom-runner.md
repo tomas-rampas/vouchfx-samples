@@ -177,7 +177,7 @@ Your `.csproj` must:
 
 4. **Reference your Community provider package** — exactly as you would any NuGet dependency:
    ```xml
-   <PackageReference Include="Vouchfx.Community.JsonRpc" Version="1.0.0-alpha.1" />
+   <PackageReference Include="Vouchfx.Community.JsonRpc" Version="[1.0.0]" />
    ```
 
 5. **Pin provider client libraries** — Npgsql, Confluent.Kafka, etc. as direct PackageReferences so they deploy to the output directory:
@@ -188,12 +188,12 @@ Your `.csproj` must:
 
 See the [ledger-jsonrpc LedgerRunner.csproj](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/LedgerRunner.csproj) for a complete example.
 
-### Semantic versioning and pre-release pins
+### Semantic versioning and exact package pins
 
-When your Community provider is in pre-release (e.g. `1.0.0-alpha.1`), pin it exactly:
+Pin the stable provider version used by the runner (`1.0.0`) exactly. If you choose a prerelease, pin its complete prerelease version instead:
 
 ```xml
-<PackageReference Include="Vouchfx.Community.JsonRpc" Version="1.0.0-alpha.1" />
+<PackageReference Include="Vouchfx.Community.JsonRpc" Version="[1.0.0]" />
 ```
 
 **NU5104** is NuGet's pack warning: a stable (released) package must not depend on pre-release packages. When the engine's SDK is pre-release (`1.0.0-alpha.x`), any provider package referencing it must also be pre-release (or pack will warn). This prevents downstream consumers from accidentally landing on an unstable engine.

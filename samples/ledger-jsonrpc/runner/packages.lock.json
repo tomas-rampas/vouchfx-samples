@@ -113,12 +113,12 @@
       },
       "Vouchfx.Community.JsonRpc": {
         "type": "Direct",
-        "requested": "[1.0.0-alpha.1, )",
-        "resolved": "1.0.0-alpha.1",
-        "contentHash": "eXp/1m6QcwNf5ASY5wDnUa3j9PjKT22ayp5afths/U2xyLU6pRn3LiMQgERw+Hpc71s+oIrA1FKKu/OefO7tKA==",
+        "requested": "[1.0.0, 1.0.0]",
+        "resolved": "1.0.0",
+        "contentHash": "cATMhRvWzmXz9Q+L19ejbkSPII0f8kSJece91egU/UmQ9GQjhpC9Q0glHlamAwD9O8v+VPoVgOgdPv2rkCS9HA==",
         "dependencies": {
           "JsonPath.Net": "3.0.2",
-          "Vouchfx.Sdk": "1.0.0-alpha.4"
+          "Vouchfx.Sdk": "1.0.0"
         }
       },
       "Aspire.Hosting": {
