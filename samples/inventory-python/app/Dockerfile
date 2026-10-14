@@ -9,7 +9,9 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt \
+    && python -m pip check \
+    && python -c "from importlib.metadata import version; print('cryptography=' + version('cryptography'))"
 
 COPY *.py ./
 
