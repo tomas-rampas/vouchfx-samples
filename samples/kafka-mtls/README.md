@@ -282,47 +282,20 @@ keystore-present and keystore-absent paths behave as declared.
 | `mq-publish.kafka` | `target`, `topic`, `payload`, `timeout` | `Vouchfx.Steps.MqPublish.Kafka` — takes its transport from the target's declared `security` block (docs §3.2.6b/§5.2), whether the target is a dependency or a service. |
 | `mq-expect.kafka` | `target`, `topic`, `verifyMode: RETRY`, `timeout`, `match.json` | `Vouchfx.Steps.MqExpect.Kafka` — the plain-JSON (non-Avro) path; RETRY absorbs residual broker startup latency, no author-written `sleep`. |
 
-## Known unverified
+## Validation evidence
 
-**This exact suite (service form, `broker-bash-config.sh` fix included) has not yet been run
-through a live, Aspire-orchestrated CI job.** Two earlier attempts have: the dependency-form version
-(vouchfx-samples PR #37, engine v1.0.0-rc.5), which surfaced the port-allocation failure this README
-documents above ("The broker is a service, not a dependency"); and the first service-form version,
-which fixed that but then surfaced the artefact-delivery-timing failure `broker-bash-config.sh` now
-fixes ("The bash-config indirection" above). CI is the validator for this repository's samples, and
-the machine this sample was authored on has a local DCP port-allocation fault that blocks
-`scripts/run-sample.sh` for every sample here, not just this one, so a local Aspire run was not
-attempted for the current suite either.
+Hosted [Samples CI run 38389935223](https://github.com/tomas-rampas/vouchfx-samples/actions/runs/38389935223)
+for PR #43 (head `db36e52f5131fdd1b385f1c6265a85565e664d41`), checked out the merge commit
+`f7bd01908a1e00da06c1b070f2a880070308dde5`. With the source engine pin
+`bb2db1303fb6d287a2f001a8ef4e618db4620ae4` (Core 1.0.1), it completed
+the live Aspire-orchestrated `kafka-mtls` scenario. Both `publish-order` and
+`consume-order` passed; the JUnit report records one passing scenario with zero
+failures, errors or skips.
 
-What **has** been measured, directly, via `docker run` reproductions using this suite's exact
-declared artefacts (not inferred from the `env:`/`serverArtifacts` text):
-
-- **the fix itself, both branches of its conditional** — see "The bash-config indirection" above for
-  the full quoted evidence: with the keystore delivered, `Kafka Server started`, the secured
-  `PLAINTEXT_HOST` listener binds with `ssl.client.auth = required`, a real produce/consume round
-  trip completes over it, and a client presenting no certificate is refused
-  (`SSLHandshakeException: (certificate_required)`); with the keystore absent, the container stays
-  running with no secured listener at all rather than failing to start;
-- the listener-name gotcha above, both directions;
-- that the keystore file's concatenation order (key, then leaf certificate, then CA, in one file)
-  works, via the same direct `docker run` measurement;
-- that both `setup.sh` and `setup.ps1` produce valid, chain-verified, non-expired material, and
-  that material from either script validates through the other's own currency check;
-- that both failure modes described above (the port-allocation one and the artefact-delivery-timing
-  one) are real and specific — quoted directly from the CI runs that produced them, not inferred.
-
-What remains genuinely open until a live CI run: a `docker run` reproduction with a bind-mounted
-keystore, or with the file present from container start via `-v`, is not the same delivery-timing
-shape as Aspire's `WithContainerFiles`, which is the mechanism that caused the original failure —
-the reproduction above proves `broker-bash-config.sh`'s **conditional logic** is correct in both
-branches, not that Aspire's own delivery necessarily lands before the container's first SSL
-initialisation attempt on every run. If it does not land in time even with the fix, the broker still
-comes up loudly unsecured (per the conditional) rather than silently unhealthy, which is itself a
-diagnosable outcome; whether it needs a further fix (e.g. a startup delay, or `WaitFor` tuning) is
-what only a real Aspire-orchestrated run can settle. Also open: whether `endpoint: "9092"` on the
-service's `security:` block and `healthCheck: { type: tcp, port: 9092 }` combine with the rest of
-the topology to bring it healthy on the first try under Aspire specifically. Engine issue #443
-tracks the separate, already-fixed dependency-port defect this sample also ran into.
+That evidence covers the service-form suite including `broker-bash-config.sh` at
+the recorded merge checkout. The earlier dependency-port and artifact-delivery failures described
+above remain historical diagnostics. It does not certify every operating system,
+uncached image pulls, or a later engine revision; validate a changed pin separately.
 
 ## Key documents
 

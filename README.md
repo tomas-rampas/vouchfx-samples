@@ -73,7 +73,7 @@ and the custom-provider limitation. This mode does not use `ENGINE_PIN`.
 Reports land in `out/`:
 
 - `out/<sample>-results.xml` — JUnit XML (for IDE test-result integrations and CI)
-- `out/<sample>-report.html` — self-contained interactive report; open directly in a browser
+- `out/<sample>-report.html` — self-contained HTML report; open directly in a browser
 
 ## How the Samples Configure the System Under Test
 
