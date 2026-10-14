@@ -212,8 +212,8 @@ The full suite (`tests/payments.e2e.yaml`) contains 4 steps, all expected to pas
 Successful run output: **4 passed steps**; end-to-end wall-clock is dominated by topology startup (SQL Server container initialisation in particular, which can take a minute or more on first pull).
 
 Artefact paths (when run via the sample runner):
-- `out/payments-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
-- `out/payments-results.xml` — JUnit XML for IDE/CI integrations
+- `out/payments-java-report.html` — static HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/payments-java-results.xml` — JUnit XML for IDE/CI integrations
 
 ## Troubleshooting
 

@@ -304,7 +304,7 @@ All 10 steps expected to pass in ~40 seconds (depending on topology startup time
 
 Artefact paths (when run via the sample runner or custom runner directly):
 - `out/ledger-jsonrpc-results.xml` — JUnit XML for IDE/CI integrations
-- `out/ledger-jsonrpc-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/ledger-jsonrpc-report.html` — static HTML report with step-by-step timeline, captures, assertions, and error details
 
 ### Diagnostic: list registered step kinds
 
@@ -329,13 +329,13 @@ explicitly references, demonstrating the minimal-bundle pattern for hub consumpt
 
 - **Script step (step 1 or 10) throws an exception but the suite continues instead of failing.** The `script.csharp` provider catches thrown exceptions and records them as `Verdict.Fail`. Every step always runs regardless of prior verdicts in the current engine; `continueOnFailure` is parsed from the YAML but not yet enforced at execution time. Check that step 1 (`bridge-ledger-url`) actually succeeds; if it throws an exception (e.g., `Vars["svc::ledger-api"]` is null), that exception becomes the step's verdict. If step 1 throws `Fail`, verify the orchestrator actually staged `Vars["svc::ledger-api"]` before any step ran (it should; this is standard engine behaviour — check the engine's `ScenarioRunner.cs` if doubting).
 
-- **`script.csharp` with `file:` field fails with a path error.** The `file:` path is relative to the `.e2e.yaml` file's own directory. If your invocation cwd differs from the .yaml's directory, use an absolute path or a path relative from the .yaml's location. The `bridge-ledger-url` step (step 1) uses inline `code:` deliberately so this suite demonstrates both forms side by side; step 10's `file:` references `tests/scripts/assert-arithmetic-invariant.csx` (relative from `tests/ledger.e2e.yaml`'s location). Verify the file exists at the resolved path before running.
+- **`script.csharp` with `file:` field fails with a path error.** The `file:` path is relative to the `.e2e.yaml` file's own directory. If your invocation cwd differs from the .yaml's directory, use an absolute path or a path relative from the .yaml's location. The `bridge-ledger-url` step (step 1) uses inline `code:` deliberately so this suite demonstrates both forms side by side; step 10 declares `file: scripts/assert-arithmetic-invariant.csx`, which resolves from `tests/ledger.e2e.yaml` to `tests/scripts/assert-arithmetic-invariant.csx`. Verify the file exists at the resolved path before running.
 
 - **`GET /` returns `503 {"status":"starting"}` for both containers indefinitely.** One of the dependencies (Postgres or Kafka) never became reachable within the retry window, or a role-specific startup path failed. Check `docker logs ledger-api` and `docker logs ledger-worker` for connection errors; common causes are wrong hostname/port env vars, a dependency container still pulling its image, or a firewalled Docker network. The vouchfx health gate will timeout and report EnvironmentError if any service stays not-ready beyond 120 seconds.
 
 - **Custom runner build fails: `ProjectReference ... does not exist`.** The runner project references the engine's internal source tree under `.vouchfx-src/`. If that directory is missing or stale, run `./scripts/bootstrap.sh` or `.\scripts\bootstrap.ps1` first to fetch and build the pinned engine commit. The runner's `packages.lock.json` is a recorded manifest (RestoreLockedMode is deliberately not enabled); if it drifts from the actual resolved graph on `dotnet restore`, the lock silently regenerates rather than breaking the build. The real risk when advancing `ENGINE_PIN` is a source-level API mismatch in the ProjectReferences — if the engine tree reorganises, the runner's project paths may no longer exist.
 
-- **`--list` command shows fewer than 5 step kinds.** The custom runner registers only the step kinds it explicitly references (the minimal-bundle pattern). If a provider is not being discovered, check that the runner's source code actually holds a `new StepKindRegistry().With(...)` call for each provider, and that each provider's NuGet package reference is present in the runner's `.csproj` file. The base engine provides the 4 Core providers; only the Community `rpc.json-rpc` needs an explicit reference to `Vouchfx.Community.JsonRpc`.
+- **`--list` command shows fewer than 5 step kinds.** The custom runner registers only the step kinds it explicitly references (the minimal-bundle pattern). If a provider is not being discovered, check that `ProviderAssemblies()` includes each required provider assembly and is passed to `StepKindRegistry.BuildAndFreeze`, and that each provider's NuGet package reference is present in the runner's `.csproj` file. The base engine provides the 4 Core providers; only the Community `rpc.json-rpc` needs an explicit reference to `Vouchfx.Community.JsonRpc`.
 
 ## Key documents
 

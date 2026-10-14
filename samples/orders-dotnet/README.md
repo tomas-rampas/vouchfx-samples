@@ -189,8 +189,8 @@ The full suite (`tests/orders.e2e.yaml`) contains 5 steps, all expected to pass:
 Successful run output: **5 passed steps**, typically completing within a minute end-to-end (topology startup dominates the wall-clock).
 
 Artefact paths (when run via the sample runner):
-- `out/orders-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
-- `out/orders-results.xml` — JUnit XML for IDE/CI integrations
+- `out/orders-dotnet-report.html` — static HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/orders-dotnet-results.xml` — JUnit XML for IDE/CI integrations
 
 ## Troubleshooting
 

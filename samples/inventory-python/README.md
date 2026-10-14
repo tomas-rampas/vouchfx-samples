@@ -172,8 +172,8 @@ The full suite (`tests/inventory.e2e.yaml`) contains 5 steps, all expected to pa
 Successful run output: **5 passed steps**, typically completing within a minute end-to-end (topology startup dominates the wall-clock).
 
 Artefact paths (when run via the sample runner):
-- `out/inventory-report.html` — interactive HTML report with step-by-step timeline, captures, assertions, and error details
-- `out/inventory-results.xml` — JUnit XML for IDE/CI integrations
+- `out/inventory-python-report.html` — static HTML report with step-by-step timeline, captures, assertions, and error details
+- `out/inventory-python-results.xml` — JUnit XML for IDE/CI integrations
 
 ## Troubleshooting
 
