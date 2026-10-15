@@ -51,7 +51,7 @@ In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` autom
 
 ## Validate an installed CLI candidate
 
-Core 1.0.2 is available on NuGet.org. For the published release, install it and select
+The published CLI is available on NuGet.org. Install it and select
 the independently recorded release version below. If the global tool is already installed,
 use `dotnet tool update --global vouchfx --version 1.0.2` instead of the install command.
 
