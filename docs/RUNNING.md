@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). The pinned source is public in [Core source commit](https://github.com/tomas-rampas/vouchfx/commit/bb2db1303fb6d287a2f001a8ef4e618db4620ae4); source bootstrap is independent of stable CLI and SDK package publication. Validate source and installed-package runs separately; earlier passes recorded in `ENGINE_PIN` are historical evidence. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
+These runners default to a source build at the commit selected for the v1 release in [`ENGINE_PIN`](../ENGINE_PIN). The pinned source is public in [Core source commit](https://github.com/tomas-rampas/vouchfx/commit/7fda208c965d0f61c84902aca852e37d490e1c76); source bootstrap is independent of stable CLI and SDK package publication. Validate source and installed-package runs separately; earlier passes recorded in `ENGINE_PIN` are historical evidence. They also support explicitly installed candidates, described below. Source runs and installed runs are separate evidence: a passing source run does not prove that a package works on a clean machine.
 
 ## Quick start
 
@@ -51,23 +51,23 @@ In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` autom
 
 ## Validate an installed CLI candidate
 
-Core 1.0.1 is available on NuGet.org. For the published release, install it and select
+The published CLI is available on NuGet.org. Install it and select
 the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.0.1` instead of the install command.
+use `dotnet tool update --global vouchfx --version 1.0.2` instead of the install command.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.0.1
+dotnet tool install --global vouchfx --version 1.0.2
 export VOUCHFX_SAMPLES_CLI='vouchfx'
-export VOUCHFX_SAMPLES_CLI_VERSION='1.0.1+bb2db1303fb6d287a2f001a8ef4e618db4620ae4'
+export VOUCHFX_SAMPLES_CLI_VERSION='1.0.2+7fda208c965d0f61c84902aca852e37d490e1c76'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.0.1
+dotnet tool install --global vouchfx --version 1.0.2
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
-$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.1+bb2db1303fb6d287a2f001a8ef4e618db4620ae4'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.2+7fda208c965d0f61c84902aca852e37d490e1c76'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
 .\scripts\run-sample.ps1 orders-dotnet-compose
 ```

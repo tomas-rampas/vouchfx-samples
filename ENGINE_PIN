@@ -1,4 +1,4 @@
-bb2db1303fb6d287a2f001a8ef4e618db4620ae4
+7fda208c965d0f61c84902aca852e37d490e1c76
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,11 @@ bb2db1303fb6d287a2f001a8ef4e618db4620ae4
 #
 # Pin history
 # ------------
+# 2026-10-15: advanced to 7fda208c965d0f61c84902aca852e37d490e1c76 — accepted public Core 1.0.2 source.
+# This entry records the public source selection; installed CLI, explicit Compose
+# and custom-provider runtime acceptance are separate evidence.
+# Previous source pin: bb2db1303fb6d287a2f001a8ef4e618db4620ae4.
+#
 # 2026-10-13: advanced to 22fc60c5 — the reviewed v1.0.0 source selection.
 # This exact source is publicly reachable at Core commit 22fc60c5. It supersedes
 # Core 907baa8c; stable CLI and SDK package publication remains a separate gate.

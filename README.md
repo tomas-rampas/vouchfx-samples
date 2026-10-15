@@ -28,7 +28,7 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 **Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN), publicly reachable in
-[Core source commit](https://github.com/tomas-rampas/vouchfx/commit/bb2db1303fb6d287a2f001a8ef4e618db4620ae4). Source bootstrap is independent
+[Core source commit](https://github.com/tomas-rampas/vouchfx/commit/7fda208c965d0f61c84902aca852e37d490e1c76). Source bootstrap is independent
 of stable CLI and SDK package publication. Validate source and installed-package runs separately;
 earlier passes in `ENGINE_PIN` are historical evidence.
 
