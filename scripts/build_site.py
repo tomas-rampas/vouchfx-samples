@@ -336,6 +336,7 @@ CONFIG = SiteConfig(
         "Node.js and Java, each pairing a real database, broker or cache with an end-to-end "
         "integration test suite written for the vouchfx engine and run against real containers."
     ),
+    llms_curated=True,
 )
 
 
