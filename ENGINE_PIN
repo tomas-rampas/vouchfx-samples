@@ -87,11 +87,12 @@
 # Pin history
 # ------------
 # 2026-10-16: advanced to 194d530ede9b9cd94960d046e06a70bba2dfc757 — public Core 1.0.5 source.
-# Source bootstrap exited 0; `scripts/run-sample.ps1 all` exited 0 (all six samples:
+# Source acceptance recorded all six sample scenarios passing:
 # inventory-python 5, kafka-mtls 2, ledger-jsonrpc 10, orders-dotnet 5,
-# orders-dotnet-compose 5, payments-java 4; all fail/envError/inconclusive counts 0).
-# `scripts/run-migrations.ps1` exited 0 (from-postman 4, from-xunit 3,
-# from-specflow 4; all fail/envError/inconclusive counts 0).
+# orders-dotnet-compose 5, payments-java 4; all fail/envError/inconclusive counts 0.
+# The three migration scenarios also passed: from-postman 4, from-xunit 3,
+# from-specflow 4; all fail/envError/inconclusive counts 0.
+# The aggregate launcher OS exit was not captured.
 # Official installed CLI 1.0.5+194d530ede9b9cd94960d046e06a70bba2dfc757 also exited 0
 # for orders-dotnet, orders-dotnet-compose, inventory-python, payments-java and
 # kafka-mtls. `ledger-jsonrpc` remains source-only because its Community provider
