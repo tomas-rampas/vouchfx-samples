@@ -22,16 +22,15 @@
 #   fail: Stopped waiting for resource 'broker' to become healthy because it
 #   failed to start.
 #
-# A `kafka` dependency has no author-facing field to pin its own host port —
-# no `ports:`, `${conn:}` refused inside its own `env:` (docs/02 §3.2.6c:
-# "a dependency is a connection SOURCE rather than a consumer"), and
-# `${env:}` cannot know a port Aspire has not allocated yet. Filed as engine
-# issue #443. A SERVICE does not have this problem: `ports:` accepts the
-# `"<host>:<container>"` form specifically to PIN the host side (docs/02
-# §3.2.6a/§3.2.6b, "Kafka targets", third limit: "Pin the host port the
-# broker's container port publishes on... and configure the broker's own
-# advertised.listeners through its env: map to name that same pinned host
-# port"), which is exactly what this file now does.
+# The rc.5 dependency-form version failed because its custom advertised listener
+# guessed `localhost:9092` while Aspire allocated another host port (measured:
+# 39725); see the historical incident above and engine issue #443. Current Core
+# supports secured managed `kafka` dependencies: `security.endpoint` selects the
+# listener, PEM files go through `serverArtifacts`, and the engine generates
+# listener advertisement from Aspire's allocated address. `${conn:...}` remains
+# refused in a dependency's own `env:`; the managed recipe owns listener settings.
+# This sample stays service-form because its custom image setup and
+# `broker-bash-config.sh` use a manually configured listener and pinned host port.
 #
 # RUN THE SETUP SCRIPT FIRST. This suite declares certificates that do not
 # exist in a fresh checkout:
@@ -100,9 +99,8 @@ environment:
     broker:
       image: confluentinc/confluent-local:8.2.0
 
-      # THE FIX. "<host>:<container>" PINS the host side so this suite can
-      # name a port that is actually knowable — the opposite of the
-      # dependency form's problem (see file header). 19093 is arbitrary and
+      # This service-form recipe pins its host side so the custom broker
+      # configuration can advertise a known port. 19093 is arbitrary and
       # simply has to be free on the runner; change it if it collides. The
       # container side (9092) is where the secured PLAINTEXT_HOST listener
       # in `env:` below actually binds.
@@ -121,11 +119,11 @@ environment:
         # broker's own to validate.
         profile: mtls
 
-        # On a SERVICE, unlike a dependency, this field DOES select which
-        # declared port is secured — the CONTAINER-side number from `ports:`
-        # above (docs/02 §3.2.6b: "endpoint selects WHICH of the service's
-        # ports is the secured one"). Matches examples/security-mtls.e2e.yaml's
-        # own broker (`ports: ["39093:9093"]`, `endpoint: "9093"`).
+        # For this service-form broker, `endpoint` selects the CONTAINER-side
+        # port declared in `ports:` above (`9092`), not the pinned host port
+        # `19093` (docs/02 §3.2.6b). Managed-dependency selectors are described
+        # in the file header. Matches examples/security-mtls.e2e.yaml's broker
+        # (`ports: ["39093:9093"]`, `endpoint: "9093"`).
         endpoint: "9092"
 
         # One private CA signs both leaves below — what an internal PKI
@@ -250,8 +248,8 @@ environment:
         # from `ports:` above (`19093`), spelled as the client sees it. This
         # is the line that was WRONG in the dependency-form version of this
         # suite (it named an unpinned, guessed port) and is the whole reason
-        # this file declares `broker` as a service rather than a dependency
-        # (see file header).
+        # this sample uses a service rather than the engine-managed default
+        # kafka dependency (see file header).
         VOUCHFX_SECURE_ADVERTISED: "localhost:19093"
 
 steps:

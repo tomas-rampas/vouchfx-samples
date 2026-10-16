@@ -39,27 +39,29 @@ failed before any step ran:
 fail: Stopped waiting for resource 'broker' to become healthy because it failed to start.
 ```
 
-A `kafka` **dependency** has no author-facing field to pin its own host port: no `ports:`,
-`${conn:}` is refused inside its own `env:` (docs §3.2.6c — a dependency is a connection *source*,
-not a consumer), and `${env:}` cannot know a port Aspire has not allocated yet at authoring time.
-This is filed as **engine issue #443** — until it lands, securing a `kafka` dependency's own
-listener with a self-managed image (rather than a customer-supplied broker declared as a service)
-is blocked.
+A `kafka` dependency still cannot pin its host port or use `${conn:…}` in its own `env:`; a
+dependency is a connection source, not a consumer (§3.2.6c). Those limits caused the historical
+failure above when this suite guessed `localhost:9092`. Current Core provides a managed-Kafka
+security recipe instead: declare `security` with a listener selector (`tcp`, `internal`, or a
+container port), provide PEM material through `serverArtifacts`, and set the declared PEM store
+locations in `env`. The engine owns the listener configuration and uses Aspire's allocated address
+for advertisement, Kafka clients, and confirmation. See the [managed Kafka recipe in Core](https://github.com/tomas-rampas/vouchfx/blob/194d530ede9b9cd94960d046e06a70bba2dfc757/docs/managed-kafka-security.md)
+and §3.2.6b. `${conn:…}` remains invalid in dependency `env` values, and listener settings remain
+engine-owned for this managed recipe.
 
-A **service** does not have this problem. `ports:` accepts the `"<host>:<container>"` form
-specifically to *pin* the host side, and docs §3.2.6b spells out exactly this case under *Kafka
-targets*, third limit:
+For a customer-supplied **service-form broker**, `ports:` can pin the host side so its own
+`advertised.listeners` can name a known address. Core §3.2.6b describes this service case under
+*Kafka targets*:
 
 > "Pin the host port the broker's container port publishes on (`ports: ["19093:9093"]`, §3.2.6a),
 > and configure the broker's own `advertised.listeners` through its `env:` map to name that same
 > pinned host port on the host address the run reaches it at (`localhost`). With both in place a
 > service-form broker is produced to and consumed from exactly like a dependency."
 
-`tests/kafka-mtls.e2e.yaml` now does exactly that: `ports: ["19093:9092"]` pins the host side, and
-`KAFKA_ADVERTISED_LISTENERS` names `localhost:19093` — a port that is actually knowable, because
-this suite chose it rather than Aspire allocating it. This is not a downgrade in what the sample
-proves: `security: profile: mtls` + PEM `serverArtifacts` behave identically on a service and on a
-dependency (docs §3.2.6b: "on the same terms"); only the container topology declaration changed.
+`tests/kafka-mtls.e2e.yaml` remains a service-form example: its custom Confluent image setup and
+`broker-bash-config.sh` use a pinned `19093` host port and a hand-configured listener. That topology
+is still supported, while the default managed `kafka` dependency now has its own engine-managed
+allocated-endpoint path described above.
 
 ## The bash-config indirection
 
@@ -220,7 +222,7 @@ the directory holding the `.e2e.yaml` file itself — and for existence, before 
 (docs §3.2.6b); a certificate path pointing outside that directory is rejected at `vouchfx validate`
 time, not at run time.
 
-## Two things you will otherwise get wrong
+## Three things you will otherwise get wrong
 
 ### 1. The listener name must NOT end in `SSL`
 
