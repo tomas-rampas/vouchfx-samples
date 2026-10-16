@@ -1,4 +1,4 @@
-7fda208c965d0f61c84902aca852e37d490e1c76
+194d530ede9b9cd94960d046e06a70bba2dfc757
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,19 @@
 #
 # Pin history
 # ------------
+# 2026-10-16: advanced to 194d530ede9b9cd94960d046e06a70bba2dfc757 — public Core 1.0.5 source.
+# Source bootstrap exited 0; `scripts/run-sample.ps1 all` exited 0 (all six samples:
+# inventory-python 5, kafka-mtls 2, ledger-jsonrpc 10, orders-dotnet 5,
+# orders-dotnet-compose 5, payments-java 4; all fail/envError/inconclusive counts 0).
+# `scripts/run-migrations.ps1` exited 0 (from-postman 4, from-xunit 3,
+# from-specflow 4; all fail/envError/inconclusive counts 0).
+# Official installed CLI 1.0.5+194d530ede9b9cd94960d046e06a70bba2dfc757 also exited 0
+# for orders-dotnet, orders-dotnet-compose, inventory-python, payments-java and
+# kafka-mtls. `ledger-jsonrpc` remains source-only because its Community provider
+# uses a custom runner. Reports are in `out/`; the acceptance log is retained
+# outside the repository in the authorized scratch directory.
+# Previous source pin: 7fda208c965d0f61c84902aca852e37d490e1c76.
+#
 # 2026-10-15: advanced to 7fda208c965d0f61c84902aca852e37d490e1c76 — accepted public Core 1.0.2 source.
 # This entry records the public source selection; installed CLI, explicit Compose
 # and custom-provider runtime acceptance are separate evidence.
