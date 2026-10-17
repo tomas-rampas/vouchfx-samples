@@ -27,11 +27,11 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 
 **Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
-This checkout selects the public Core 1.0.6 source commit in [`ENGINE_PIN`](ENGINE_PIN).
-All six samples and all three migrations passed in source mode. The official Core 1.0.6
-installed CLI also passed the five stock samples: 21 assertions, with each runner exiting 0.
-`ledger-jsonrpc` retains its custom source runner. See the [Core 1.0.6 acceptance record](docs/validation/core-1.0.6-acceptance.md)
-and [`ENGINE_PIN`](ENGINE_PIN) for the separate source and installed-package evidence.
+This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
+See the [Core 1.0.7 source validation record](docs/validation/core-1.0.7-source-validation-2026-10-17.md)
+for the current source results. The [Core 1.0.6 acceptance record](docs/validation/core-1.0.6-acceptance.md)
+preserves historical source and official installed-package evidence. `ledger-jsonrpc`
+retains its custom source runner; source and installed-package runs are separate evidence.
 
 Two commands from the repository root:
 
