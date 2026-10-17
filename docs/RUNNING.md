@@ -53,21 +53,21 @@ In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` autom
 
 The published CLI is available on NuGet.org. Install it and select
 the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.0.5` instead of the install command.
+use `dotnet tool update --global vouchfx --version 1.0.6` instead of the install command.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.0.5
+dotnet tool install --global vouchfx --version 1.0.6
 export VOUCHFX_SAMPLES_CLI='vouchfx'
-export VOUCHFX_SAMPLES_CLI_VERSION='1.0.5+194d530ede9b9cd94960d046e06a70bba2dfc757'
+export VOUCHFX_SAMPLES_CLI_VERSION='1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.0.5
+dotnet tool install --global vouchfx --version 1.0.6
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
-$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.5+194d530ede9b9cd94960d046e06a70bba2dfc757'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
 .\scripts\run-sample.ps1 orders-dotnet-compose
 ```
