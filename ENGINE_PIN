@@ -1,4 +1,4 @@
-9d3371857c408022dcdb5ab2f233cfb8aa46f75b
+20d837a2f735c1c785db6593b58ebe10b3dd9f05
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,8 @@
 #
 # Pin history
 # ------------
+# 2026-10-17: advanced to 20d837a2 — Core 1.0.7 source adoption.
+# Prior pin: 9d337185.
 # 2026-10-17: advanced to 9d3371857c408022dcdb5ab2f233cfb8aa46f75b — public Core 1.0.6 source.
 # Source-mode acceptance passed all six samples: inventory-python 5, kafka-mtls 2,
 # ledger-jsonrpc 10, orders-dotnet 5, orders-dotnet-compose 5, payments-java 4;
