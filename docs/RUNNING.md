@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected for Core 1.0.5 in [`ENGINE_PIN`](../ENGINE_PIN). The pinned source is public in [Core source commit](https://github.com/tomas-rampas/vouchfx/commit/194d530ede9b9cd94960d046e06a70bba2dfc757). Core 1.0.5 source validation passed for all six samples and three migrations; the released installed CLI was validated with the five stock-runner samples. `ledger-jsonrpc` uses its custom source runner. See [`ENGINE_PIN`](../ENGINE_PIN) for the recorded results. Source and installed-package runs remain separate evidence.
+These runners default to a source build at the public Core 1.0.6 commit selected in [`ENGINE_PIN`](../ENGINE_PIN). Source-mode validation passed for all six samples and all three migrations. The recorded Core 1.0.5 installed-CLI results remain historical package evidence. `ledger-jsonrpc` uses its custom source runner. See [`ENGINE_PIN`](../ENGINE_PIN) for the exact results. Source and installed-package runs remain separate evidence.
 
 ## Quick start
 
@@ -53,21 +53,21 @@ In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` autom
 
 The published CLI is available on NuGet.org. Install it and select
 the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.0.5` instead of the install command.
+use `dotnet tool update --global vouchfx --version 1.0.6` instead of the install command.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.0.5
+dotnet tool install --global vouchfx --version 1.0.6
 export VOUCHFX_SAMPLES_CLI='vouchfx'
-export VOUCHFX_SAMPLES_CLI_VERSION='1.0.5+194d530ede9b9cd94960d046e06a70bba2dfc757'
+export VOUCHFX_SAMPLES_CLI_VERSION='1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.0.5
+dotnet tool install --global vouchfx --version 1.0.6
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
-$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.5+194d530ede9b9cd94960d046e06a70bba2dfc757'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
 .\scripts\run-sample.ps1 orders-dotnet-compose
 ```

@@ -29,6 +29,23 @@ fail() {
   exit 1
 }
 
+source_worktree_status() {
+  git -C "$VOUCHFX_SRC_DIR" -c core.longpaths=true status --porcelain --untracked-files=all
+}
+
+assert_source_checkout() {
+  local actual_sha status
+  actual_sha="$(git -C "$VOUCHFX_SRC_DIR" -c core.longpaths=true rev-parse HEAD 2>/dev/null)" \
+    || fail "Could not read the source checkout commit at ${VOUCHFX_SRC_DIR}."
+  [[ "$actual_sha" == "$ENGINE_SHA" ]] \
+    || fail "Source checkout at ${VOUCHFX_SRC_DIR} is at ${actual_sha}, expected ${ENGINE_SHA}. Refusing to build an unexpected revision."
+
+  status="$(source_worktree_status)" \
+    || fail "Could not inspect the source checkout at ${VOUCHFX_SRC_DIR}."
+  [[ -z "$status" ]] \
+    || fail "Source checkout at ${VOUCHFX_SRC_DIR} is incomplete or modified. Refusing to build or overwrite it; inspect git status and restore the intended checkout manually."
+}
+
 # ── Preflight: required tools ────────────────────────────────────────────────
 command -v git >/dev/null 2>&1 \
   || fail "git is not installed or not on PATH. Install it from https://git-scm.com/downloads and re-run."
@@ -66,8 +83,13 @@ fi
 
 if [[ "$CURRENT_SHA" == "$ENGINE_SHA" ]]; then
   log ".vouchfx-src is already at the pinned commit (${ENGINE_SHA:0:12}...) — skipping fetch."
+  assert_source_checkout
 else
   if [[ -d "$VOUCHFX_SRC_DIR" ]]; then
+    status="$(source_worktree_status)" \
+      || fail "Could not inspect existing source checkout at ${VOUCHFX_SRC_DIR}; refusing to erase it."
+    [[ -z "$status" ]] \
+      || fail "Existing source checkout at ${VOUCHFX_SRC_DIR} is modified or incomplete. Refusing to erase it while changing pins; inspect git status and preserve any needed work first."
     log "Removing stale .vouchfx-src (was at ${CURRENT_SHA:-<none>}, pin is ${ENGINE_SHA:0:12}...)."
     rm -rf "$VOUCHFX_SRC_DIR"
   fi
@@ -77,13 +99,14 @@ else
   git -C "$VOUCHFX_SRC_DIR" init -q
   git -C "$VOUCHFX_SRC_DIR" remote add origin "$ENGINE_REPO_URL"
 
-  if ! git -C "$VOUCHFX_SRC_DIR" fetch --depth 1 origin "$ENGINE_SHA"; then
+  if ! git -C "$VOUCHFX_SRC_DIR" -c core.longpaths=true fetch --depth 1 origin "$ENGINE_SHA"; then
     rm -rf "$VOUCHFX_SRC_DIR"
     fail "Could not fetch commit ${ENGINE_SHA} from ${ENGINE_REPO_URL}. Check the SHA in ENGINE_PIN is correct, reachable in the engine's history, and that you have network access to GitHub."
   fi
 
-  git -C "$VOUCHFX_SRC_DIR" checkout -q FETCH_HEAD
+  git -C "$VOUCHFX_SRC_DIR" -c core.longpaths=true checkout -q FETCH_HEAD
   log "Checked out ${ENGINE_SHA} into .vouchfx-src/"
+  assert_source_checkout
 fi
 
 # ── Build the engine CLI ─────────────────────────────────────────────────────

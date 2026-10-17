@@ -45,6 +45,25 @@ function Assert-Success {
     }
 }
 
+function Get-SourceWorktreeStatus {
+    $status = git -C $VouchfxSrcDir -c core.longpaths=true status --porcelain --untracked-files=all
+    Assert-Success "Could not inspect the source checkout at $VouchfxSrcDir."
+    return @($status)
+}
+
+function Assert-SourceCheckout {
+    $actualSha = (git -C $VouchfxSrcDir -c core.longpaths=true rev-parse HEAD 2>$null)
+    Assert-Success "Could not read the source checkout commit at $VouchfxSrcDir."
+    if ($actualSha.Trim() -ne $EngineSha) {
+        Write-Fail "Source checkout at $VouchfxSrcDir is at $($actualSha.Trim()), expected $EngineSha. Refusing to build an unexpected revision."
+    }
+
+    $status = @(Get-SourceWorktreeStatus)
+    if ($status.Count -gt 0) {
+        Write-Fail "Source checkout at $VouchfxSrcDir is incomplete or modified. Refusing to build or overwrite it; inspect `git -C `"$VouchfxSrcDir`" status` and restore the intended checkout manually."
+    }
+}
+
 # -- Preflight: required tools ------------------------------------------------
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Fail "git is not installed or not on PATH. Install it from https://git-scm.com/downloads and re-run."
@@ -99,8 +118,13 @@ if (Test-Path (Join-Path $VouchfxSrcDir '.git')) {
 
 if ($CurrentSha -eq $EngineSha) {
     Write-BootstrapLog ".vouchfx-src is already at the pinned commit ($($EngineSha.Substring(0,12))...) -- skipping fetch."
+    Assert-SourceCheckout
 } else {
     if (Test-Path $VouchfxSrcDir) {
+        $status = @(Get-SourceWorktreeStatus)
+        if ($status.Count -gt 0) {
+            Write-Fail "Existing source checkout at $VouchfxSrcDir is modified or incomplete. Refusing to erase it while changing pins; inspect `git -C `"$VouchfxSrcDir`" status and preserve any needed work first."
+        }
         $shortCurrent = if ($CurrentSha) { $CurrentSha } else { '<none>' }
         Write-BootstrapLog "Removing stale .vouchfx-src (was at $shortCurrent, pin is $($EngineSha.Substring(0,12))...)."
         Remove-Item -Recurse -Force $VouchfxSrcDir
@@ -115,16 +139,17 @@ if ($CurrentSha -eq $EngineSha) {
     git -C $VouchfxSrcDir remote add origin $EngineRepoUrl
     Assert-Success "git remote add failed in $VouchfxSrcDir."
 
-    git -C $VouchfxSrcDir fetch --depth 1 origin $EngineSha
+    git -C $VouchfxSrcDir -c core.longpaths=true fetch --depth 1 origin $EngineSha
     if ($LASTEXITCODE -ne 0) {
         Remove-Item -Recurse -Force $VouchfxSrcDir -ErrorAction SilentlyContinue
         Write-Fail "Could not fetch commit $EngineSha from $EngineRepoUrl. Check the SHA in ENGINE_PIN is correct, reachable in the engine's history, and that you have network access to GitHub."
     }
 
-    git -C $VouchfxSrcDir checkout -q FETCH_HEAD
+    git -C $VouchfxSrcDir -c core.longpaths=true checkout -q FETCH_HEAD
     Assert-Success "git checkout FETCH_HEAD failed in $VouchfxSrcDir."
 
     Write-BootstrapLog "Checked out $EngineSha into .vouchfx-src/"
+    Assert-SourceCheckout
 }
 
 # -- Build the engine CLI -------------------------------------------------------

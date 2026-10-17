@@ -1,4 +1,4 @@
-194d530ede9b9cd94960d046e06a70bba2dfc757
+9d3371857c408022dcdb5ab2f233cfb8aa46f75b
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,20 @@
 #
 # Pin history
 # ------------
+# 2026-10-17: advanced to 9d3371857c408022dcdb5ab2f233cfb8aa46f75b — public Core 1.0.6 source.
+# Source-mode acceptance passed all six samples: inventory-python 5, kafka-mtls 2,
+# ledger-jsonrpc 10, orders-dotnet 5, orders-dotnet-compose 5, payments-java 4;
+# fail/envError/inconclusive counts were 0. The migration runner passed from-postman 4,
+# from-xunit 3 and from-specflow 4, also with zero fail/envError/inconclusive results.
+# Each sample runner exited 0; the migration runner exited 0 and reported exit 0 for
+# each suite. Reports are in out/ and the per-command logs are retained outside the
+# repository. This records source acceptance; installed-package evidence is separate.
+# Official installed CLI 1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b passed
+# inventory-python 5, kafka-mtls 2, orders-dotnet 5, orders-dotnet-compose 5 and
+# payments-java 4 assertions, each runner exiting 0 with zero other verdicts.
+# ledger-jsonrpc remains custom-source-only. See docs/validation/core-1.0.6-acceptance.md.
+# Previous source pin: 194d530ede9b9cd94960d046e06a70bba2dfc757.
+#
 # 2026-10-16: advanced to 194d530ede9b9cd94960d046e06a70bba2dfc757 — public Core 1.0.5 source.
 # Source acceptance recorded all six sample scenarios passing:
 # inventory-python 5, kafka-mtls 2, ledger-jsonrpc 10, orders-dotnet 5,
