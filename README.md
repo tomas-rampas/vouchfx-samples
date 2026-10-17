@@ -28,9 +28,11 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 **Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN), publicly reachable in
-[Core source commit](https://github.com/tomas-rampas/vouchfx/commit/7fda208c965d0f61c84902aca852e37d490e1c76). Source bootstrap is independent
-of stable CLI and SDK package publication. Validate source and installed-package runs separately;
-earlier passes in `ENGINE_PIN` are historical evidence.
+[Core source commit](https://github.com/tomas-rampas/vouchfx/commit/194d530ede9b9cd94960d046e06a70bba2dfc757).
+Core 1.0.5 source validation passed for all six samples and three migrations. The released
+installed CLI was validated with the five stock-runner samples; `ledger-jsonrpc` retains its
+custom source runner. See [`ENGINE_PIN`](ENGINE_PIN) for the recorded results. Source and
+installed-package validation remain separate evidence.
 
 Two commands from the repository root:
 
