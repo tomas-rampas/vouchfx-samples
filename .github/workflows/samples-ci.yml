@@ -189,7 +189,7 @@ jobs:
         with:
           global-json-file: global.json
       - name: Install official Core CLI
-        run: dotnet tool install vouchfx --version 1.1.0 --tool-path "$RUNNER_TEMP/official-cli" --source https://api.nuget.org/v3/index.json
+        run: dotnet tool install vouchfx --version 1.1.0 --tool-path "$RUNNER_TEMP/official-cli" --add-source https://api.nuget.org/v3/index.json
       - name: Run installed official sample
         env:
           VOUCHFX_SAMPLES_CLI_VERSION: 1.1.0+576780f6eba00d6919757b240ebdac0b8767d849
