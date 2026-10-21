@@ -102,10 +102,10 @@ jobs:
 
     strategy:
       fail-fast: false
-      # Five matrix entries, five isolated runners — full fan-out is safe
+      # Six matrix entries, six isolated runners — full fan-out is safe
       # (see the file header: the CI matrix, not this value, is what keeps
       # samples from colliding on shared Aspire/DCP resources).
-      max-parallel: 5
+      max-parallel: 6
       matrix:
         sample:
           - orders-dotnet
@@ -113,6 +113,7 @@ jobs:
           - payments-java
           - ledger-jsonrpc
           - kafka-mtls
+          - orders-dotnet-compose
 
     steps:
       - name: Checkout vouchfx-samples
@@ -127,7 +128,11 @@ jobs:
         run: bash scripts/bootstrap.sh
 
       - name: Run sample suite (${{ matrix.sample }})
-        run: bash scripts/run-sample.sh ${{ matrix.sample }}
+        run: |
+          VOUCHFX_COMPOSE_PASSWORD="$(openssl rand -hex 24)"
+          export VOUCHFX_COMPOSE_PASSWORD
+          echo "::add-mask::$VOUCHFX_COMPOSE_PASSWORD"
+          bash scripts/run-sample.sh ${{ matrix.sample }}
 
       # A suite that fails because a CONTAINER never became healthy leaves no
       # trace in this log: the engine reports "resource X failed to start" and
@@ -158,6 +163,47 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reports-${{ matrix.sample }}
+          path: out/
+          if-no-files-found: warn
+
+  installed-sample:
+    name: installed-${{ matrix.sample }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        sample:
+          - orders-dotnet
+          - inventory-python
+          - payments-java
+          - kafka-mtls
+          - orders-dotnet-compose
+    steps:
+      - name: Checkout vouchfx-samples
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up .NET SDK (reads global.json)
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Install official Core CLI
+        run: dotnet tool install vouchfx --version 1.1.0 --tool-path "$RUNNER_TEMP/official-cli" --add-source https://api.nuget.org/v3/index.json
+      - name: Run installed official sample
+        env:
+          VOUCHFX_SAMPLES_CLI_VERSION: 1.1.0+576780f6eba00d6919757b240ebdac0b8767d849
+        run: |
+          export VOUCHFX_SAMPLES_CLI="$RUNNER_TEMP/official-cli/vouchfx"
+          VOUCHFX_COMPOSE_PASSWORD="$(openssl rand -hex 24)"
+          export VOUCHFX_COMPOSE_PASSWORD
+          echo "::add-mask::$VOUCHFX_COMPOSE_PASSWORD"
+          bash scripts/run-sample.sh ${{ matrix.sample }}
+      - name: Upload installed reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reports-installed-${{ matrix.sample }}
           path: out/
           if-no-files-found: warn
 
