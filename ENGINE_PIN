@@ -1,4 +1,4 @@
-20d837a2f735c1c785db6593b58ebe10b3dd9f05
+576780f6eba00d6919757b240ebdac0b8767d849
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -86,6 +86,8 @@
 #
 # Pin history
 # ------------
+# 2026-10-21: advanced to 576780f6 — official Core 1.1.0 source adoption.
+# Prior pin: 20d837a2.
 # 2026-10-17: advanced to 20d837a2 — Core 1.0.7 source adoption.
 # Prior pin: 9d337185.
 # 2026-10-17: advanced to 9d3371857c408022dcdb5ab2f233cfb8aa46f75b — public Core 1.0.6 source.
