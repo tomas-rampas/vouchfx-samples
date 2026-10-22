@@ -137,9 +137,10 @@
     <p class="eyebrow">Beyond Core providers</p>
     <h2 class="section__title">Consume a Community provider today.</h2>
     <p class="section__lede">
-      The stock <code>vouchfx</code> CLI ships only the 25 frozen Core providers. The ledger-jsonrpc sample
-      is the reference pattern for consuming a hub provider before a provider-loader feature ships — a thin
-      custom runner over the engine's public SDK (<code>Vouchfx.Sdk {{fact:sdk_version}}</code>), consuming
+      The stock <code>vouchfx</code> CLI ships the 25 Core providers, and from Core 1.2.0 it can also load
+      trusted hub providers at startup, for example after <code>vouchfx providers install rpc.json-rpc</code>.
+      The ledger-jsonrpc sample is the reference pattern for bundling a hub provider at build time instead — a
+      thin custom runner over the engine's public SDK (<code>Vouchfx.Sdk {{fact:sdk_version}}</code>), consuming
       <code>Vouchfx.Community.JsonRpc {{fact:community_jsonrpc_version}}</code> from NuGet.org.
     </p>
     <div class="grid grid--3">

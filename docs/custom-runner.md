@@ -1,18 +1,18 @@
 # Consuming Community Providers: The Custom Runner Recipe
 
-When a vouchfx suite needs a **Community-tier provider** from the [vouchfx-providers hub](https://providers.vouchfx.io/) (see its [consuming-a-provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html)), the engine's stock CLI cannot run it — the CLI ships only the 25 frozen Core providers at build time. This page explains the custom-runner pattern, which lets you consume Community providers today by bundling them directly into a thin executable.
+When a vouchfx suite needs a **Community-tier provider** from the [vouchfx-providers hub](https://providers.vouchfx.io/) (see its [consuming-a-provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html)), there are two ways to run it. From Core 1.2.0 the stock CLI can load trusted external providers at startup: `vouchfx providers install rpc.json-rpc` installs a published provider under `~/.vouchfx/providers`, and `--providers <dir>` loads a prepared directory (see the engine's [external providers guide](https://vouchfx.io/external-providers/)). This page explains the other way, the custom-runner pattern, which bundles Community providers directly into a thin executable at build time.
 
 ## Why a custom runner exists
 
-Providers in vouchfx are **compile-time, source-level plugins** (§13 of the [engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)). The registry of available step types is frozen when the engine builds, by reflecting over a fixed set of assemblies:
+Providers in vouchfx are **compile-time, source-level plugins** (§13 of the [engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)): they bind typed models and emit C#. The stock CLI's registry of step types is frozen before it discovers any suite:
 
-- The stock `vouchfx` CLI hard-codes its 25 Core provider assemblies.
-- Community providers are published as independent NuGet packages, unknown to the CLI.
-- There is no runtime loader and no dynamic assembly discovery — no way for the CLI to know about a Community provider without rebuilding itself.
+- The stock `vouchfx` CLI bundles its 25 Core provider assemblies.
+- Community providers are published as independent NuGet packages, not bundled with the CLI.
+- Before Core 1.2.0 there was no runtime loader, so the CLI could not use a Community provider without being rebuilt. From 1.2.0 it admits trusted provider assemblies from `--providers`, `VOUCHFX_PROVIDERS` and `~/.vouchfx/providers` before freezing the merged registry.
 
-This is deliberate: providers are trusted extensions (they compile arbitrary C# for execution) and locking down the registry at build time prevents supply-chain surprises.
+Either way, providers are trusted extensions: they compile arbitrary C# for execution, and neither loading nor installing one sandboxes or endorses it.
 
-**The workaround until a provider-loader feature ships:** build a custom runner — a small C# executable that wraps the engine's public SDK and references the Community providers you need. The [`ledger-jsonrpc` sample](https://github.com/tomas-rampas/vouchfx-samples/tree/main/samples/ledger-jsonrpc) (`samples/ledger-jsonrpc/runner/`) is the reference implementation.
+**A custom runner fixes the provider set at build time:** it is a small C# executable that wraps the engine's public SDK and references the Community providers you need, so their versions are locked with the rest of the build and no provider directory has to be configured where it runs. It was the only way to consume a Community provider before Core 1.2.0. The [`ledger-jsonrpc` sample](https://github.com/tomas-rampas/vouchfx-samples/tree/main/samples/ledger-jsonrpc) (`samples/ledger-jsonrpc/runner/`) is the reference implementation.
 
 ## The essential path (with code examples)
 

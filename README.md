@@ -28,9 +28,11 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 **Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
-See the [Core 1.0.7 source validation record](docs/validation/core-1.0.7-source-validation-2026-10-17.md)
-for the current source results. The [Core 1.0.6 acceptance record](docs/validation/core-1.0.6-acceptance.md)
-preserves historical source and official installed-package evidence. `ledger-jsonrpc`
+See the [Core 1.2.0 source validation record](docs/validation/core-1.2.0-source-validation-2026-10-22.md)
+for the current source results and the [Core 1.2.0 installed acceptance record](docs/validation/core-1.2.0-installed-acceptance-2026-10-22.md)
+for the official CLI. The [Core 1.0.7](docs/validation/core-1.0.7-source-validation-2026-10-17.md) and
+[Core 1.0.6](docs/validation/core-1.0.6-acceptance.md) records preserve historical source and
+official installed-package evidence. `ledger-jsonrpc`
 retains its custom source runner; source and installed-package runs are separate evidence.
 
 Two commands from the repository root:

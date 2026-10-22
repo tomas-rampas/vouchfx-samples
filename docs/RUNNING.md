@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). See the [dated source validation record](validation/core-1.0.7-source-validation-2026-10-17.md) for current source results, the [Core 1.0.7 installed acceptance record](validation/core-1.0.7-installed-acceptance-2026-10-17.md) for official CLI results, and the [Core 1.0.6 acceptance record](validation/core-1.0.6-acceptance.md) for historical source and installed-package evidence. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
+These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). See the [Core 1.2.0 source validation record](validation/core-1.2.0-source-validation-2026-10-22.md) for current source results and the [Core 1.2.0 installed acceptance record](validation/core-1.2.0-installed-acceptance-2026-10-22.md) for official CLI results. The [Core 1.0.7 source](validation/core-1.0.7-source-validation-2026-10-17.md), [Core 1.0.7 installed](validation/core-1.0.7-installed-acceptance-2026-10-17.md) and [Core 1.0.6](validation/core-1.0.6-acceptance.md) records preserve historical evidence. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
 
 ## Quick start
 
@@ -53,21 +53,21 @@ In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` autom
 
 The published CLI is available on NuGet.org. Install it and select
 the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.0.6` instead of the install command.
+use `dotnet tool update --global vouchfx --version 1.2.0` instead of the install command.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.0.6
+dotnet tool install --global vouchfx --version 1.2.0
 export VOUCHFX_SAMPLES_CLI='vouchfx'
-export VOUCHFX_SAMPLES_CLI_VERSION='1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b'
+export VOUCHFX_SAMPLES_CLI_VERSION='1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.0.6
+dotnet tool install --global vouchfx --version 1.2.0
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
-$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.0.6+9d3371857c408022dcdb5ab2f233cfb8aa46f75b'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
 .\scripts\run-sample.ps1 orders-dotnet-compose
 ```
@@ -192,10 +192,14 @@ Full exit code table, as implemented by the engine CLI:
 
 ## Samples with custom runners
 
-Most samples run via `scripts/run-sample.sh <name>`, which invokes the stock `vouchfx` engine CLI.
-The CLI ships only the 25 frozen Core providers; it cannot load Community-tier providers from
-the [vouchfx-providers](https://providers.vouchfx.io/) hub.
-See the hub's [consuming a provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html) for details.
+Most samples run via `scripts/run-sample.sh <name>`, which invokes the stock `vouchfx` engine CLI
+with its 25 bundled Core providers. From Core 1.2.0 that CLI can also load trusted Community-tier
+providers from the [vouchfx-providers](https://providers.vouchfx.io/) hub, installed with
+`vouchfx providers install` or supplied with `--providers <dir>`; see the hub's
+[consuming a provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html).
+The sample runners configure none, but the CLI still loads whatever `VOUCHFX_PROVIDERS` and
+`~/.vouchfx/providers` hold, and refuses to start (exit 3) if one of them cannot be loaded. Keep
+both empty for runs that should match CI.
 
 The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# runner that:
 
@@ -205,8 +209,9 @@ The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# run
 
 `scripts/run-sample.sh ledger-jsonrpc` (and the PowerShell twin) auto-detect the `runner/` directory and use it automatically — same reports, same exit codes as the stock-CLI path.
 
-This is the **reference pattern** for consuming Community providers until a provider-loader
-feature ships. Run it directly:
+This is the **reference pattern** for bundling Community providers into one executable at build
+time, and the only way to consume them before Core 1.2.0. From 1.2.0 the stock CLI can load the
+same provider after `vouchfx providers install rpc.json-rpc`. Run the custom runner directly:
 
 ```bash
 dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \
