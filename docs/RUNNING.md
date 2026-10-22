@@ -192,10 +192,14 @@ Full exit code table, as implemented by the engine CLI:
 
 ## Samples with custom runners
 
-Most samples run via `scripts/run-sample.sh <name>`, which invokes the stock `vouchfx` engine CLI.
-The CLI ships only the 25 frozen Core providers; it cannot load Community-tier providers from
-the [vouchfx-providers](https://providers.vouchfx.io/) hub.
-See the hub's [consuming a provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html) for details.
+Most samples run via `scripts/run-sample.sh <name>`, which invokes the stock `vouchfx` engine CLI
+with its 25 bundled Core providers. From Core 1.2.0 that CLI can also load trusted Community-tier
+providers from the [vouchfx-providers](https://providers.vouchfx.io/) hub, installed with
+`vouchfx providers install` or supplied with `--providers <dir>`; see the hub's
+[consuming a provider guide](https://providers.vouchfx.io/docs/consuming-a-provider.html).
+The sample runners configure none, but the CLI still loads whatever `VOUCHFX_PROVIDERS` and
+`~/.vouchfx/providers` hold, and refuses to start (exit 3) if one of them cannot be loaded. Keep
+both empty for runs that should match CI.
 
 The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# runner that:
 
@@ -205,8 +209,9 @@ The **ledger-jsonrpc sample** has a `runner/` directory — a thin custom C# run
 
 `scripts/run-sample.sh ledger-jsonrpc` (and the PowerShell twin) auto-detect the `runner/` directory and use it automatically — same reports, same exit codes as the stock-CLI path.
 
-This is the **reference pattern** for consuming Community providers until a provider-loader
-feature ships. Run it directly:
+This is the **reference pattern** for bundling Community providers into one executable at build
+time, and the only way to consume them before Core 1.2.0. From 1.2.0 the stock CLI can load the
+same provider after `vouchfx providers install rpc.json-rpc`. Run the custom runner directly:
 
 ```bash
 dotnet run --project samples/ledger-jsonrpc/runner -c Release -- \

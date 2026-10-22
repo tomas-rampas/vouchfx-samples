@@ -5,11 +5,12 @@
 // (scripts/run-sample.sh auto-detects it), because the engine CLI only ships the Core provider
 // catalogue. The ledger-jsonrpc suite also exercises rpc.json-rpc — a Community-tier
 // provider published as the Vouchfx.Community.JsonRpc NuGet package
-// (github.com/tomas-rampas/vouchfx-providers) — which the stock CLI does not know
-// about. Providers are compile-time, source-level plugins (no runtime loader, no
-// dynamic assembly loading — see the engine's CLAUDE.md §"Provider model"), so
-// consuming one that the CLI wasn't built with means building a small executable
-// of our own that references it directly. That executable is this project.
+// (github.com/tomas-rampas/vouchfx-providers) — which the stock CLI does not ship.
+// Providers are compile-time, source-level plugins. Before Core 1.2.0 the stock CLI had no
+// runtime loader, so consuming a provider the CLI wasn't built with meant building a small
+// executable of our own that references it directly. That executable is this project. From
+// 1.2.0 the stock CLI can load trusted provider assemblies at startup instead (for example
+// after `vouchfx providers install rpc.json-rpc`); this runner remains the build-time variant.
 //
 // This file deliberately mirrors, as closely as a standalone project can, the
 // ESSENTIAL path .vouchfx-src/src/Cli/Vouchfx.Cli/RunCommand.cs drives:
@@ -314,7 +315,7 @@ static void PrintUsage()
         LedgerRunner — a custom vouchfx runner for the ledger-jsonrpc sample, wiring
         the community rpc.json-rpc provider (Vouchfx.Community.JsonRpc) alongside
         four Core providers (db-assert.postgres, mq-publish.kafka, mq-expect.kafka,
-        script.csharp — Core kinds the stock CLI also ships, bundled here as source-built copies) plus `rpc.json-rpc`, which the stock CLI does not know about.
+        script.csharp — Core kinds the stock CLI also ships, bundled here as source-built copies) plus `rpc.json-rpc`, which the stock CLI does not ship.
 
         Usage:
           LedgerRunner <tests-dir> [--junit <path>] [--html <path>]

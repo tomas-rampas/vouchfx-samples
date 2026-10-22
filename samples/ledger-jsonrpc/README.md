@@ -4,8 +4,8 @@ A vouchfx sample proving the engine can orchestrate and test a polyglot system c
 **Community-tier providers** from the [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers)
 hub. The service here is a hand-rolled JSON-RPC 2.0 ledger API (Node.js); the suite exercises
 REST calls, database rows, broker events, and independent consumer workflows — all wired through
-a **custom runner** that the stock `vouchfx` engine CLI cannot run, because the CLI ships only
-the frozen Core provider catalogue.
+a **custom runner** that bundles the Community provider the stock `vouchfx` engine CLI does not
+ship with its Core provider catalogue.
 
 ## What this demonstrates
 
@@ -14,9 +14,9 @@ the frozen Core provider catalogue.
 1. **First sample consuming a Community provider** — `rpc.json-rpc` (the
    [`Vouchfx.Community.JsonRpc`](https://www.nuget.org/packages/Vouchfx.Community.JsonRpc)
    NuGet package from [vouchfx-providers](https://github.com/tomas-rampas/vouchfx-providers))
-   is not in the engine's frozen Core set; the stock CLI cannot load it. This sample shows the
-   **reference pattern** for anyone who needs to consume hub providers before a provider-loader
-   milestone: build a thin custom runner.
+   is not in the engine's bundled Core set. This sample shows the **reference pattern** for
+   bundling hub providers into a thin custom runner at build time. From Core 1.2.0 the stock CLI
+   can load the same provider instead, after `vouchfx providers install rpc.json-rpc`.
 
 2. **First sample using `mq-publish.kafka`** — unlike `mq-expect.kafka` (which *asserts* an
    event exists), `mq-publish.kafka` lets the suite itself *inject* test data onto a broker.
@@ -70,14 +70,17 @@ by the `ROLE` environment variable — a production pattern the suite proves end
 
 ## The custom runner: why it exists
 
-The vouchfx engine CLI ships with 25 **Core providers** (frozen at build time for v1.x). The
-`rpc.json-rpc` provider in the vouchfx-providers hub is **Community-tier** — maintained outside
-the engine, published as an independent NuGet package. Providers are compile-time plugins
-(§13 of the [engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)),
-not runtime-loaded extensions. The stock CLI has no seam to discover or load Community providers.
+The vouchfx engine CLI ships with 25 **Core providers**. The `rpc.json-rpc` provider in the
+vouchfx-providers hub is **Community-tier** — maintained outside the engine, published as an
+independent NuGet package. Providers are compile-time, source-level plugins
+(§13 of the [engine blueprint](https://vouchfx.io/01_Technical_Architecture_and_Engineering_Blueprint/)).
+Before Core 1.2.0 the stock CLI had no seam to load a Community provider; from 1.2.0 it admits
+trusted provider assemblies at startup, from `vouchfx providers install`, `--providers`,
+`VOUCHFX_PROVIDERS` and `~/.vouchfx/providers`.
 
-**The workaround (today's state):** build a custom runner. This project's `runner/` is exactly
-that — a ~330-line C# program that:
+**The custom runner** predates that loader and remains the build-time alternative: the provider
+set and its versions are fixed with the rest of the build. This project's `runner/` is a
+~330-line C# program that:
 
 1. Loads the stock engine's public SDK interfaces (`ScenarioRunner`, `StepKindRegistry`, etc.)
 2. References `Vouchfx.Community.JsonRpc` directly via NuGet
@@ -86,8 +89,8 @@ that — a ~330-line C# program that:
 4. Discovers and runs `.e2e.yaml` files against that registry
 5. Produces the exact same JUnit XML and HTML reports as the stock CLI
 
-This is the **reference pattern** for anyone consuming hub providers before a provider-loader
-feature ships. The runner is minimal but production-grade: it mirrors the engine CLI's
+This is the **reference pattern** for bundling hub providers into a runner of your own. The
+runner is minimal but production-grade: it mirrors the engine CLI's
 `RunCommand.cs` path exactly, reusing its discovery, parsing, validation, and execution
 logic.
 
