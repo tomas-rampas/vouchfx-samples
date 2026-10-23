@@ -15,7 +15,7 @@ Kafka and webhook providers perform the assertions. No custom provider is requir
 Use Docker with Linux containers. The engine source in `ENGINE_PIN` supports TCP
 service bindings, native healthcheck readiness and Kafka retained-log partition
 assignment for this variant. The pinned source is public in
-[Core source commit](https://github.com/tomas-rampas/vouchfx/commit/7fda208c965d0f61c84902aca852e37d490e1c76). Source bootstrap is independent
+[Core source commit](https://github.com/tomas-rampas/vouchfx/commit/0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8). Source bootstrap is independent
 of stable CLI and SDK package publication. The Kafka assertion reads all actual partitions from earliest
 offsets without waiting for a fresh consumer group rebalance; its one-second attempt
 budget remains unchanged. For installed mode, use the public CLI selected by the commands in
