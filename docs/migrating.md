@@ -19,7 +19,7 @@ There is no tool here — and none planned — that mechanically transliterates 
 | --- | --- |
 | `item[].request` (method/url/header/body) | an `http.rest` step (`target`, `method`, `path`, `headers`, `body`) |
 | `pm.test("Status code is …", …)` | `expect.status` |
-| `pm.test(...)` deep JSON-body assertion | capture the field, then assert it in a `script.csharp` step — `expect` supports only a status-code check |
+| `pm.test(...)` deep JSON-body assertion | use `expect.json` for JSONPath field equality or existence; use `script.csharp` for arbitrary deep structural comparisons |
 | `pm.collectionVariables.set/get(...)` | `capture` (writes into the shared execution context) + `{placeholder}` substitution |
 | `{{baseUrl}}` swapped per environment | not needed — vouchfx resolves the running container's address itself, via Aspire service discovery |
 | a `"type": "secret"` environment variable | `${secret:env/...}`, resolved at step-execution time, never baked into the compiled suite |
