@@ -66,8 +66,8 @@
     <p class="eyebrow">vouchfx samples</p>
     <h1 class="hero__title">See vouchfx prove <span class="grad">a real system.</span></h1>
     <p class="hero__lede">
-      Four production-shaped applications in four stacks — clone, run one command, and watch a complete
-      end-to-end suite pass against real containers.
+      Six suites cover four application stacks, an Orders Compose variant and Kafka mutual TLS.
+      Clone and run against real containers.
     </p>
     <div class="hero__cta">
       <a class="btn btn--primary" href="docs/RUNNING.html">Run your first sample</a>
@@ -88,13 +88,21 @@
     <p class="eyebrow">The sample catalogue</p>
     <h2 class="section__title">Choose your stack.</h2>
     <p class="section__lede">
-      Each sample is a <strong>real service</strong> — its own database, broker, or cache — driving one
-      coherent business transaction through every hop, not four disconnected checks.
+      The four application samples drive a coherent business transaction through a real database, broker
+      or cache. Two further suites cover Orders with Compose and an infrastructure-only Kafka mutual-TLS round trip.
     </p>
     <div class="grid grid--4">
       <a class="card" href="samples/orders-dotnet/README.html">
         <h3>Orders</h3>
         <p>C#/ASP.NET · PostgreSQL, Kafka, webhook · 5 steps</p>
+      </a>
+      <a class="card" href="samples/orders-dotnet-compose/README.html">
+        <h3>Orders with Compose</h3>
+        <p>The same C#/ASP.NET application and five assertions, with a user-owned Compose environment</p>
+      </a>
+      <a class="card" href="samples/kafka-mtls/README.html">
+        <h3>Kafka mutual TLS</h3>
+        <p>Infrastructure-only produce/consume round trip with engine-owned mutual-TLS confirmation</p>
       </a>
       <a class="card" href="samples/inventory-python/README.html">
         <h3>Inventory</h3>
@@ -171,8 +179,8 @@
         <span class="stat__label">exact engine commit pinned repo-wide in <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/ENGINE_PIN">ENGINE_PIN</a> — advancing it is a deliberate, reviewed action</span>
       </div>
       <div class="stat">
-        <span class="stat__num">4/4</span>
-        <span class="stat__label">samples validated live in CI, one matrix job per sample, against real Docker containers — never mocked</span>
+        <span class="stat__num">6</span>
+        <span class="stat__label">suites in the source-engine CI matrix, including Compose and Kafka mutual TLS, each running against real Docker containers</span>
       </div>
       <div class="stat">
         <span class="stat__num">1×</span>
