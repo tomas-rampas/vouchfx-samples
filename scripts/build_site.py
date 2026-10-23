@@ -94,6 +94,8 @@ DOCS: list[tuple[str, str, str, str]] = [
      "orders-dotnet sample, with a field-by-field mapping table and an honest account of what doesn't map."),
 
     # Samples
+    ("samples/kafka-mtls/README.md", "Samples", "Kafka mutual TLS",
+     "An infrastructure-only produce/consume round trip with engine-owned mutual-TLS confirmation."),
     ("samples/orders-dotnet/README.md", "Samples", "Orders · C# + ASP.NET",
      "REST to Postgres row to Kafka event to outbound webhook callback. Five steps."),
     ("samples/orders-dotnet-compose/README.md", "Samples", "Orders · Docker Compose",
@@ -226,9 +228,9 @@ PORTAL = """<!DOCTYPE html>
 <div class="container portal">
   <div class="portal__head">
     <p class="eyebrow">Documentation</p>
-    <h1 class="section__title">Four samples, four stacks, one engine.</h1>
+    <h1 class="section__title">Six suites, four application stacks, one engine.</h1>
     <p class="section__lede">These pages are rendered straight from the repository's markdown on every push,
-      so they never drift from the code they describe.</p>
+      so documentation changes are published alongside the code.</p>
   </div>
 
   <section class="portal__group">
@@ -252,11 +254,19 @@ PORTAL = """<!DOCTYPE html>
 
   <section class="portal__group">
     <h2>The samples</h2>
-    <p>Each is a real service with its own database, broker, or cache — not a toy echo.</p>
+    <p>Four application stacks, a Compose variant of Orders, and an infrastructure-only Kafka mutual-TLS suite.</p>
     <div class="doc-cards">
       <a class="doc-card" href="samples/orders-dotnet/README.html">
         <span class="doc-card__k">C# · ASP.NET CORE 8</span><h3>Orders</h3>
         <p>REST → Postgres row → Kafka event → outbound webhook callback. Five steps.</p>
+      </a>
+      <a class="doc-card" href="samples/orders-dotnet-compose/README.html">
+        <span class="doc-card__k">C# · DOCKER COMPOSE</span><h3>Orders with Compose</h3>
+        <p>The same Orders application and five business assertions, with a user-owned Compose environment.</p>
+      </a>
+      <a class="doc-card" href="samples/kafka-mtls/README.html">
+        <span class="doc-card__k">INFRASTRUCTURE · KAFKA</span><h3>Kafka mutual TLS</h3>
+        <p>A produce/consume round trip with engine-owned mutual-TLS confirmation against a real broker.</p>
       </a>
       <a class="doc-card" href="samples/inventory-python/README.html">
         <span class="doc-card__k">PYTHON · FASTAPI</span><h3>Inventory</h3>
