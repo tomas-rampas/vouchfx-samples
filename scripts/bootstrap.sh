@@ -50,7 +50,7 @@ assert_source_checkout() {
 command -v git >/dev/null 2>&1 \
   || fail "git is not installed or not on PATH. Install it from https://git-scm.com/downloads and re-run."
 command -v dotnet >/dev/null 2>&1 \
-  || fail ".NET SDK is not installed or not on PATH. Install .NET 8 SDK (8.0.424 or later) from https://dotnet.microsoft.com/download/dotnet/8.0 and re-run."
+  || fail ".NET SDK is not installed or not on PATH. Install .NET 8 SDK (8.0.424 or later), .NET 9 or .NET 10 from https://dotnet.microsoft.com/download/dotnet and re-run."
 command -v docker >/dev/null 2>&1 \
   || fail "Docker is not installed or not on PATH. Install Docker Desktop (or the Docker Engine) from https://www.docker.com/products/docker-desktop/ — the engine orchestrates test topology via containers and cannot run without it."
 docker info >/dev/null 2>&1 \
@@ -115,7 +115,9 @@ CLI_PROJECT_PATH="${VOUCHFX_SRC_DIR}/${CLI_PROJECT_REL}"
   || fail "Expected CLI project not found at ${CLI_PROJECT_PATH}. The engine's repo layout may have changed since this pin was set — check that src/Cli/Vouchfx.Cli/ exists at commit ${ENGINE_SHA}."
 
 log "Building engine CLI (Release)... this also restores the Aspire AppHost SDK's DCP binaries."
-if ! dotnet build "$CLI_PROJECT_PATH" -c Release; then
+# Keep the pinned source immutable while enabling the current runner's
+# supported runtime policy, including pins released before major roll-forward.
+if ! dotnet build "$CLI_PROJECT_PATH" -c Release -p:RollForward=Major; then
   fail "dotnet build failed for ${CLI_PROJECT_PATH}. See the build output above for details."
 fi
 
