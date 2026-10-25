@@ -124,7 +124,8 @@ or `./scripts/run-sample.ps1 orders-dotnet-compose`. Compose builds the shared a
 the standard runner does not build a duplicated `app/` for this variant.
 
 For installed mode, select a Compose-capable candidate using the variables above.
-The pinned-source CI matrix currently covers five samples and excludes this variant.
+The pinned-source CI matrix covers six samples, including this variant; the installed
+CLI matrix also includes it among its five stock-CLI samples.
 Source CLI/native Docker evidence and installed-package acceptance remain separate.
 Keep Kafka's external loopback port 19092 free, and preserve both listener routes and `host-gateway` callback mapping.
 The sample README documents readiness, digest pins and ownership-journal recovery.

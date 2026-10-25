@@ -51,10 +51,11 @@
 #          github.com/tomas-rampas/vouchfx/releases/tag/v1.0.0-alpha.5) and
 #          click the short-SHA link under the tag name to reach the full SHA.
 #        - `git ls-remote --tags https://github.com/tomas-rampas/vouchfx <tag>`
-#          — GOTCHA: for an ANNOTATED tag (this project's tags are annotated)
+#          — GOTCHA: for an ANNOTATED tag
 #          this prints TWO lines: `refs/tags/<tag>` (the tag OBJECT's own
 #          SHA) and `refs/tags/<tag>^{}` (the COMMIT it points at, "peeled").
-#          Always take the `^{}` line — ENGINE_PIN must hold the commit SHA,
+#          Take the `^{}` line when present; for a LIGHTWEIGHT tag, take the
+#          single `refs/tags/<tag>` line. ENGINE_PIN must hold the commit SHA,
 #          never the tag object's SHA. (`gh api repos/tomas-rampas/vouchfx/commits/<tag>
 #          --jq .sha` sidesteps this entirely by resolving straight to the
 #          commit.) scripts/bump-engine-pin.* does this peeling for you.

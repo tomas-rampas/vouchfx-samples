@@ -198,7 +198,7 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 
 ## Status
 
-**Samples:** Six reference suites are maintained. The [Samples CI workflow](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml) covers five source-engine samples; its matrix excludes `orders-dotnet-compose`. Docker-free runner regressions verify dispatch and failure handling separately.
+**Samples:** Six reference suites are maintained. The [Samples CI workflow](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml) covers all six suites in the source-engine matrix, including `orders-dotnet-compose`. The installed-CLI matrix covers five suites, including Compose; `ledger-jsonrpc` uses a custom source-based runner. Docker-free runner regressions verify dispatch and failure handling separately.
 
 **Engine consumption:** The default runner targets the source commit selected for the v1 release in [`ENGINE_PIN`](ENGINE_PIN). Fresh public bootstrap requires that commit to be reachable on GitHub; source pinning and package publication are separate gates. Explicit installed mode validates a separately installed executable and its declared version without building engine source; passing source CI does not establish that an installed candidate works. `ledger-jsonrpc` requires its custom source runner and is rejected in installed mode.
 
