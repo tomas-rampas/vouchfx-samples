@@ -60,8 +60,13 @@ VOUCHFX_SAMPLE_DOTNET_VERSION=10.0 ./scripts/run-sample.sh orders-dotnet
 
 ```powershell
 $env:VOUCHFX_SAMPLE_DOTNET_VERSION = '10.0'
-./scripts/run-sample.ps1 orders-dotnet
-Remove-Item Env:VOUCHFX_SAMPLE_DOTNET_VERSION
+try {
+    ./scripts/run-sample.ps1 orders-dotnet
+}
+finally {
+    Remove-Item Env:VOUCHFX_SAMPLE_DOTNET_VERSION, Env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE,
+        Env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE -ErrorAction SilentlyContinue
+}
 ```
 
 The supported selections are `8.0`, `9.0` and `10.0`. Bash and PowerShell use the same
