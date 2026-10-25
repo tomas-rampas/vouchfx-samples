@@ -11,7 +11,14 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). See the [Core 1.2.0 source validation record](validation/core-1.2.0-source-validation-2026-10-22.md) for current source results and the [Core 1.2.0 installed acceptance record](validation/core-1.2.0-installed-acceptance-2026-10-22.md) for official CLI results. The [Core 1.0.7 source](validation/core-1.0.7-source-validation-2026-10-17.md), [Core 1.0.7 installed](validation/core-1.0.7-installed-acceptance-2026-10-17.md) and [Core 1.0.6](validation/core-1.0.6-acceptance.md) records preserve historical evidence. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
+These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN).
+The [2026-10-25 acceptance record](validation/core-1.2.1-samples-acceptance-2026-10-25.md) records
+six source samples, three migrations and five installed Core 1.2.1 samples, all exiting 0.
+It identifies the tested samples commit and the official GitHub Release package used; it is not
+evidence of a NuGet installation. The [Core 1.2.0 source](validation/core-1.2.0-source-validation-2026-10-22.md)
+and [installed](validation/core-1.2.0-installed-acceptance-2026-10-22.md) records preserve the previous
+hosted Linux results. `ledger-jsonrpc` uses its custom source runner. Source and installed-package
+runs remain separate evidence.
 
 ## Quick start
 
@@ -51,26 +58,29 @@ In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` autom
 
 ## Validate an installed CLI candidate
 
-The published CLI is available on NuGet.org. Install it and select
-the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.2.0` instead of the install command.
+Select an exact published release and compare its full version with the release metadata.
+The commands below select the release tested in the dated acceptance record. If the global tool
+is already installed, use `dotnet tool update` instead of `dotnet tool install`.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.2.0
+dotnet tool install --global vouchfx --version 1.2.1
 export VOUCHFX_SAMPLES_CLI='vouchfx'
-export VOUCHFX_SAMPLES_CLI_VERSION='1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
+export VOUCHFX_SAMPLES_CLI_VERSION='1.2.1+204267fdfef8eb139a4cd88e08ea917e97bf7668'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.2.0
+dotnet tool install --global vouchfx --version 1.2.1
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
-$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.2.1+204267fdfef8eb139a4cd88e08ea917e97bf7668'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
 .\scripts\run-sample.ps1 orders-dotnet-compose
 ```
+
+If NuGet has not indexed a newly published version, use its official GitHub Release package
+with an isolated local feed; the acceptance record documents that route and the package digest.
 
 Install the candidate using its release or candidate-artifact instructions. Select the executable and
 the exact version declared in its manifest or release metadata; include any `+build` suffix. Replace
@@ -122,6 +132,11 @@ healthcheck readiness. Set `VOUCHFX_COMPOSE_PASSWORD` to a disposable credential
 bootstrap the pinned source, then run `./scripts/run-sample.sh orders-dotnet-compose`
 or `./scripts/run-sample.ps1 orders-dotnet-compose`. Compose builds the shared app;
 the standard runner does not build a duplicated `app/` for this variant.
+
+Compose can build your own Dockerfile through native `build.context` and `build.dockerfile`.
+See the [sample's build example](../samples/orders-dotnet-compose/README.md#build-your-own-dockerfile).
+A bare Dockerfile is not an `environment.source`: select the Compose adapter and its binding
+configuration. Inline `environment.services` entries instead accept an image you have already built.
 
 For installed mode, select a Compose-capable candidate using the variables above.
 The pinned-source CI matrix covers six samples, including this variant; the installed

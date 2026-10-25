@@ -10,6 +10,30 @@ parameter cast and container-reachable callback placeholder used by the inline e
 The suite selects the adapter through `environment.source`; ordinary HTTP, PostgreSQL,
 Kafka and webhook providers perform the assertions. No custom provider is required.
 
+## Build your own Dockerfile
+
+The application is built by native Docker Compose from `../orders-dotnet/app`. To use a differently
+named Dockerfile, set `dockerfile` relative to that build context in `compose.yaml`:
+
+```yaml
+services:
+  orders-api:
+    build:
+      context: ../orders-dotnet/app
+      dockerfile: Dockerfile.tests
+```
+
+This snippet replaces only the existing `build` mapping; retain the service's ports, environment,
+dependencies and the targets in `environment.compose.yaml`. The checked-in sample uses the default
+`Dockerfile`; the alternative filename above is an authoring example. The suite selects Compose
+through `environment.source`, not the Dockerfile directly. Inline suites use a separately built
+image through `environment.services.<name>.image` instead. See the engine's
+[Compose guide](https://vouchfx.io/compose-environments/) for the adapter configuration and limits.
+
+The [2026-10-25 acceptance record](../../docs/validation/core-1.2.1-samples-acceptance-2026-10-25.md)
+records this sample passing all five assertions with both the pinned source and the official Core
+1.2.1 release package, with runner exit 0 in each case.
+
 ## Run with pinned source or an installed candidate
 
 Use Docker with Linux containers. The engine source in `ENGINE_PIN` supports TCP

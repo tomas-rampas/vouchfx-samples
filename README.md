@@ -28,12 +28,19 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 **Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
-See the [Core 1.2.0 source validation record](docs/validation/core-1.2.0-source-validation-2026-10-22.md)
-for the current source results and the [Core 1.2.0 installed acceptance record](docs/validation/core-1.2.0-installed-acceptance-2026-10-22.md)
-for the official CLI. The [Core 1.0.7](docs/validation/core-1.0.7-source-validation-2026-10-17.md) and
+The [2026-10-25 acceptance record](docs/validation/core-1.2.1-samples-acceptance-2026-10-25.md)
+records all six samples and three migrations passing against the pinned source, plus five stock-CLI
+samples passing against the official Core 1.2.1 release package. Source and installed results are
+recorded separately. Earlier [Core 1.2.0 source](docs/validation/core-1.2.0-source-validation-2026-10-22.md),
+[Core 1.2.0 installed](docs/validation/core-1.2.0-installed-acceptance-2026-10-22.md),
+[Core 1.0.7](docs/validation/core-1.0.7-source-validation-2026-10-17.md) and
 [Core 1.0.6](docs/validation/core-1.0.6-acceptance.md) records preserve historical source and
 official installed-package evidence. `ledger-jsonrpc`
 retains its custom source runner; source and installed-package runs are separate evidence.
+
+For your own Dockerfile, use Compose `build.context` and optional `build.dockerfile`, as in
+[Orders with Compose](samples/orders-dotnet-compose/README.md#build-your-own-dockerfile).
+For an inline `environment.services` entry, build the image first and reference its tag with `image:`.
 
 Two commands from the repository root:
 
