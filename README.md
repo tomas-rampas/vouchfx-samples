@@ -10,11 +10,13 @@ Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx
 
 Current .NET sample source builds with .NET 8, 9 and 10 SDKs and retains a `net8.0`
 binary baseline. Sample executables use major-version runtime roll-forward when
-.NET 8 is absent. The [compatibility matrix](.github/workflows/dotnet-compatibility.yml)
+.NET 8 is absent. The [compatibility matrix](https://github.com/tomas-rampas/vouchfx-samples/blob/main/.github/workflows/dotnet-compatibility.yml)
 builds the .NET samples and migration sources and launches the custom provider
-runner with each SDK/runtime installed in isolation. The pinned engine source and
-previously published CLI candidates retain their own SDK/runtime requirements;
-full Docker transactions remain covered by Samples CI.
+runner with each SDK/runtime installed in isolation. Bootstrap supplies major
+runtime roll-forward when building the immutable engine source pin. Samples CI
+also runs every source sample, installed sample and migration on each runtime,
+including matching .NET application container images. Previously published CLI
+candidates require the explicit install opt-in described in the running guide.
 
 ## The Sample Catalogue
 

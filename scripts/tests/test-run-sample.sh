@@ -47,6 +47,8 @@ new_case() {
   ROOT="${SCRATCH}/$1"
   mkdir -p "$ROOT/scripts"
   cp "$SOURCE" "$ROOT/scripts/run-sample.sh"
+  cp "$SCRIPT_DIR/../dotnet-images.properties" "$ROOT/scripts/dotnet-images.properties"
+  cp "$SCRIPT_DIR/../run-migrations.sh" "$ROOT/scripts/run-migrations.sh"
   export VOUCHFX_SAMPLES_TEST_LOG="$ROOT/calls.log"
   export VOUCHFX_SAMPLES_TEST_EXPECT_FIXTURE=''
   export VOUCHFX_SAMPLES_TEST_DOCKER_EXIT=0
@@ -55,6 +57,7 @@ new_case() {
   export VOUCHFX_SAMPLES_TEST_VERSION='1.0.0-sample-test+not-released'
   export VOUCHFX_SAMPLES_TEST_VERSION_EXIT=0
   unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
+  unset VOUCHFX_SAMPLE_DOTNET_VERSION VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
   cat > "$ROOT/scripts/bootstrap.sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' bootstrap >> "$VOUCHFX_SAMPLES_TEST_LOG"
@@ -208,4 +211,54 @@ line_is 2 'cli run *orders-dotnet-compose/tests*--fail-on-env-error*--fail-on-in
 [[ ! -d "$ROOT/.vouchfx-src" ]] || fail 'Compose candidate mode created a source checkout.'
 pass
 
-printf '%s/15 Bash sample-runner regressions passed.\n' "$PASSED"
+new_case 'default image pins unchanged'
+sample app app
+run_case 0 app; count_is 2
+line_is 1 'docker build -t *'
+pass
+
+for version in 9.0 10.0; do
+  new_case "selected dotnet $version"
+  sample app app
+  export VOUCHFX_SAMPLE_DOTNET_VERSION="$version"
+  run_case 0 app; count_is 2
+  line_is 1 "docker build --build-arg DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:$version@sha256:* --build-arg DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:$version@sha256:* -t *"
+  pass
+done
+
+new_case 'invalid dotnet version refused'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_VERSION=11.0
+run_case 1 app; count_is 0; pass
+
+new_case 'migration image runtime'
+export VOUCHFX_SAMPLE_DOTNET_VERSION=10.0
+mkdir -p "$ROOT/samples/orders-dotnet/app"
+for name in from-postman from-xunit from-specflow; do
+  mkdir -p "$ROOT/migrations/$name/ported"
+done
+rc=0
+bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "Migration runner returned $rc."
+count_is 4
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0@sha256:* --build-arg DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0@sha256:* -t *'
+line_is 2 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
+line_is 3 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
+line_is 4 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
+pass
+
+new_case 'bootstrap preserves pin and enables runtime roll forward'
+cp "$SCRIPT_DIR/../bootstrap.sh" "$ROOT/scripts/bootstrap.sh"
+git -C "$ROOT/.vouchfx-src" init -q
+git -C "$ROOT/.vouchfx-src" add .
+git -C "$ROOT/.vouchfx-src" -c user.name=fixture -c user.email=fixture@example.invalid commit -qm fixture
+git -C "$ROOT/.vouchfx-src" rev-parse HEAD > "$ROOT/ENGINE_PIN"
+rc=0
+bash "$ROOT/scripts/bootstrap.sh" > "$ROOT/console.log" 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "Bootstrap returned $rc."
+count_is 3
+line_is 3 'dotnet build *-c Release -p:RollForward=Major'
+[[ -z "$(git -C "$ROOT/.vouchfx-src" status --porcelain)" ]] || fail 'Bootstrap changed the pinned source.'
+pass
+
+printf '%s/21 Bash sample-runner regressions passed.\n' "$PASSED"

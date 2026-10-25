@@ -49,10 +49,28 @@ if ($env:VOUCHFX_SAMPLES_NO_BUILDKIT -eq '1') {
     $env:DOCKER_BUILDKIT = '0'
 }
 
+# Opt-in application runtime selection; Bash consumes this same pin data.
+if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION) {
+    if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION -notin @('8.0', '9.0', '10.0')) {
+        throw 'VOUCHFX_SAMPLE_DOTNET_VERSION must be 8.0, 9.0 or 10.0.'
+    }
+    $imagePins = ConvertFrom-StringData -StringData ([System.IO.File]::ReadAllText(
+        (Join-Path $PSScriptRoot 'dotnet-images.properties')))
+    $imageKey = $env:VOUCHFX_SAMPLE_DOTNET_VERSION.Replace('.', '_')
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = $imagePins["sdk_$imageKey"]
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = $imagePins["runtime_$imageKey"]
+}
+
 function Get-DockerBuildFlag {
     # Emits each extra `docker build` argument as its own array element, so a
     # value containing spaces is passed through as one argument.
     $flags = @()
+    if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION) {
+        $flags += '--build-arg'
+        $flags += "DOTNET_SDK_IMAGE=$env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE"
+        $flags += '--build-arg'
+        $flags += "DOTNET_RUNTIME_IMAGE=$env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE"
+    }
     if ($env:VOUCHFX_SAMPLES_BUILD_NETWORK) {
         $flags += '--network'
         $flags += $env:VOUCHFX_SAMPLES_BUILD_NETWORK
