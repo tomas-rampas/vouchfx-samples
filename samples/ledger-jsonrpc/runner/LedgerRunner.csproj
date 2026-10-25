@@ -16,6 +16,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <AssemblyName>LedgerRunner</AssemblyName>
     <RootNamespace>Ledger.Runner</RootNamespace>
     <Nullable>enable</Nullable>
