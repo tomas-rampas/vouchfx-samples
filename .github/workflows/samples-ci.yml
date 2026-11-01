@@ -60,6 +60,7 @@ env:
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  DOTNET_MULTILEVEL_LOOKUP: "0"
 
 jobs:
   bash-runner:
@@ -88,7 +89,7 @@ jobs:
         run: ./scripts/tests/test-run-sample.ps1
 
   sample:
-    name: ${{ matrix.sample }}
+    name: ${{ matrix.sample }}${{ matrix.dotnet != '8.0' && format(' .NET {0}', matrix.dotnet) || '' }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -107,6 +108,7 @@ jobs:
       # samples from colliding on shared Aspire/DCP resources).
       max-parallel: 6
       matrix:
+        dotnet: ['8.0', '9.0', '10.0']
         sample:
           - orders-dotnet
           - inventory-python
@@ -119,20 +121,72 @@ jobs:
       - name: Checkout vouchfx-samples
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up .NET SDK (reads global.json)
+      - name: Configure isolated SDK and apphost roots
+        run: |
+          printf 'DOTNET_INSTALL_DIR=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'DOTNET_ROOT_X64=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Set up selected .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: ${{ matrix.dotnet }}.x
+
+      - name: Test runtime-isolation guard safety
+        shell: pwsh
+        run: ./scripts/ci/test-select-dotnet-runtime.ps1
+      - name: Keep only the selected SDK and shared frameworks
+        env:
+          EXPECTED_DOTNET: '${{ matrix.dotnet }}'
+        shell: pwsh
+        run: ./scripts/ci/select-dotnet-runtime.ps1 -ExpectedDotnet $env:EXPECTED_DOTNET
+      - name: Require selected SDK, runtimes and Docker
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+        run: |
+          set -euo pipefail
+          [[ "$(dotnet --version)" == "$EXPECTED_DOTNET".* ]]
+          runtimes="$(dotnet --list-runtimes)"
+          printf '%s\n' "$runtimes"
+          [[ "$runtimes" == *Microsoft.NETCore.App* ]]
+          [[ "$runtimes" == *Microsoft.AspNetCore.App* ]]
+          while read -r _framework version _location; do
+            [[ "$version" == "$EXPECTED_DOTNET".* ]]
+          done <<< "$runtimes"
+          test "$(docker info --format '{{.OSType}}')" = linux
 
       - name: Bootstrap engine CLI (pinned commit)
         run: bash scripts/bootstrap.sh
 
       - name: Run sample suite (${{ matrix.sample }})
+        env:
+          VOUCHFX_SAMPLE_DOTNET_VERSION: ${{ matrix.dotnet }}
         run: |
           VOUCHFX_COMPOSE_PASSWORD="$(openssl rand -hex 24)"
           export VOUCHFX_COMPOSE_PASSWORD
           echo "::add-mask::$VOUCHFX_COMPOSE_PASSWORD"
           bash scripts/run-sample.sh ${{ matrix.sample }}
+
+      - name: Verify the .NET application image runtime
+        if: matrix.sample == 'orders-dotnet' || matrix.sample == 'orders-dotnet-compose'
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+          SAMPLE_NAME: ${{ matrix.sample }}
+        run: |
+          set -euo pipefail
+          if [[ "$SAMPLE_NAME" == orders-dotnet ]]; then
+            images=(vouchfx-samples-orders-dotnet:local)
+          else
+            mapfile -t images < <(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -E '[-_]orders-api:' || true)
+            test "${#images[@]}" -gt 0
+          fi
+          for image in "${images[@]}"; do
+            runtimes="$(docker run --rm --entrypoint dotnet "$image" --list-runtimes)"
+            printf '%s\n%s\n' "$image" "$runtimes"
+            [[ "$runtimes" == *Microsoft.NETCore.App* ]]
+            [[ "$runtimes" == *Microsoft.AspNetCore.App* ]]
+            while read -r _framework version _location; do
+              [[ "$version" == "$EXPECTED_DOTNET".* ]]
+            done <<< "$runtimes"
+          done
 
       # A suite that fails because a CONTAINER never became healthy leaves no
       # trace in this log: the engine reports "resource X failed to start" and
@@ -162,12 +216,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: reports-${{ matrix.sample }}
+          name: reports-${{ matrix.sample }}${{ matrix.dotnet != '8.0' && format('-net{0}', matrix.dotnet) || '' }}
           path: out/
           if-no-files-found: warn
 
   installed-sample:
-    name: installed-${{ matrix.sample }}
+    name: installed-${{ matrix.sample }}${{ matrix.dotnet != '8.0' && format(' .NET {0}', matrix.dotnet) || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -175,6 +229,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        dotnet: ['8.0', '9.0', '10.0']
         sample:
           - orders-dotnet
           - inventory-python
@@ -184,14 +239,53 @@ jobs:
     steps:
       - name: Checkout vouchfx-samples
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up .NET SDK (reads global.json)
+      - name: Configure isolated SDK and apphost roots
+        run: |
+          printf 'DOTNET_INSTALL_DIR=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'DOTNET_ROOT_X64=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Set up selected .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: ${{ matrix.dotnet }}.x
+
+      - name: Test runtime-isolation guard safety
+        shell: pwsh
+        run: ./scripts/ci/test-select-dotnet-runtime.ps1
+      - name: Keep only the selected SDK and shared frameworks
+        env:
+          EXPECTED_DOTNET: '${{ matrix.dotnet }}'
+        shell: pwsh
+        run: ./scripts/ci/select-dotnet-runtime.ps1 -ExpectedDotnet $env:EXPECTED_DOTNET
+      - name: Require selected SDK, runtimes and Docker
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+        run: |
+          set -euo pipefail
+          [[ "$(dotnet --version)" == "$EXPECTED_DOTNET".* ]]
+          runtimes="$(dotnet --list-runtimes)"
+          printf '%s\n' "$runtimes"
+          [[ "$runtimes" == *Microsoft.NETCore.App* ]]
+          [[ "$runtimes" == *Microsoft.AspNetCore.App* ]]
+          while read -r _framework version _location; do
+            [[ "$version" == "$EXPECTED_DOTNET".* ]]
+          done <<< "$runtimes"
+          test "$(docker info --format '{{.OSType}}')" = linux
       - name: Install official Core CLI
-        run: dotnet tool install vouchfx --version 1.2.0 --tool-path "$RUNNER_TEMP/official-cli" --add-source https://api.nuget.org/v3/index.json
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+        run: |
+          set -euo pipefail
+          # Explicitly opt the unchanged public package into newer runtimes;
+          # its original runtime policy is not rewritten.
+          roll_forward=()
+          if [[ "$EXPECTED_DOTNET" != 8.0 ]]; then
+            roll_forward=(--allow-roll-forward)
+          fi
+          dotnet tool install vouchfx --version 1.2.0 --tool-path "$RUNNER_TEMP/official-cli" \
+            --add-source https://api.nuget.org/v3/index.json "${roll_forward[@]}"
       - name: Run installed official sample
         env:
+          VOUCHFX_SAMPLE_DOTNET_VERSION: ${{ matrix.dotnet }}
           VOUCHFX_SAMPLES_CLI_VERSION: 1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8
         run: |
           export VOUCHFX_SAMPLES_CLI="$RUNNER_TEMP/official-cli/vouchfx"
@@ -199,16 +293,39 @@ jobs:
           export VOUCHFX_COMPOSE_PASSWORD
           echo "::add-mask::$VOUCHFX_COMPOSE_PASSWORD"
           bash scripts/run-sample.sh ${{ matrix.sample }}
+      - name: Verify the .NET application image runtime
+        if: matrix.sample == 'orders-dotnet' || matrix.sample == 'orders-dotnet-compose'
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+          SAMPLE_NAME: ${{ matrix.sample }}
+        run: |
+          set -euo pipefail
+          if [[ "$SAMPLE_NAME" == orders-dotnet ]]; then
+            images=(vouchfx-samples-orders-dotnet:local)
+          else
+            mapfile -t images < <(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -E '[-_]orders-api:' || true)
+            test "${#images[@]}" -gt 0
+          fi
+          for image in "${images[@]}"; do
+            runtimes="$(docker run --rm --entrypoint dotnet "$image" --list-runtimes)"
+            printf '%s\n%s\n' "$image" "$runtimes"
+            [[ "$runtimes" == *Microsoft.NETCore.App* ]]
+            [[ "$runtimes" == *Microsoft.AspNetCore.App* ]]
+            while read -r _framework version _location; do
+              [[ "$version" == "$EXPECTED_DOTNET".* ]]
+            done <<< "$runtimes"
+          done
+
       - name: Upload installed reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: reports-installed-${{ matrix.sample }}
+          name: reports-installed-${{ matrix.sample }}${{ matrix.dotnet != '8.0' && format('-net{0}', matrix.dotnet) || '' }}
           path: out/
           if-no-files-found: warn
 
   migrations:
-    name: migrations
+    name: migrations${{ matrix.dotnet != '8.0' && format(' .NET {0}', matrix.dotnet) || '' }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -220,15 +337,46 @@ jobs:
     # wall-clock is ~1.5 min for the suites alone; 30 minutes covers a cold CI runner
     # without masking a genuinely hung suite.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dotnet: ['8.0', '9.0', '10.0']
 
     steps:
       - name: Checkout vouchfx-samples
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up .NET SDK (reads global.json)
+      - name: Configure isolated SDK and apphost roots
+        run: |
+          printf 'DOTNET_INSTALL_DIR=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'DOTNET_ROOT_X64=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Set up selected .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: ${{ matrix.dotnet }}.x
+
+      - name: Test runtime-isolation guard safety
+        shell: pwsh
+        run: ./scripts/ci/test-select-dotnet-runtime.ps1
+      - name: Keep only the selected SDK and shared frameworks
+        env:
+          EXPECTED_DOTNET: '${{ matrix.dotnet }}'
+        shell: pwsh
+        run: ./scripts/ci/select-dotnet-runtime.ps1 -ExpectedDotnet $env:EXPECTED_DOTNET
+      - name: Require selected SDK, runtimes and Docker
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+        run: |
+          set -euo pipefail
+          [[ "$(dotnet --version)" == "$EXPECTED_DOTNET".* ]]
+          runtimes="$(dotnet --list-runtimes)"
+          printf '%s\n' "$runtimes"
+          [[ "$runtimes" == *Microsoft.NETCore.App* ]]
+          [[ "$runtimes" == *Microsoft.AspNetCore.App* ]]
+          while read -r _framework version _location; do
+            [[ "$version" == "$EXPECTED_DOTNET".* ]]
+          done <<< "$runtimes"
+          test "$(docker info --format '{{.OSType}}')" = linux
 
       - name: Bootstrap engine CLI (pinned commit)
         run: bash scripts/bootstrap.sh
@@ -244,12 +392,27 @@ jobs:
         run: dotnet build migrations/from-specflow/source/Orders.Specs -c Release
 
       - name: Run migration suites (migrations/*/ported)
+        env:
+          VOUCHFX_SAMPLE_DOTNET_VERSION: ${{ matrix.dotnet }}
         run: bash scripts/run-migrations.sh
+
+      - name: Verify the migration application's runtime image
+        env:
+          EXPECTED_DOTNET: ${{ matrix.dotnet }}
+        run: |
+          set -euo pipefail
+          runtimes="$(docker run --rm --entrypoint dotnet vouchfx-samples-orders-dotnet:local --list-runtimes)"
+          printf '%s\n' "$runtimes"
+          [[ "$runtimes" == *Microsoft.NETCore.App* ]]
+          [[ "$runtimes" == *Microsoft.AspNetCore.App* ]]
+          while read -r _framework version _location; do
+            [[ "$version" == "$EXPECTED_DOTNET".* ]]
+          done <<< "$runtimes"
 
       - name: Upload reports (migrations)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: reports-migrations
+          name: reports-migrations${{ matrix.dotnet != '8.0' && format('-net{0}', matrix.dotnet) || '' }}
           path: out/
           if-no-files-found: warn
