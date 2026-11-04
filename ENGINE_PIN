@@ -1,4 +1,4 @@
-0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8
+e3e7272635ac0fef6f69ff6a11d785fc3ab28aeb
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -87,6 +87,8 @@
 #
 # Pin history
 # ------------
+# 2026-11-04: advanced to e3e72726 — vouchfx main after #655 (MySqlConnector 2.6.1, GHSA-473q-m89c-ghf8 / NU1902 fix) and #652 (.NET 9/10 support); no release tag yet contains #655 (v1.2.1 predates it).
+# Prior pin: 0af21de5.
 # 2026-10-22: advanced to 0af21de5 — official Core 1.2.0 source adoption.
 # Prior pin: 576780f6.
 # 2026-10-21: advanced to 576780f6 — official Core 1.1.0 source adoption.
