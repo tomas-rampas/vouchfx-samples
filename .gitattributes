@@ -9,3 +9,5 @@
 *.py    text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf
+# Sourced verbatim by the Bash runners; a CRLF checkout would leave \r in image refs.
+scripts/dotnet-images.properties text eol=lf
