@@ -52,11 +52,30 @@ if [[ "${VOUCHFX_SAMPLES_NO_BUILDKIT:-0}" == "1" ]]; then
   export DOCKER_BUILDKIT=0
 fi
 
+# Opt-in application runtime selection; pin data is shared with PowerShell.
+# With no selection, Dockerfile defaults and ordinary build arguments stay unchanged.
+if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
+  case "$VOUCHFX_SAMPLE_DOTNET_VERSION" in
+    8.0|9.0|10.0) ;;
+    *) printf 'VOUCHFX_SAMPLE_DOTNET_VERSION must be 8.0, 9.0 or 10.0.\n' >&2; exit 1 ;;
+  esac
+  # shellcheck source=scripts/dotnet-images.properties
+  source "$REPO_ROOT/scripts/dotnet-images.properties"
+  image_key="sdk_${VOUCHFX_SAMPLE_DOTNET_VERSION//./_}"
+  export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE="${!image_key}"
+  image_key="runtime_${VOUCHFX_SAMPLE_DOTNET_VERSION//./_}"
+  export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE="${!image_key}"
+fi
+
 # docker_build_flags emits one extra `docker build` argument per line (nothing at
 # all when no accommodation is configured). Line-per-argument keeps values with
 # spaces intact when the caller reads them back into an array.
 docker_build_flags() {
   local var
+  if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
+    printf '%s\n' '--build-arg' "DOTNET_SDK_IMAGE=$VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE" \
+      '--build-arg' "DOTNET_RUNTIME_IMAGE=$VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE"
+  fi
   if [[ -n "${VOUCHFX_SAMPLES_BUILD_NETWORK:-}" ]]; then
     printf '%s\n' '--network' "${VOUCHFX_SAMPLES_BUILD_NETWORK}"
   fi

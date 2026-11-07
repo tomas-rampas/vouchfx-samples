@@ -6,6 +6,18 @@
 
 Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx) — the engine that compiles declarative `.e2e.yaml` integration tests into C#, orchestrates your full container topology with .NET Aspire, and proves a distributed system works end-to-end. Clone this repository, run one command, and watch vouchfx test a real polyglot system: REST API calls fanning out into database writes, broker events, cache entries, and outbound webhooks — all in one coherent business-transaction narrative, all proven end-to-end.
 
+## .NET compatibility
+
+Current .NET sample source builds with .NET 8, 9 and 10 SDKs and retains a `net8.0`
+binary baseline. Sample executables use major-version runtime roll-forward when
+.NET 8 is absent. The [compatibility matrix](https://github.com/tomas-rampas/vouchfx-samples/blob/main/.github/workflows/dotnet-compatibility.yml)
+builds the .NET samples and migration sources and launches the custom provider
+runner with each SDK/runtime installed in isolation. Bootstrap supplies major
+runtime roll-forward when building the immutable engine source pin. Samples CI
+also runs every source sample, installed sample and migration on each runtime,
+including matching .NET application container images. Previously published CLI
+candidates require the explicit install opt-in described in the running guide.
+
 ## The Sample Catalogue
 
 Application samples drive a business transaction through a real service and its database, broker or cache. Infrastructure-only samples exercise a dependency directly. Browse the providers and technology pairing for each:
@@ -25,7 +37,7 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 
 ## Quick Start
 
-**Prerequisites:** .NET 8 SDK (8.0.424+), Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
+**Prerequisites:** .NET 8 SDK (8.0.424+), .NET 9 SDK or .NET 10 SDK, Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
 See the [Core 1.2.0 source validation record](docs/validation/core-1.2.0-source-validation-2026-10-22.md)
