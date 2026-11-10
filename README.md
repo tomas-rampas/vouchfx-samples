@@ -178,7 +178,7 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 - **[`README.md`](README.md)** — overview, catalogue, quick start (you are here)
 - **[`docs/RUNNING.md`](docs/RUNNING.md)** — prerequisites, how to read results, CI notes
 - **[`docs/migrating.md`](docs/migrating.md)** — porting Postman / xUnit / SpecFlow assets onto vouchfx, with the three worked examples in [`migrations/`](migrations/)
-- **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — how to add a new sample, quality bar, DCO sign-off
+- **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — how to add a new sample, quality bar, contribution terms
 - **Per-sample READMEs:**
   - [`samples/orders-dotnet/README.md`](samples/orders-dotnet/README.md) — ASP.NET Core e2e flow, webhook listener design, database assertions
   - [`samples/inventory-python/README.md`](samples/inventory-python/README.md) — Python/FastAPI, MySQL + Redis + RabbitMQ integration, read-through cache proof

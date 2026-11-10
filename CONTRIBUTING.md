@@ -24,22 +24,9 @@ Before opening a PR, confirm:
 - **No secrets, credentials, or personal data.** Samples run in CI on every push to `main` and on every pull request.
 - **The README has at least: what it demonstrates, the technology pairing, how to run it, and what success looks like** (see `docs/RUNNING.md` for the verdict taxonomy to describe this accurately).
 
-## Developer Certificate of Origin (DCO)
+## Contribution terms
 
-All commits must carry a `Signed-off-by:` trailer, confirming you have the right to contribute the change under this repository's licence:
-
-```bash
-git commit -s -m "Add inventory-python restock sample"
-```
-
-Already committed without it? Add the trailer retroactively:
-
-```bash
-git commit --amend --signoff          # most recent commit
-git rebase --signoff HEAD~N           # last N commits
-```
-
-See [developercertificate.org](https://developercertificate.org/) for what you are attesting to.
+Contributions are accepted under Apache-2.0 (inbound = outbound). No Contributor Licence Agreement and no `Signed-off-by` trailer is required.
 
 ## Runner regression tests
 
