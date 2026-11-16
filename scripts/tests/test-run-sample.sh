@@ -232,6 +232,52 @@ run_case 0 app; count_is 2
 line_is 1 'docker build --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
 pass
 
+new_case 'sdk-only image override leaves the runtime default'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override'
+run_case 0 app; count_is 2
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override -t *'
+[[ "$(sed -n 1p "$VOUCHFX_SAMPLES_TEST_LOG")" != *DOTNET_RUNTIME_IMAGE=* ]] || fail 'An SDK-only override also set DOTNET_RUNTIME_IMAGE.'
+grep -qF 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is set: the application build uses registry.example.invalid/dotnet/sdk:override' "$ROOT/console.log" || fail 'The effective image override was not logged.'
+grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is not pinned by digest' "$ROOT/console.log" || fail 'A tag-only override did not warn.'
+pass
+
+new_case 'digest-pinned image override does not warn'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:10.0@sha256:0000000000000000000000000000000000000000000000000000000000000000'
+run_case 0 app; count_is 2
+if grep -q 'WARNING' "$ROOT/console.log"; then fail 'A digest-pinned override warned.'; fi
+pass
+
+new_case 'image override with a space is refused before docker'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override --output=/tmp/x'
+run_case 1 app; count_is 0
+grep -qF 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters' "$ROOT/console.log" || fail 'The refusal did not name the variable.'
+pass
+
+new_case 'image override with an embedded newline is refused before docker'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE=$'registry.example.invalid/dotnet/aspnet:override\n--output=/tmp/x'
+run_case 1 app; count_is 0
+grep -qF 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE must not contain whitespace or control characters' "$ROOT/console.log" || fail 'The refusal did not name the variable.'
+pass
+
+new_case 'migration image override with a space or newline is refused before docker'
+mkdir -p "$ROOT/samples/orders-dotnet/app"
+for name in from-postman from-xunit from-specflow; do
+  mkdir -p "$ROOT/migrations/$name/ported"
+done
+for bad in 'registry.example.invalid/dotnet/sdk:override --output=/tmp/x' $'registry.example.invalid/dotnet/sdk:override\n--output=/tmp/x'; do
+  export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE="$bad"
+  rc=0
+  bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 1 ]] || fail "Migration runner returned $rc for a refused override."
+  count_is 0
+  grep -qF 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters' "$ROOT/console.log" || fail 'The migration refusal did not name the variable.'
+done
+pass
+
 new_case 'dockerfile and compose defaults match the pinned .NET 10 images'
 # shellcheck source=scripts/dotnet-images.properties
 source "$SCRIPT_DIR/../dotnet-images.properties"
@@ -240,6 +286,8 @@ grep -qxF "ARG DOTNET_SDK_IMAGE=$sdk_10_0" "$sample_root/orders-dotnet/app/Docke
 grep -qxF "ARG DOTNET_RUNTIME_IMAGE=$runtime_10_0" "$sample_root/orders-dotnet/app/Dockerfile" || fail 'Dockerfile runtime default differs from the pinned .NET 10 image.'
 grep -qF "VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE:-$sdk_10_0}" "$sample_root/orders-dotnet-compose/compose.yaml" || fail 'Compose SDK default differs from the pinned .NET 10 image.'
 grep -qF "VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE:-$runtime_10_0}" "$sample_root/orders-dotnet-compose/compose.yaml" || fail 'Compose runtime default differs from the pinned .NET 10 image.'
+[[ "$sdk_10_0" =~ ^mcr\.microsoft\.com/dotnet/sdk:10\.0@sha256:[a-f0-9]{64}$ ]] || fail 'The pinned SDK image is not an immutable digest reference.'
+[[ "$runtime_10_0" =~ ^mcr\.microsoft\.com/dotnet/aspnet:10\.0@sha256:[a-f0-9]{64}$ ]] || fail 'The pinned runtime image is not an immutable digest reference.'
 [[ "$(grep -c '=' "$SCRIPT_DIR/../dotnet-images.properties")" -eq 2 ]] || fail 'The pin file must hold only the .NET 10 pair.'
 pass
 
@@ -274,4 +322,4 @@ line_is 3 'dotnet build *-c Release -p:RollForward=Major'
 [[ -z "$(git -C "$ROOT/.vouchfx-src" status --porcelain)" ]] || fail 'Bootstrap changed the pinned source.'
 pass
 
-printf '%s/21 Bash sample-runner regressions passed.\n' "$PASSED"
+printf '%s/26 Bash sample-runner regressions passed.\n' "$PASSED"

@@ -331,6 +331,45 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($result.Calls[0].Contains('DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override') -and -not $result.Calls[0].Contains('DOTNET_SDK_IMAGE=')) 'A single override must not add the other image argument.'
     $passed++
 
+    $root = New-Case 'sdk-only image override leaves the runtime default'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Calls[0].Contains('--build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override') -and -not $result.Calls[0].Contains('DOTNET_RUNTIME_IMAGE=')) 'An SDK-only override must not add the runtime image argument.'
+    Assert-True ($result.Output.Contains('VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is set: the application build uses registry.example.invalid/dotnet/sdk:override')) 'The effective image override must be logged.'
+    Assert-True ($result.Output.Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is not pinned by digest')) 'A tag-only override must warn.'
+    $passed++
+
+    $root = New-Case 'image override with a space is refused before docker'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override --output=/tmp/x'
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'A refused image override must not reach docker or the CLI.'
+    Assert-True ($result.Output.Contains('VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters')) 'The refusal must name the variable.'
+    $passed++
+
+    $root = New-Case 'image override with an embedded newline is refused before docker'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = "registry.example.invalid/dotnet/aspnet:override`n--output=/tmp/x"
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'A refused image override must not reach docker or the CLI.'
+    Assert-True ($result.Output.Contains('VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE must not contain whitespace or control characters')) 'The refusal must name the variable.'
+    $passed++
+
+    $root = New-Case 'migration image override with whitespace is refused before docker'
+    $null = New-Item -ItemType Directory -Force -Path (Join-Path $root 'samples/orders-dotnet/app')
+    foreach ($name in @('from-postman', 'from-xunit', 'from-specflow')) {
+        $null = New-Item -ItemType Directory -Force -Path (Join-Path $root "migrations/$name/ported")
+    }
+    foreach ($bad in @('registry.example.invalid/dotnet/sdk:override --output=/tmp/x', "registry.example.invalid/dotnet/sdk:override`n--output=/tmp/x")) {
+        $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = $bad
+        $console = @(& $shell -NoProfile -File (Join-Path $root 'scripts/run-migrations.ps1') 2>&1)
+        Assert-True ($LASTEXITCODE -eq 1) "The migration runner must refuse the override: $($console -join ' ')"
+        Assert-True (-not (Test-Path -LiteralPath $env:VOUCHFX_SAMPLES_TEST_LOG)) 'A refused migration override must not reach docker or the CLI.'
+        Assert-True (($console -join ' ').Contains('VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters')) 'The migration refusal must name the variable.'
+    }
+    $passed++
+
     $pins = ConvertFrom-StringData -StringData ([System.IO.File]::ReadAllText(
         (Join-Path (Split-Path -Parent $source) 'dotnet-images.properties')))
     Assert-True ($pins.Count -eq 2) 'Exactly one SDK/runtime image pair, for .NET 10, is required.'
@@ -374,7 +413,7 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($LASTEXITCODE -eq 0 -and $status.Count -eq 0) 'Bootstrap must not modify the selected source checkout.'
     $passed++
 
-    Write-Host "$passed/26 sample-runner regressions passed."
+    Write-Host "$passed/30 sample-runner regressions passed."
 }
 finally {
     foreach ($name in $environmentNames) {

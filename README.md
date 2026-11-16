@@ -19,6 +19,21 @@ source sample, installed sample and migration against .NET 10, including the .NE
 application container images. Previously published CLI candidates, which target an
 earlier runtime, require the explicit install opt-in described in the running guide.
 
+## The Sample Catalogue
+
+Application samples drive a business transaction through a real service and its database, broker or cache. Infrastructure-only samples exercise a dependency directly. Browse the providers and technology pairing for each:
+
+| Sample | Language / Stack | Transaction Under Test | vouchfx Providers Exercised |
+|--------|------------------|------------------------|-----------------------------|
+| **[orders-dotnet](samples/orders-dotnet/)** | ASP.NET Core 10 + C# | Customer places order → Postgres row → Kafka event → outbound webhook callback | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
+| **[orders-dotnet-compose](samples/orders-dotnet-compose/)** | Shared ASP.NET Core 10 app + user-supplied Compose | The same five assertions with Compose-owned PostgreSQL, Kafka and callback routing; supported by the pinned source engine | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
+| **[inventory-python](samples/inventory-python/)** | FastAPI + Python 3.12 | Create item → MySQL row + Redis cache entry → RabbitMQ event | `http.rest`, `db-assert.mysql`, `cache-assert.redis`, `mq-expect.rabbitmq` |
+| **[payments-java](samples/payments-java/)** | Spring Boot 3.3 + Java 17 | Authorise payment → SQL Server row → NATS JetStream event → SMTP receipt email | `http.rest`, `db-assert.sqlserver`, `mq-expect.nats`, `mail-expect.smtp` |
+| **[ledger-jsonrpc](samples/ledger-jsonrpc/)** | Node.js 22 + JSON-RPC 2.0 | Ledger transactions (REST) → Postgres row → Kafka event → independent worker role consuming an injected adjustment | `rpc.json-rpc` (Community), `db-assert.postgres`, `mq-publish.kafka`, `mq-expect.kafka`, `script.csharp` — **custom runner** |
+| **[kafka-mtls](samples/kafka-mtls/)** | Kafka + PEM certificates | Produce and consume over a mutually authenticated broker listener | `mq-publish.kafka`, `mq-expect.kafka` |
+
+Each sample's `README.md` walks through the transaction, the code, the suite design, and what success looks like.
+
 **Migrating from an existing test estate?** [`migrations/`](migrations/) holds three worked porting examples — a Postman collection, a hand-rolled xUnit integration test, and a SpecFlow feature — each pairing the genuine before-artefact with a runnable `.e2e.yaml` port and a field-by-field mapping table. The guide is published at [Migrating to vouchfx](https://samples.vouchfx.io/docs/migrating.html); run all three ported suites with `scripts/run-migrations.sh` (or `.ps1`).
 
 ## Quick Start

@@ -66,6 +66,28 @@ fail() {
   exit 1
 }
 
+# check_image_override <variable-name> refuses a .NET image override that holds
+# whitespace or control characters, before any docker call. docker_build_flags
+# passes one argument per line, so a newline inside a value would otherwise turn
+# the rest of it into extra `docker build` arguments (for example --output=...).
+# When an override is accepted it is logged, with a warning if it is not pinned
+# by digest (an unpinned tag can change between builds). Keep in step with
+# scripts/run-sample.sh.
+check_image_override() {
+  local var="$1" value="${!1:-}" bad_re='[[:space:][:cntrl:]]'
+  [[ -n "$value" ]] || return 0
+  if [[ "$value" =~ $bad_re ]]; then
+    fail "${var} must not contain whitespace or control characters; it is an image reference."
+  fi
+  log "${var} is set: the application build uses ${value}"
+  if [[ "$value" != *@sha256:* ]]; then
+    log "WARNING: ${var} is not pinned by digest (@sha256:...); an unpinned tag can change between builds."
+  fi
+}
+
+check_image_override VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE
+check_image_override VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
+
 # ── Ensure the engine CLI is bootstrapped ────────────────────────────────────
 if [[ ! -d "$VOUCHFX_SRC_DIR" ]]; then
   log ".vouchfx-src not found — running scripts/bootstrap.sh first."

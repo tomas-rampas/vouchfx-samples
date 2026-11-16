@@ -63,14 +63,14 @@ them to `docker build` as `DOTNET_SDK_IMAGE` and `DOTNET_RUNTIME_IMAGE`, and the
 file reads them directly:
 
 ```bash
-VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE=registry.example/dotnet/sdk:10.0 \
-VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE=registry.example/dotnet/aspnet:10.0 \
+VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE=registry.example/dotnet/sdk:10.0@sha256:<digest> \
+VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE=registry.example/dotnet/aspnet:10.0@sha256:<digest> \
   ./scripts/run-sample.sh orders-dotnet
 ```
 
 ```powershell
-$env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example/dotnet/sdk:10.0'
-$env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example/dotnet/aspnet:10.0'
+$env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example/dotnet/sdk:10.0@sha256:<digest>'
+$env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example/dotnet/aspnet:10.0@sha256:<digest>'
 try {
     ./scripts/run-sample.ps1 orders-dotnet
 }
@@ -79,6 +79,11 @@ finally {
         Env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE -ErrorAction SilentlyContinue
 }
 ```
+
+Prefer digest-pinned overrides (`@sha256:...`), as above: a tag can move between builds. The
+runners log each override they use and warn when it carries no digest. They refuse a value
+containing whitespace or control characters, because it is an image reference and nothing
+else, and they do so before any `docker` call.
 
 ## Validate an installed CLI candidate
 

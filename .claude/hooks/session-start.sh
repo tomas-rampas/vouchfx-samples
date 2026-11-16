@@ -15,15 +15,20 @@
 #      /usr/lib/dotnet.
 #      A container in which the .NET 8 version of this hook ran carries Microsoft-feed
 #      .NET packages (SDK, runtimes, dotnet-host, hostfxr, targeting packs), the
-#      microsoft-prod apt list and its keyring. Left in place they make a mixed-vendor
-#      install: Ubuntu's dotnet-host-10.0 conflicts with Microsoft's dotnet-host, so apt
-#      removes the muxer and cross-grades hostfxr, stranding the old SDK and runtimes
-#      in /usr/share/dotnet with no host. So, whenever it runs as root, the hook first
-#      deletes the Microsoft list, keyring and legacy apt preference if they exist. It
-#      then purges every installed dotnet*/aspnetcore*/netstandard* package whose
-#      version is not an Ubuntu build, but only when that earlier hook's footprint is
-#      present: one of those three files existed when this run started, or a non-Ubuntu
-#      dotnet-host (the package that conflicts) is installed. Otherwise non-Ubuntu .NET
+#      microsoft-prod apt list and its keyring, and the apt preference
+#      /etc/apt/preferences.d/dotnet-microsoft that pinned dotnet packages to that feed.
+#      Left in place they make a mixed-vendor install: Ubuntu's dotnet-host-10.0
+#      conflicts with Microsoft's dotnet-host, so apt removes the muxer and cross-grades
+#      hostfxr, stranding the old SDK and runtimes in /usr/share/dotnet with no host.
+#      The list and keyring paths are NOT proof of that hook: Microsoft's own package
+#      setup writes the same two files. Only the dotnet-microsoft preference is this hook
+#      family's footprint. So, whenever it runs as root and that preference exists, the
+#      hook deletes it together with the Microsoft list and keyring; without it, the
+#      list and keyring are left alone. It then purges every installed
+#      dotnet*/aspnetcore*/netstandard* package whose version is not an Ubuntu build, but
+#      only when that footprint is present: the dotnet-microsoft preference existed when
+#      this run started, or a non-Ubuntu dotnet-host (the package that conflicts) is
+#      installed. Otherwise non-Ubuntu .NET
 #      packages, which someone may have installed on purpose, are not purged (installing the
 #      SDK can still move any of its own dependencies to the Ubuntu build). The purge
 #      is simulated first: if the simulation fails, or prints any action other than a
@@ -49,7 +54,18 @@
 #      pin whether this hook ran first (vouchfx-mcp's then replaced what it installed)
 #      or second (it left vouchfx-mcp's install alone).
 #      It is installed with --allow-roll-forward: a published tool built for an earlier
-#      runtime must still start on a host that carries only .NET 10.
+#      runtime must still start on a host that carries only .NET 10. The version probe runs
+#      the tool as installed first; only if that fails does it retry with
+#      DOTNET_ROLL_FORWARD=Major for that one probe (never exported), and the summary then
+#      says the tool "runs only with DOTNET_ROLL_FORWARD=Major".
+#
+# global.json guard. The .NET 10 host honours "sdk.paths" in global.json, which names
+# directories the host loads an SDK (and its native host policy library) from. Running
+# `dotnet` inside the repository as root would then run whatever a branch put there. So
+# before any dotnet call the hook refuses, failing closed, a global.json whose "sdk"
+# object holds anything but "version", "rollForward" and "allowPrerelease", or that it
+# cannot classify. Every other dotnet call (tool list, tool install, the summary
+# version) runs from a scratch directory outside the repository.
 #
 # Synchronous by design: the session starts only once the SDK is present, so nothing
 # races a half-installed toolchain. On a container that already has the SDK (the web
@@ -63,8 +79,8 @@
 # .github/CODEOWNERS, and web sessions should be opened only on branches you trust.
 # The alternative is to move this bootstrap into the Claude Code environment's own
 # setup script, which no branch controls, and delete this file and its registration:
-# remove only the "hooks" block from .claude/settings.json, because that file also
-# carries the project permission rules, which are not part of this bootstrap.
+# remove the SessionStart registration from .claude/settings.json. That file holds only
+# the "hooks" block today, so check it still does before deleting the whole file.
 set -euo pipefail
 
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
@@ -73,8 +89,10 @@ fi
 
 DOTNET_DIR=/usr/lib/dotnet
 DOTNET_PREFS=/etc/apt/preferences.d/dotnet-ubuntu
-# Written by the .NET 8 version of this hook: Microsoft's jammy feed, its signing key, and
-# the preference that pinned dotnet packages to it.
+# Left by the .NET 8 version of this hook: Microsoft's jammy feed, its signing key, and
+# the preference that pinned dotnet packages to it. Microsoft's own setup also writes the
+# list and keyring paths, so only LEGACY_MS_PREFS (written by this hook family alone)
+# counts as evidence that this hook put the other two there.
 LEGACY_MS_LIST=/etc/apt/sources.list.d/microsoft-prod.list
 LEGACY_MS_KEYRING=/usr/share/keyrings/microsoft-prod.gpg
 LEGACY_MS_PREFS=/etc/apt/preferences.d/dotnet-microsoft
@@ -96,7 +114,9 @@ VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 # a package claims, so it cannot stand in for choosing the source.
 nuget_org_only_config() {
   local dir
-  dir="$(mktemp -d)"
+  # Callers use this inside `||` lists, where `set -e` is off, so a failed mktemp must
+  # return explicitly instead of writing into an empty path.
+  dir="$(mktemp -d)" || return 1
   printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' \
     '    <clear />' '    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />' \
     '  </packageSources>' '</configuration>' >"$dir/nuget.config"
@@ -112,30 +132,50 @@ nuget_org_only_config() {
 # dotnet is called by absolute path: a non-root run never links /usr/bin/dotnet, and
 # the PATH this hook writes only reaches later processes, not this one.
 install_cli() {
-  local want="$1" listing have
+  local want="$1" listing have cfg status=0
+  # Both dotnet calls below run from the scratch directory that holds the NuGet config,
+  # never from the repository: the host reads global.json from the working directory.
+  cfg="$(nuget_org_only_config)" || {
+    log "WARNING: could not create a scratch directory, so vouchfx ${want} was not installed."
+    return 0
+  }
   # A listing that fails says nothing about the slot, and it cannot be treated as empty:
   # `dotnet tool install` over a registered tool UPDATES it (measured on SDK 8.0.425,
   # 1.0.0-rc.4 to 1.0.0-rc.5, exit 0), so installing blind could replace the version
   # another repo installed. Decline instead, and say so.
-  if ! listing="$("$DOTNET_DIR/dotnet" tool list -g 2>/dev/null)"; then
+  if ! listing="$(cd "$cfg" && "$DOTNET_DIR/dotnet" tool list -g 2>/dev/null)"; then
+    rm -rf "$cfg"
     log "WARNING: could not list the global tools, so vouchfx ${want} was not installed (this hook never installs into a slot it cannot inspect)."
     return 0
   fi
   have="$(awk 'tolower($1)=="vouchfx" {print $2}' <<<"$listing")"
   if [ -n "$have" ]; then
+    rm -rf "$cfg"
     log "vouchfx ${have} is already registered; left as is (this hook never replaces it)."
     return 0
   fi
   log "Installing vouchfx ${want}."
-  local cfg status=0
-  cfg="$(nuget_org_only_config)"
-  "$DOTNET_DIR/dotnet" tool install -g vouchfx --version "$want" --configfile "$cfg/nuget.config" --allow-roll-forward >/dev/null || status=$?
+  (cd "$cfg" && "$DOTNET_DIR/dotnet" tool install -g vouchfx --version "$want" --configfile "$cfg/nuget.config" --allow-roll-forward >/dev/null) || status=$?
   rm -rf "$cfg"
   return "$status"
 }
 
-# The installed CLI's informational version ("<version>+<commit-sha>"), or empty.
-cli_version() { "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true; }
+# The installed CLI's informational version ("<version>+<commit-sha>"), or empty. Probed
+# exactly as installed first; a tool another hook installed without --allow-roll-forward
+# fails that on a host that only has .NET 10, so a failed probe is retried once with
+# DOTNET_ROLL_FORWARD=Major set for that single command (never exported). Use
+# cli_runs_plain to tell which of the two answered.
+cli_version() {
+  local out
+  out="$("$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  if [ -z "$out" ]; then
+    out="$(DOTNET_ROLL_FORWARD=Major "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  fi
+  printf '%s\n' "$out"
+}
+
+# True when the installed CLI starts without DOTNET_ROLL_FORWARD.
+cli_runs_plain() { [ -n "$("$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)" ]; }
 
 # The system-wide steps (apt, /usr/bin/dotnet, /etc/profile.d) run only as root, which
 # is what a Claude Code on the web container is. This hook NEVER escalates: there is no
@@ -149,6 +189,39 @@ is_root() { [ "$(id -u)" -eq 0 ]; }
 # (145) when no installed SDK satisfies them, so this check cannot drift from global.json
 # the way a hard-coded version band could.
 sdk_ok() { (cd "$REPO_DIR" && "$DOTNET_DIR/dotnet" --version) >/dev/null 2>&1; }
+
+# Succeeds only when $REPO_DIR/global.json is a file whose "sdk" object holds nothing but
+# "version", "rollForward" and "allowPrerelease" (the .NET 10 host also reads "paths" and
+# "errorMessage", and "paths" makes it load an SDK from a directory the branch controls).
+# Fails closed: a missing file, a second "sdk" string anywhere (any letter case, which
+# also catches one inside a comment), a backslash, or an "sdk" body that is not exactly
+# a comma-separated list of those three keys with string or boolean values is refused.
+# Needs no jq or python: control characters become spaces, then one anchored pattern is
+# matched. The cost is that a legitimate but unusual global.json is refused too.
+global_json_safe() {
+  local file="${1:-$REPO_DIR/global.json}" text body
+  local item='"(version|rollForward|allowPrerelease)" *: *("[^"\\]*"|true|false)'
+  local sdk_re='"sdk" *: *\{([^{}]*)\}'
+  local body_re="^ *(${item}( *, *${item})*)? *\$"
+  if [ ! -f "$file" ]; then
+    log "ERROR: ${file} is missing, so the SDK pin cannot be checked; refusing to run dotnet."
+    return 1
+  fi
+  text="$(LC_ALL=C tr '\000-\037' ' ' <"$file")" || return 1
+  if [ "$(grep -oi '"sdk"' <<<"$text" | wc -l)" -ne 1 ] || [[ "$text" == *\\* ]]; then
+    log "ERROR: ${file} must contain exactly one \"sdk\" entry and no backslashes; refusing to run dotnet."
+    return 1
+  fi
+  if ! [[ "$text" =~ $sdk_re ]]; then
+    log "ERROR: the \"sdk\" entry in ${file} is not a plain object; refusing to run dotnet."
+    return 1
+  fi
+  body="${BASH_REMATCH[1]}"
+  if ! [[ "$body" =~ $body_re ]]; then
+    log "ERROR: \"sdk\" in ${file} may hold only version, rollForward and allowPrerelease (not paths or errorMessage); refusing to run dotnet."
+    return 1
+  fi
+}
 
 # Installed .NET packages that are not Ubuntu archive builds, one name per line. Every
 # Ubuntu build of these source packages carries "ubuntu" in its version
@@ -172,27 +245,31 @@ in_package_set() {
 remove_microsoft_feed() {
   local -a foreign refused
   local file sim line verb name legacy_footprint=false
-  # The Microsoft list, keyring and preference go first, so no apt operation below can
-  # see the Microsoft feed or its priority-1001 pin. Whether any of them was present is
-  # recorded before it is deleted: it is the evidence that gates the purge below.
-  for file in "$LEGACY_MS_LIST" "$LEGACY_MS_KEYRING" "$LEGACY_MS_PREFS"; do
-    if [ -e "$file" ]; then
-      legacy_footprint=true
-      log "Removing ${file}."
-      rm -f "$file"
-    fi
-  done
+  # The dotnet-microsoft preference is the one file only this hook family writes, so its
+  # presence (recorded before it is deleted) is the evidence that gates both the removal
+  # of the Microsoft list and keyring (Microsoft's own setup writes those too) and the
+  # purge below. They go first, so no apt operation below can see the Microsoft feed or
+  # its priority-1001 pin.
+  if [ -e "$LEGACY_MS_PREFS" ]; then
+    legacy_footprint=true
+    for file in "$LEGACY_MS_LIST" "$LEGACY_MS_KEYRING" "$LEGACY_MS_PREFS"; do
+      if [ -e "$file" ]; then
+        log "Removing ${file}."
+        rm -f "$file"
+      fi
+    done
+  fi
 
   mapfile -t foreign < <(foreign_dotnet_packages)
   if [ "${#foreign[@]}" -eq 0 ]; then
     return 0
   fi
-  # Purge only when the earlier hook's footprint is here: its feed files were present
+  # Purge only when the earlier hook's footprint is here: its apt preference was present
   # at the start of this run, or a non-Ubuntu dotnet-host is installed (the package
   # that conflicts with Ubuntu's dotnet-host-10.0). Without either, these packages came
   # from somewhere this hook did not touch, and they are left in place.
   if [ "$legacy_footprint" != true ] && ! in_package_set dotnet-host "${foreign[@]}"; then
-    log "Leaving ${#foreign[@]} non-Ubuntu .NET package(s) in place: no Microsoft feed file was present and no non-Ubuntu dotnet-host is installed."
+    log "Leaving ${#foreign[@]} non-Ubuntu .NET package(s) in place: the dotnet-microsoft apt preference was not present and no non-Ubuntu dotnet-host is installed."
     return 0
   fi
   # Purge exactly these, and nothing else. The simulation runs first; if it fails the
@@ -269,8 +346,14 @@ install_sdk() {
 }
 
 write_profile() {
-  local profile=/etc/profile.d/dotnet.sh want
-  want='# Written by .claude/hooks/session-start.sh (Claude Code on the web).
+  local profile=/etc/profile.d/dotnet.sh want marker
+  # The first line is the CLAUDE_ENV_FILE marker. It names the SDK root, so a block an
+  # older version of this hook (or another fleet hook) wrote for a different root, such
+  # as /usr/share/dotnet, is not mistaken for this one and this block is still appended.
+  marker="# Written by .claude/hooks/session-start.sh (Claude Code on the web); DOTNET_ROOT=${DOTNET_DIR}"
+  # The block is written verbatim: $PATH and friends must expand when it is sourced, not now.
+  # shellcheck disable=SC2016
+  want="${marker}"'
 export DOTNET_ROOT=/usr/lib/dotnet
 case ":$PATH:" in *":/usr/lib/dotnet:"*) ;; *) PATH="/usr/lib/dotnet:$PATH" ;; esac
 case ":$PATH:" in *":${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools:"*) ;; *) PATH="$PATH:${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools" ;; esac
@@ -282,7 +365,7 @@ export DOTNET_NOLOGO=1'
   fi
   # Once per file: a session can fire SessionStart more than once (resume, clear, compact),
   # and the block's first line is the marker that says it is already there.
-  if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qxF "# Written by .claude/hooks/session-start.sh (Claude Code on the web)." "$CLAUDE_ENV_FILE" 2>/dev/null; then
+  if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -qxF "$marker" "$CLAUDE_ENV_FILE" 2>/dev/null; then
     printf '%s\n' "$want" >>"$CLAUDE_ENV_FILE"
   fi
 }
@@ -292,6 +375,13 @@ export DOTNET_NOLOGO=1'
 # packages and the wider pin. On a clean container the purge finds nothing and changes
 # nothing, and the pin is rewritten with the same content. install_sdk relies on the pin
 # written here.
+#
+# Before anything runs dotnet, and before the root-only block below touches the system,
+# refuse a global.json that could point the .NET 10 host at a branch-supplied SDK.
+global_json_safe || exit 1
+# A directory outside the repository for the dotnet calls that do not need global.json.
+SCRATCH_DIR="$(mktemp -d)" || { log "ERROR: could not create a scratch directory."; exit 1; }
+trap 'rm -rf "$SCRATCH_DIR"' EXIT
 if is_root; then
   export DEBIAN_FRONTEND=noninteractive
   remove_microsoft_feed
@@ -354,7 +444,10 @@ if [[ "$pin_sha" =~ ^[0-9a-f]{40}$ ]]; then
     "") ;;
     *) summary_cli="vouchfx ${actual} is installed; ENGINE_PIN is ${pin_sha:0:12} (left as is, see this hook's header)" ;;
   esac
+  if [ -n "$actual" ] && ! cli_runs_plain; then
+    summary_cli="${summary_cli}; the tool runs only with DOTNET_ROLL_FORWARD=Major"
+  fi
 else
   log "WARNING: ENGINE_PIN's first line is not a 40-character commit SHA; skipping the CLI install."
 fi
-echo "session-start: .NET SDK $("$DOTNET_DIR/dotnet" --version) ready (global.json floor 10.0.100)${purge_note}; ${summary_cli}."
+echo "session-start: .NET SDK $(cd "$SCRATCH_DIR" && "$DOTNET_DIR/dotnet" --version) ready (global.json floor 10.0.100)${purge_note}; ${summary_cli}."

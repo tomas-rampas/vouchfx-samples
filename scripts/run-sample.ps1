@@ -99,6 +99,28 @@ function Write-Fail {
     exit 1
 }
 
+# Test-ImageOverride refuses a .NET image override that holds whitespace or control
+# characters, before any docker call, to match scripts/run-sample.sh (where a newline
+# in a value would otherwise become extra `docker build` arguments). An accepted
+# override is logged, with a warning when it is not pinned by digest.
+function Test-ImageOverride {
+    param([string]$Name)
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if (-not $value) {
+        return
+    }
+    if ($value -match '[\s\x00-\x1F\x7F]') {
+        Write-Fail "$Name must not contain whitespace or control characters; it is an image reference."
+    }
+    Write-SampleLog "$Name is set: the application build uses $value"
+    if ($value -notlike '*@sha256:*') {
+        Write-SampleLog "WARNING: $Name is not pinned by digest (@sha256:...); an unpinned tag can change between builds."
+    }
+}
+
+Test-ImageOverride 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE'
+Test-ImageOverride 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE'
+
 function Get-AvailableSample {
     if (-not (Test-Path $SamplesDir)) {
         return @()
