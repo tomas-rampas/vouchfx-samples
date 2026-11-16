@@ -87,15 +87,17 @@ else, and they do so before any `docker` call.
 
 ## Validate an installed CLI candidate
 
-The published CLI is available on NuGet.org. Install it and select
-the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.2.0` instead of the install command.
-Because the host carries only the .NET 10 runtime, add `--allow-roll-forward` when installing or updating this older
-published tool. That SDK option enables the selected installation to run on the newer runtime;
-it does not rewrite the published package or alter `ENGINE_PIN`.
+The published CLI is available on NuGet.org. Install it and select the independently
+recorded release version below. The published 1.2.0 package targets .NET 8 and declares
+no roll-forward policy, so on a host that carries only the .NET 10 runtime it must be
+installed with `--allow-roll-forward`; that option lets the installed tool run on the
+newer runtime without rewriting the package or altering `ENGINE_PIN`. `dotnet tool update`
+does not accept the option, so if the global tool is already installed, run
+`dotnet tool uninstall --global vouchfx` first and then the install command below.
+Alternatively, set `DOTNET_ROLL_FORWARD=Major` for the run.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.2.0
+dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward
 export VOUCHFX_SAMPLES_CLI='vouchfx'
 export VOUCHFX_SAMPLES_CLI_VERSION='1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
@@ -104,7 +106,7 @@ export VOUCHFX_COMPOSE_PASSWORD
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.2.0
+dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
 $env:VOUCHFX_SAMPLES_CLI_VERSION = '1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'

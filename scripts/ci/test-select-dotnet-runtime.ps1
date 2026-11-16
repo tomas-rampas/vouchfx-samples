@@ -50,20 +50,19 @@ function Add-TestLink {
 }
 
 try {
-    foreach ($line in @('10.0')) {
-        $fixture = New-Fixture "valid-$line" $line
-        $removed = @()
-        foreach ($container in @('sdk', 'shared/Microsoft.NETCore.App', 'shared/Microsoft.AspNetCore.App')) {
-            foreach ($extra in @('8.0.426', '11.0.1')) {
-                $removed += Add-Version $fixture.Root $container $extra
-            }
+    $line = '10.0'
+    $fixture = New-Fixture "valid-$line" $line
+    $removed = @()
+    foreach ($container in @('sdk', 'shared/Microsoft.NETCore.App', 'shared/Microsoft.AspNetCore.App')) {
+        foreach ($extra in @('8.0.426', '11.0.1')) {
+            $removed += Add-Version $fixture.Root $container $extra
         }
-        Invoke-Selector $fixture
-        foreach ($path in $removed) { Assert-True (-not (Test-Path -LiteralPath $path)) 'Unselected SDK/runtime was retained.' }
-        Assert-True (([System.IO.File]::ReadAllText((Join-Path $fixture.Root "shared/Microsoft.NETCore.App/$line.32/sentinel.txt"))) -eq 'retain exact bytes') 'Selected runtime payload changed.'
-        Assert-True (Test-Path -LiteralPath (Join-Path $fixture.Root 'host/fxr/10.0.13/sentinel.txt')) 'Native host/fxr payload must remain untouched.'
-        $passed++
     }
+    Invoke-Selector $fixture
+    foreach ($path in $removed) { Assert-True (-not (Test-Path -LiteralPath $path)) 'Unselected SDK/runtime was retained.' }
+    Assert-True (([System.IO.File]::ReadAllText((Join-Path $fixture.Root "shared/Microsoft.NETCore.App/$line.32/sentinel.txt"))) -eq 'retain exact bytes') 'Selected runtime payload changed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $fixture.Root 'host/fxr/10.0.13/sentinel.txt')) 'Native host/fxr payload must remain untouched.'
+    $passed++
     $fixture = New-Fixture 'outside-root'
     $fixture.Temp = Join-Path $scratch 'different-runner-temp'
     $null = New-Item -ItemType Directory -Path $fixture.Temp

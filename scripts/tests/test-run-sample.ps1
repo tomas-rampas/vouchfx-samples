@@ -24,7 +24,8 @@ $environmentNames = @(
     'VOUCHFX_SAMPLES_TEST_DOCKER_EXIT', 'VOUCHFX_SAMPLES_TEST_RUNNER_BUILD_EXIT',
     'VOUCHFX_SAMPLES_TEST_CLI_EXIT', 'VOUCHFX_SAMPLES_TEST_VERSION',
     'VOUCHFX_SAMPLES_TEST_VERSION_EXIT', 'VOUCHFX_SAMPLES_CLI', 'VOUCHFX_SAMPLES_CLI_VERSION',
-    'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE', 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE'
+    'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE', 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE',
+    'VOUCHFX_SAMPLE_DOTNET_VERSION'
 )
 $originalEnvironment = @{}
 foreach ($name in $environmentNames) {
@@ -64,6 +65,7 @@ function New-Case {
     $env:VOUCHFX_SAMPLES_CLI_VERSION = ''
     $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = ''
     $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = ''
+    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = ''
     if ($Installed) {
         $env:VOUCHFX_SAMPLES_CLI = Join-Path $bin $(if ($IsWindows) { 'candidate cli.cmd' } else { 'candidate cli' })
         $env:VOUCHFX_SAMPLES_CLI_VERSION = $env:VOUCHFX_SAMPLES_TEST_VERSION
@@ -340,6 +342,21 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($result.Output.Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is not pinned by digest')) 'A tag-only override must warn.'
     $passed++
 
+    $root = New-Case 'digest-pinned image override does not warn'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example.invalid/dotnet/aspnet:10.0@sha256:0000000000000000000000000000000000000000000000000000000000000000'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True (-not $result.Output.Contains('WARNING')) 'A digest-pinned override must not warn.'
+    $passed++
+
+    $root = New-Case 'retired dotnet version variable warns and is otherwise ignored'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = 'retired-value'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Output.Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10')) 'The retired variable must warn.'
+    Assert-True (-not $result.Calls[0].Contains('retired-value')) 'The retired variable must not reach docker.'
+    $passed++
+
     $root = New-Case 'image override with a space is refused before docker'
     $null = New-Sample $root 'app' -App
     $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override --output=/tmp/x'
@@ -413,7 +430,7 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($LASTEXITCODE -eq 0 -and $status.Count -eq 0) 'Bootstrap must not modify the selected source checkout.'
     $passed++
 
-    Write-Host "$passed/30 sample-runner regressions passed."
+    Write-Host "$passed/32 sample-runner regressions passed."
 }
 finally {
     foreach ($name in $environmentNames) {

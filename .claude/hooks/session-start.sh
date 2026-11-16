@@ -6,7 +6,7 @@
 # installed and is never touched.
 #
 # What it guarantees, idempotently:
-#   1. A .NET 10 SDK that satisfies global.json (10.0.100, rollForward latestFeature).
+#   1. A .NET 10 SDK that satisfies this repository's global.json.
 #      The web sandbox's egress proxy blocks builds.dotnet.microsoft.com (where
 #      dotnet-install.sh downloads from), and Microsoft's Ubuntu 22.04 (jammy) apt feed,
 #      which this hook used for .NET 8, publishes no dotnet-sdk-10.0. Ubuntu 24.04's own
@@ -105,10 +105,10 @@ REPO_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && p
 VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 
 # A NuGet config that holds nuget.org and nothing else, for the one install below.
-# `dotnet tool install` has no --source on this SDK, and --add-source only ADDS nuget.org
-# beside every feed already configured (machine, user, and any nuget.config above the
-# working directory), any of which could serve a same-version `vouchfx`. Measured on SDK
-# 8.0.425: a fake 1.0.0-rc.5 packed into a folder feed that a local nuget.config named was
+# `dotnet tool install` is given --configfile with this <clear/> config, so nuget.org is
+# the only source. --add-source would only ADD nuget.org beside every feed already
+# configured (machine, user, and any nuget.config above the working directory), any of
+# which could serve a same-version `vouchfx`. Measured on SDK 8.0.425: a fake 1.0.0-rc.5 packed into a folder feed that a local nuget.config named was
 # installed instead of nuget.org's under --add-source, and nuget.org's was installed under
 # --configfile with this file. The version check after the install proves only the commit
 # a package claims, so it cannot stand in for choosing the source.
@@ -120,6 +120,8 @@ nuget_org_only_config() {
   printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' \
     '    <clear />' '    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />' \
     '  </packageSources>' '</configuration>' >"$dir/nuget.config"
+  # An empty global.json stops the host's walk up to /tmp/global.json or /global.json.
+  printf '{}\n' >"$dir/global.json"
   printf '%s' "$dir"
 }
 
@@ -140,9 +142,9 @@ install_cli() {
     return 0
   }
   # A listing that fails says nothing about the slot, and it cannot be treated as empty:
-  # `dotnet tool install` over a registered tool UPDATES it (measured on SDK 8.0.425,
-  # 1.0.0-rc.4 to 1.0.0-rc.5, exit 0), so installing blind could replace the version
-  # another repo installed. Decline instead, and say so.
+  # `dotnet tool install` over a registered tool UPDATES it (measured on SDK
+  # 8.0.425, 1.0.0-rc.4 to 1.0.0-rc.5, exit 0; not re-measured on SDK 10), so installing
+  # blind could replace the version another repo installed. Decline instead, and say so.
   if ! listing="$(cd "$cfg" && "$DOTNET_DIR/dotnet" tool list -g 2>/dev/null)"; then
     rm -rf "$cfg"
     log "WARNING: could not list the global tools, so vouchfx ${want} was not installed (this hook never installs into a slot it cannot inspect)."
@@ -167,15 +169,15 @@ install_cli() {
 # cli_runs_plain to tell which of the two answered.
 cli_version() {
   local out
-  out="$("$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
+  out="$(cd "$SCRATCH_DIR" && "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
   if [ -z "$out" ]; then
-    out="$(DOTNET_ROLL_FORWARD=Major "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
+    out="$(cd "$SCRATCH_DIR" && DOTNET_ROLL_FORWARD=Major "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
   fi
   printf '%s\n' "$out"
 }
 
 # True when the installed CLI starts without DOTNET_ROLL_FORWARD.
-cli_runs_plain() { [ -n "$("$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)" ]; }
+cli_runs_plain() { [ -n "$(cd "$SCRATCH_DIR" && "$VOUCHFX_TOOL" --version 2>/dev/null | head -n1 | tr -d '\r' || true)" ]; }
 
 # The system-wide steps (apt, /usr/bin/dotnet, /etc/profile.d) run only as root, which
 # is what a Claude Code on the web container is. This hook NEVER escalates: there is no
@@ -188,7 +190,9 @@ is_root() { [ "$(id -u)" -eq 0 ]; }
 # host applies the pinned version and its rollForward policy itself, and exits non-zero
 # (145) when no installed SDK satisfies them, so this check cannot drift from global.json
 # the way a hard-coded version band could.
-sdk_ok() { (cd "$REPO_DIR" && "$DOTNET_DIR/dotnet" --version) >/dev/null 2>&1; }
+# On success it also records the resolved version in SDK_VERSION for the summary line.
+SDK_VERSION=""
+sdk_ok() { SDK_VERSION="$(cd "$REPO_DIR" && "$DOTNET_DIR/dotnet" --version 2>/dev/null)" || { SDK_VERSION=""; return 1; }; }
 
 # Succeeds only when $REPO_DIR/global.json is a file whose "sdk" object holds nothing but
 # "version", "rollForward" and "allowPrerelease" (the .NET 10 host also reads "paths" and
@@ -198,27 +202,43 @@ sdk_ok() { (cd "$REPO_DIR" && "$DOTNET_DIR/dotnet" --version) >/dev/null 2>&1; }
 # a comma-separated list of those three keys with string or boolean values is refused.
 # Needs no jq or python: control characters become spaces, then one anchored pattern is
 # matched. The cost is that a legitimate but unusual global.json is refused too.
+# One plain line on stdout (the session sees it); no file content is echoed.
+refusal_notice() {
+  echo "global.json refused by the session hook: do not run dotnet in this checkout until it is reviewed"
+}
+
 global_json_safe() {
   local file="${1:-$REPO_DIR/global.json}" text body
+  local max_bytes=65536
   local item='"(version|rollForward|allowPrerelease)" *: *("[^"\\]*"|true|false)'
   local sdk_re='"sdk" *: *\{([^{}]*)\}'
   local body_re="^ *(${item}( *, *${item})*)? *\$"
-  if [ ! -f "$file" ]; then
-    log "ERROR: ${file} is missing, so the SDK pin cannot be checked; refusing to run dotnet."
+  if [ ! -f "$file" ] || [ -L "$file" ]; then
+    log "ERROR: ${file} is missing or is not a regular file (a symlink is refused), so the SDK pin cannot be checked; refusing to run dotnet."
+    refusal_notice
     return 1
   fi
-  text="$(LC_ALL=C tr '\000-\037' ' ' <"$file")" || return 1
+  # Read at most max_bytes + 1 bytes: a larger file is refused, never read to the end.
+  text="$(head -c $((max_bytes + 1)) "$file" | LC_ALL=C tr '\000-\037' ' ')" || return 1
+  if [ "${#text}" -gt "$max_bytes" ]; then
+    log "ERROR: ${file} is larger than ${max_bytes} bytes; refusing to run dotnet."
+    refusal_notice
+    return 1
+  fi
   if [ "$(grep -oi '"sdk"' <<<"$text" | wc -l)" -ne 1 ] || [[ "$text" == *\\* ]]; then
     log "ERROR: ${file} must contain exactly one \"sdk\" entry and no backslashes; refusing to run dotnet."
+    refusal_notice
     return 1
   fi
   if ! [[ "$text" =~ $sdk_re ]]; then
     log "ERROR: the \"sdk\" entry in ${file} is not a plain object; refusing to run dotnet."
+    refusal_notice
     return 1
   fi
   body="${BASH_REMATCH[1]}"
   if ! [[ "$body" =~ $body_re ]]; then
     log "ERROR: \"sdk\" in ${file} may hold only version, rollForward and allowPrerelease (not paths or errorMessage); refusing to run dotnet."
+    refusal_notice
     return 1
   fi
 }
@@ -382,6 +402,8 @@ global_json_safe || exit 1
 # A directory outside the repository for the dotnet calls that do not need global.json.
 SCRATCH_DIR="$(mktemp -d)" || { log "ERROR: could not create a scratch directory."; exit 1; }
 trap 'rm -rf "$SCRATCH_DIR"' EXIT
+# An empty global.json stops the host's walk up to /tmp/global.json or /global.json.
+printf '{}\n' >"$SCRATCH_DIR/global.json"
 if is_root; then
   export DEBIAN_FRONTEND=noninteractive
   remove_microsoft_feed
@@ -450,4 +472,4 @@ if [[ "$pin_sha" =~ ^[0-9a-f]{40}$ ]]; then
 else
   log "WARNING: ENGINE_PIN's first line is not a 40-character commit SHA; skipping the CLI install."
 fi
-echo "session-start: .NET SDK $(cd "$SCRATCH_DIR" && "$DOTNET_DIR/dotnet" --version) ready (global.json floor 10.0.100)${purge_note}; ${summary_cli}."
+echo "session-start: .NET SDK ${SDK_VERSION} (as resolved in the repository) ready${purge_note}; ${summary_cli}."

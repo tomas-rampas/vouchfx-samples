@@ -88,6 +88,10 @@ check_image_override() {
 check_image_override VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE
 check_image_override VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
 
+if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
+  log "WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10"
+fi
+
 # ── Ensure the engine CLI is bootstrapped ────────────────────────────────────
 if [[ ! -d "$VOUCHFX_SRC_DIR" ]]; then
   log ".vouchfx-src not found — running scripts/bootstrap.sh first."

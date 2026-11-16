@@ -57,7 +57,7 @@ new_case() {
   export VOUCHFX_SAMPLES_TEST_VERSION='1.0.0-sample-test+not-released'
   export VOUCHFX_SAMPLES_TEST_VERSION_EXIT=0
   unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
-  unset VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
+  unset VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE VOUCHFX_SAMPLE_DOTNET_VERSION
   cat > "$ROOT/scripts/bootstrap.sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' bootstrap >> "$VOUCHFX_SAMPLES_TEST_LOG"
@@ -249,6 +249,14 @@ run_case 0 app; count_is 2
 if grep -q 'WARNING' "$ROOT/console.log"; then fail 'A digest-pinned override warned.'; fi
 pass
 
+new_case 'retired dotnet version variable warns and is otherwise ignored'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_VERSION='retired-value'
+run_case 0 app; count_is 2
+grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10' "$ROOT/console.log" || fail 'The retired variable did not warn.'
+[[ "$(sed -n 1p "$VOUCHFX_SAMPLES_TEST_LOG")" != *retired-value* ]] || fail 'The retired variable reached docker.'
+pass
+
 new_case 'image override with a space is refused before docker'
 sample app app
 export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override --output=/tmp/x'
@@ -322,4 +330,4 @@ line_is 3 'dotnet build *-c Release -p:RollForward=Major'
 [[ -z "$(git -C "$ROOT/.vouchfx-src" status --porcelain)" ]] || fail 'Bootstrap changed the pinned source.'
 pass
 
-printf '%s/26 Bash sample-runner regressions passed.\n' "$PASSED"
+printf '%s/27 Bash sample-runner regressions passed.\n' "$PASSED"

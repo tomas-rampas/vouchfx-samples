@@ -109,6 +109,10 @@ check_image_override() {
 check_image_override VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE
 check_image_override VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
 
+if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
+  log "WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10"
+fi
+
 # list_samples prints the basename of every directory under samples/, sorted.
 # Implemented with a glob (not `find -printf`, which is a GNU-only extension)
 # so it works on both GNU/Linux and BSD-userland macOS.

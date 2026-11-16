@@ -105,6 +105,10 @@ function Test-ImageOverride {
 Test-ImageOverride 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE'
 Test-ImageOverride 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE'
 
+if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION) {
+    Write-MigrationLog 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10'
+}
+
 # -- Ensure the engine CLI is bootstrapped ------------------------------------
 if (-not (Test-Path $VouchfxSrcDir)) {
     Write-MigrationLog ".vouchfx-src not found -- running scripts/bootstrap.ps1 first."
