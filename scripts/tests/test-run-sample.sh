@@ -316,6 +316,19 @@ line_is 3 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
 line_is 4 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
 pass
 
+new_case 'migration runner warns about the retired dotnet version variable'
+export VOUCHFX_SAMPLE_DOTNET_VERSION='retired-value'
+mkdir -p "$ROOT/samples/orders-dotnet/app"
+for name in from-postman from-xunit from-specflow; do
+  mkdir -p "$ROOT/migrations/$name/ported"
+done
+rc=0
+bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "Migration runner returned $rc."
+grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10' "$ROOT/console.log" || fail 'The migration runner did not warn about the retired variable.'
+if grep -qF 'retired-value' "$VOUCHFX_SAMPLES_TEST_LOG"; then fail 'The retired variable reached a native call.'; fi
+pass
+
 new_case 'bootstrap preserves pin and enables runtime roll forward'
 cp "$SCRIPT_DIR/../bootstrap.sh" "$ROOT/scripts/bootstrap.sh"
 git -C "$ROOT/.vouchfx-src" init -q
@@ -330,4 +343,4 @@ line_is 3 'dotnet build *-c Release -p:RollForward=Major'
 [[ -z "$(git -C "$ROOT/.vouchfx-src" status --porcelain)" ]] || fail 'Bootstrap changed the pinned source.'
 pass
 
-printf '%s/27 Bash sample-runner regressions passed.\n' "$PASSED"
+printf '%s/28 Bash sample-runner regressions passed.\n' "$PASSED"

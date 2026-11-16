@@ -62,10 +62,15 @@
 # global.json guard. The .NET 10 host honours "sdk.paths" in global.json, which names
 # directories the host loads an SDK (and its native host policy library) from. Running
 # `dotnet` inside the repository as root would then run whatever a branch put there. So
-# before any dotnet call the hook refuses, failing closed, a global.json whose "sdk"
-# object holds anything but "version", "rollForward" and "allowPrerelease", or that it
-# cannot classify. Every other dotnet call (tool list, tool install, the summary
-# version) runs from a scratch directory outside the repository.
+# before any dotnet call the hook refuses, failing closed, a global.json that is missing,
+# is not a regular file, is larger than 64 KiB, holds any byte outside printable ASCII
+# (plus tab, CR and LF), or whose "sdk" object holds anything but "version",
+# "rollForward" and "allowPrerelease". A refusal makes the hook exit non-zero before it
+# has run any dotnet call and writes one ERROR line to stderr naming the reason (never the
+# file's content). The guard works on bytes, whatever the caller's locale. The tool list,
+# the tool install and the `vouchfx` probes run from scratch directories that hold a
+# `{}` global.json; only sdk_ok (and so the summary's SDK version) runs in the
+# repository, and only after the guard has accepted its global.json.
 #
 # Synchronous by design: the session starts only once the SDK is present, so nothing
 # races a half-installed toolchain. On a container that already has the SDK (the web
@@ -108,9 +113,10 @@ VOUCHFX_TOOL="${DOTNET_CLI_HOME:-$HOME}/.dotnet/tools/vouchfx"
 # `dotnet tool install` is given --configfile with this <clear/> config, so nuget.org is
 # the only source. --add-source would only ADD nuget.org beside every feed already
 # configured (machine, user, and any nuget.config above the working directory), any of
-# which could serve a same-version `vouchfx`. Measured on SDK 8.0.425: a fake 1.0.0-rc.5 packed into a folder feed that a local nuget.config named was
-# installed instead of nuget.org's under --add-source, and nuget.org's was installed under
-# --configfile with this file. The version check after the install proves only the commit
+# which could serve a same-version `vouchfx`. Measured on SDK 8.0.425: a fake 1.0.0-rc.5
+# packed into a folder feed that a local nuget.config named was installed instead of
+# nuget.org's under --add-source, and nuget.org's was installed under --configfile with
+# this file. The version check after the install proves only the commit
 # a package claims, so it cannot stand in for choosing the source.
 nuget_org_only_config() {
   local dir
@@ -194,51 +200,75 @@ is_root() { [ "$(id -u)" -eq 0 ]; }
 SDK_VERSION=""
 sdk_ok() { SDK_VERSION="$(cd "$REPO_DIR" && "$DOTNET_DIR/dotnet" --version 2>/dev/null)" || { SDK_VERSION=""; return 1; }; }
 
-# Succeeds only when $REPO_DIR/global.json is a file whose "sdk" object holds nothing but
-# "version", "rollForward" and "allowPrerelease" (the .NET 10 host also reads "paths" and
-# "errorMessage", and "paths" makes it load an SDK from a directory the branch controls).
+# Succeeds only when $REPO_DIR/global.json is a regular file (not a symlink) of at most
+# 64 KiB, made only of printable ASCII plus tab, CR and LF, whose "sdk" object holds
+# nothing but "version", "rollForward" and "allowPrerelease" (the .NET 10 host also reads
+# "paths" and "errorMessage", and "paths" makes it load an SDK from a directory the branch
+# controls). A legitimate global.json never holds any other byte.
 # Fails closed: a missing file, a second "sdk" string anywhere (any letter case, which
 # also catches one inside a comment), a backslash, or an "sdk" body that is not exactly
 # a comma-separated list of those three keys with string or boolean values is refused.
-# Needs no jq or python: control characters become spaces, then one anchored pattern is
-# matched. The cost is that a legitimate but unusual global.json is refused too.
-# One plain line on stdout (the session sees it); no file content is echoed.
-refusal_notice() {
-  echo "global.json refused by the session hook: do not run dotnet in this checkout until it is reviewed"
-}
-
+# Every refusal returns 1 after writing exactly one "ERROR" line to stderr that names the
+# reason and never echoes the file's content; the caller then stops the hook before any
+# dotnet call.
+# It works on BYTES, not characters: LC_ALL=C is set (and exported, so the child grep, tr
+# and head see it too) for the duration of the call only, and bash restores the caller's
+# value on return. Under a UTF-8 locale ${#text} counts characters, so a file of more than
+# 64 KiB of multi-byte text would otherwise pass the size check, be cut off by head, and
+# have its real "sdk" entry go unread while the dotnet host reads the whole file.
+# Needs no jq or python: the size is taken from wc -c before the file is read, then one
+# read maps every byte outside printable ASCII, tab, CR and LF to DEL (0x7F, which is not
+# itself allowed, so its presence means a refused byte), and tab/CR/LF become spaces
+# before one anchored pattern is matched. The cost is that a legitimate but unusual
+# global.json is refused too.
 global_json_safe() {
-  local file="${1:-$REPO_DIR/global.json}" text body
+  local -x LC_ALL=C
+  local file="${1:-$REPO_DIR/global.json}" text body size
   local max_bytes=65536
+  local del=$'\177'
   local item='"(version|rollForward|allowPrerelease)" *: *("[^"\\]*"|true|false)'
   local sdk_re='"sdk" *: *\{([^{}]*)\}'
   local body_re="^ *(${item}( *, *${item})*)? *\$"
-  if [ ! -f "$file" ] || [ -L "$file" ]; then
-    log "ERROR: ${file} is missing or is not a regular file (a symlink is refused), so the SDK pin cannot be checked; refusing to run dotnet."
-    refusal_notice
+  if [ -L "$file" ]; then
+    log "ERROR: ${file} is a symlink, which is refused, so the SDK pin cannot be checked; stopping before any dotnet call."
     return 1
   fi
-  # Read at most max_bytes + 1 bytes: a larger file is refused, never read to the end.
-  text="$(head -c $((max_bytes + 1)) "$file" | LC_ALL=C tr '\000-\037' ' ')" || return 1
+  if [ ! -e "$file" ]; then
+    log "ERROR: ${file} does not exist, so the SDK pin cannot be checked; stopping before any dotnet call."
+    return 1
+  fi
+  if [ ! -f "$file" ]; then
+    log "ERROR: ${file} is not a regular file, so the SDK pin cannot be checked; stopping before any dotnet call."
+    return 1
+  fi
+  size="$(wc -c <"$file")" || { log "ERROR: could not read ${file}; stopping before any dotnet call."; return 1; }
+  size="${size//[[:space:]]/}"
+  if [ "$size" -gt "$max_bytes" ]; then
+    log "ERROR: ${file} is larger than ${max_bytes} bytes; stopping before any dotnet call."
+    return 1
+  fi
+  # Read at most max_bytes + 1 bytes even so: the file could change after the size check.
+  text="$(head -c $((max_bytes + 1)) "$file" | tr -c '\11\12\15\40-\176' '\177' | tr '\11\12\15' '   ')" \
+    || { log "ERROR: could not read ${file}; stopping before any dotnet call."; return 1; }
   if [ "${#text}" -gt "$max_bytes" ]; then
-    log "ERROR: ${file} is larger than ${max_bytes} bytes; refusing to run dotnet."
-    refusal_notice
+    log "ERROR: ${file} is larger than ${max_bytes} bytes; stopping before any dotnet call."
+    return 1
+  fi
+  if [[ "$text" == *"$del"* ]]; then
+    log "ERROR: ${file} holds a byte outside printable ASCII, tab, CR and LF; stopping before any dotnet call."
     return 1
   fi
   if [ "$(grep -oi '"sdk"' <<<"$text" | wc -l)" -ne 1 ] || [[ "$text" == *\\* ]]; then
-    log "ERROR: ${file} must contain exactly one \"sdk\" entry and no backslashes; refusing to run dotnet."
-    refusal_notice
+    log "ERROR: ${file} must contain exactly one \"sdk\" entry and no backslashes; stopping before any dotnet call."
     return 1
   fi
   if ! [[ "$text" =~ $sdk_re ]]; then
-    log "ERROR: the \"sdk\" entry in ${file} is not a plain object; refusing to run dotnet."
-    refusal_notice
+    log "ERROR: the \"sdk\" entry in ${file} is not a plain object; stopping before any dotnet call."
     return 1
   fi
   body="${BASH_REMATCH[1]}"
   if ! [[ "$body" =~ $body_re ]]; then
-    log "ERROR: \"sdk\" in ${file} may hold only version, rollForward and allowPrerelease (not paths or errorMessage); refusing to run dotnet."
-    refusal_notice
+    log "ERROR: \"sdk\" in ${file} may hold only version, rollForward and allowPrerelease (not paths or errorMessage); stopping before any dotnet call."
     return 1
   fi
 }
@@ -397,9 +427,11 @@ export DOTNET_NOLOGO=1'
 # written here.
 #
 # Before anything runs dotnet, and before the root-only block below touches the system,
-# refuse a global.json that could point the .NET 10 host at a branch-supplied SDK.
+# refuse a global.json that could point the .NET 10 host at a branch-supplied SDK. A
+# refusal has already logged its reason on stderr; this exit is the fail-closed signal.
 global_json_safe || exit 1
-# A directory outside the repository for the dotnet calls that do not need global.json.
+# A directory outside the repository for the `vouchfx` probes, which need no repository
+# global.json.
 SCRATCH_DIR="$(mktemp -d)" || { log "ERROR: could not create a scratch directory."; exit 1; }
 trap 'rm -rf "$SCRATCH_DIR"' EXIT
 # An empty global.json stops the host's walk up to /tmp/global.json or /global.json.

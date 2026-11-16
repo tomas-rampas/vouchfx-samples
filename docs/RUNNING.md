@@ -94,7 +94,8 @@ installed with `--allow-roll-forward`; that option lets the installed tool run o
 newer runtime without rewriting the package or altering `ENGINE_PIN`. `dotnet tool update`
 does not accept the option, so if the global tool is already installed, run
 `dotnet tool uninstall --global vouchfx` first and then the install command below.
-Alternatively, set `DOTNET_ROLL_FORWARD=Major` for the run.
+Alternatively, keep the existing installation and export `DOTNET_ROLL_FORWARD=Major` before
+running the runner (it applies to every .NET app started from that shell).
 
 ```bash
 dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward

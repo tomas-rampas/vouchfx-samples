@@ -412,6 +412,19 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($calls.Count -eq 4 -and $calls[0].Contains('DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override') -and $calls[0].Contains('DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override')) 'Migrations must forward the same image overrides as normal samples.'
     $passed++
 
+    $root = New-Case 'migration runner warns about the retired dotnet version variable'
+    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = 'retired-value'
+    $null = New-Item -ItemType Directory -Force -Path (Join-Path $root 'samples/orders-dotnet/app')
+    foreach ($name in @('from-postman', 'from-xunit', 'from-specflow')) {
+        $null = New-Item -ItemType Directory -Force -Path (Join-Path $root "migrations/$name/ported")
+    }
+    $console = @(& $shell -NoProfile -File (Join-Path $root 'scripts/run-migrations.ps1') 2>&1)
+    Assert-True ($LASTEXITCODE -eq 0) "The migration runner failed: $($console -join ' ')"
+    Assert-True (($console -join ' ').Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10')) 'The migration runner must warn about the retired variable.'
+    $calls = [System.IO.File]::ReadAllLines($env:VOUCHFX_SAMPLES_TEST_LOG)
+    Assert-True (-not (($calls -join ' ').Contains('retired-value'))) 'The retired variable must not reach a native call.'
+    $passed++
+
     $root = New-Case 'bootstrap preserves pin and enables runtime roll forward'
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $source) 'bootstrap.ps1') -Destination (Join-Path $root 'scripts/bootstrap.ps1') -Force
     $sourceRoot = Join-Path $root '.vouchfx-src'
@@ -430,7 +443,7 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($LASTEXITCODE -eq 0 -and $status.Count -eq 0) 'Bootstrap must not modify the selected source checkout.'
     $passed++
 
-    Write-Host "$passed/32 sample-runner regressions passed."
+    Write-Host "$passed/33 sample-runner regressions passed."
 }
 finally {
     foreach ($name in $environmentNames) {

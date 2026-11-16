@@ -76,6 +76,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Test sample dispatch without Docker
         run: bash scripts/tests/test-run-sample.sh
+      - name: Test the session hook's global.json guard
+        run: bash scripts/tests/test-session-start-global-json.sh
 
   powershell-runner:
     name: PowerShell sample runner regressions
