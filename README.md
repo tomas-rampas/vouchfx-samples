@@ -8,36 +8,22 @@ Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx
 
 ## .NET compatibility
 
-Current .NET sample source builds with .NET 8, 9 and 10 SDKs and retains a `net8.0`
-binary baseline. Sample executables use major-version runtime roll-forward when
-.NET 8 is absent. The [compatibility matrix](https://github.com/tomas-rampas/vouchfx-samples/blob/main/.github/workflows/dotnet-compatibility.yml)
+The .NET samples, runners and migration sources target `net10.0`, and .NET 10 is the
+only supported SDK and runtime; `global.json` pins it. The engine source at
+[`ENGINE_PIN`](ENGINE_PIN) still targets `net8.0`, so bootstrap builds it with major
+runtime roll-forward and it runs on the .NET 10 runtime. The
+[compatibility workflow](https://github.com/tomas-rampas/vouchfx-samples/blob/main/.github/workflows/dotnet-compatibility.yml)
 builds the .NET samples and migration sources and launches the custom provider
-runner with each SDK/runtime installed in isolation. Bootstrap supplies major
-runtime roll-forward when building the immutable engine source pin. Samples CI
-also runs every source sample, installed sample and migration on each runtime,
-including matching .NET application container images. Previously published CLI
-candidates require the explicit install opt-in described in the running guide.
-
-## The Sample Catalogue
-
-Application samples drive a business transaction through a real service and its database, broker or cache. Infrastructure-only samples exercise a dependency directly. Browse the providers and technology pairing for each:
-
-| Sample | Language / Stack | Transaction Under Test | vouchfx Providers Exercised |
-|--------|------------------|------------------------|-----------------------------|
-| **[orders-dotnet](samples/orders-dotnet/)** | ASP.NET Core 8 + C# | Customer places order → Postgres row → Kafka event → outbound webhook callback | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
-| **[orders-dotnet-compose](samples/orders-dotnet-compose/)** | Shared ASP.NET Core 8 app + user-supplied Compose | The same five assertions with Compose-owned PostgreSQL, Kafka and callback routing; supported by the pinned source engine | `http.rest`, `db-assert.postgres`, `mq-expect.kafka`, `webhook-listen.http` |
-| **[inventory-python](samples/inventory-python/)** | FastAPI + Python 3.12 | Create item → MySQL row + Redis cache entry → RabbitMQ event | `http.rest`, `db-assert.mysql`, `cache-assert.redis`, `mq-expect.rabbitmq` |
-| **[payments-java](samples/payments-java/)** | Spring Boot 3.3 + Java 17 | Authorise payment → SQL Server row → NATS JetStream event → SMTP receipt email | `http.rest`, `db-assert.sqlserver`, `mq-expect.nats`, `mail-expect.smtp` |
-| **[ledger-jsonrpc](samples/ledger-jsonrpc/)** | Node.js 22 + JSON-RPC 2.0 | Ledger transactions (REST) → Postgres row → Kafka event → independent worker role consuming an injected adjustment | `rpc.json-rpc` (Community), `db-assert.postgres`, `mq-publish.kafka`, `mq-expect.kafka`, `script.csharp` — **custom runner** |
-| **[kafka-mtls](samples/kafka-mtls/)** | Kafka + PEM certificates | Produce and consume over a mutually authenticated broker listener | `mq-publish.kafka`, `mq-expect.kafka` |
-
-Each sample's `README.md` walks through the transaction, the code, the suite design, and what success looks like.
+runner on an isolated installation that holds only .NET 10. Samples CI also runs every
+source sample, installed sample and migration against .NET 10, including the .NET 10
+application container images. Previously published CLI candidates, which target an
+earlier runtime, require the explicit install opt-in described in the running guide.
 
 **Migrating from an existing test estate?** [`migrations/`](migrations/) holds three worked porting examples — a Postman collection, a hand-rolled xUnit integration test, and a SpecFlow feature — each pairing the genuine before-artefact with a runnable `.e2e.yaml` port and a field-by-field mapping table. The guide is published at [Migrating to vouchfx](https://samples.vouchfx.io/docs/migrating.html); run all three ported suites with `scripts/run-migrations.sh` (or `.ps1`).
 
 ## Quick Start
 
-**Prerequisites:** .NET 8 SDK (8.0.424+), .NET 9 SDK or .NET 10 SDK, Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
+**Prerequisites:** .NET 10 SDK, Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
 This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
 See the [Core 1.2.0 source validation record](docs/validation/core-1.2.0-source-validation-2026-10-22.md)

@@ -5,7 +5,7 @@ This page covers what you need installed, the two-command quick start, how to re
 ## Prerequisites
 
 - **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
-- **.NET 8, 9 or 10 SDK**, with 8.0.424 as the minimum. Current sample source keeps `net8.0` assets and enables major runtime roll-forward; `global.json` prefers .NET 8 and permits a higher SDK major when it is absent. Bootstrap also supplies this runtime policy when building the immutable engine source pin. Older installed CLI candidates need the explicit installation opt-in below on .NET 9/10-only hosts. Get .NET from <https://dotnet.microsoft.com/download/dotnet>.
+- **.NET 10 SDK.** `global.json` pins 10.0.100 and allows later 10.0 feature bands. The samples, runners and migration sources target `net10.0`. The engine source at `ENGINE_PIN` targets `net8.0`, so bootstrap builds it with major runtime roll-forward and it runs on the .NET 10 runtime. A previously published CLI candidate needs the explicit installation opt-in below. Get .NET from <https://dotnet.microsoft.com/download/dotnet>.
 - **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). Inline suites use .NET Aspire + Testcontainers; the Compose variant uses its selected native adapter to own the application and dependencies; nothing here runs against infrastructure you install by hand.
 - **Git**, reachable on `PATH`, for source mode (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
@@ -49,38 +49,43 @@ export VOUCHFX_COMPOSE_PASSWORD
 
 In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2. After advancing `ENGINE_PIN`, run bootstrap explicitly to replace an existing source checkout with the new pin.
 
-## Select a .NET application container runtime
+## .NET application container images
 
-Application images default to their existing .NET 8 bases. To exercise .NET 9 or 10 inside
-the Orders application container as well as in the runner, select a version explicitly:
+The Orders application images build on the digest-pinned .NET 10 SDK and ASP.NET runtime
+images recorded in [`scripts/dotnet-images.properties`](../scripts/dotnet-images.properties).
+Those digests are the defaults in the Orders `Dockerfile` and in the
+`orders-dotnet-compose` Compose file, and the runner regression tests fail if they drift
+apart. Python, Java and Node.js application runtimes are unaffected.
+
+To build the application against a different SDK or runtime image, set one or both of
+these variables. The Bash and PowerShell runners (including the migration runners) pass
+them to `docker build` as `DOTNET_SDK_IMAGE` and `DOTNET_RUNTIME_IMAGE`, and the Compose
+file reads them directly:
 
 ```bash
-VOUCHFX_SAMPLE_DOTNET_VERSION=10.0 ./scripts/run-sample.sh orders-dotnet
+VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE=registry.example/dotnet/sdk:10.0 \
+VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE=registry.example/dotnet/aspnet:10.0 \
+  ./scripts/run-sample.sh orders-dotnet
 ```
 
 ```powershell
-$env:VOUCHFX_SAMPLE_DOTNET_VERSION = '10.0'
+$env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example/dotnet/sdk:10.0'
+$env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example/dotnet/aspnet:10.0'
 try {
     ./scripts/run-sample.ps1 orders-dotnet
 }
 finally {
-    Remove-Item Env:VOUCHFX_SAMPLE_DOTNET_VERSION, Env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE,
+    Remove-Item Env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE,
         Env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE -ErrorAction SilentlyContinue
 }
 ```
-
-The supported selections are `8.0`, `9.0` and `10.0`. Bash and PowerShell use the same
-[pinned SDK/runtime image pairs](../scripts/dotnet-images.properties); the default .NET 8
-digests are unchanged. The selection also applies to `orders-dotnet-compose` and both
-migration runners. Python, Java and Node.js application runtimes are unaffected.
-Samples CI selects a matching application runtime in each SDK/runtime lane.
 
 ## Validate an installed CLI candidate
 
 The published CLI is available on NuGet.org. Install it and select
 the independently recorded release version below. If the global tool is already installed,
 use `dotnet tool update --global vouchfx --version 1.2.0` instead of the install command.
-On a .NET 9/10-only host, add `--allow-roll-forward` when installing or updating this older
+Because the host carries only the .NET 10 runtime, add `--allow-roll-forward` when installing or updating this older
 published tool. That SDK option enables the selected installation to run on the newer runtime;
 it does not rewrite the published package or alter `ENGINE_PIN`.
 

@@ -15,7 +15,7 @@ migrations/<name>/
 | [`from-xunit/`](from-xunit/) | A small xUnit integration-test project (`HttpClient` + `Npgsql` + a hand-rolled Kafka poll loop) | Hand-rolled orchestration (env-var wiring, a `Task.Delay` poll loop) replaced by declarative steps and engine-owned `verifyMode: RETRY` |
 | [`from-specflow/`](from-specflow/) | A SpecFlow 3.9.x project (genuine Gherkin + step definitions + a hand-rolled webhook listener) | The full four-family flow (REST + Postgres + Kafka + webhook), Given/When/Then intent carried by step `description` fields, `[BeforeScenario]` → `environment.seed` |
 
-All three port the **same underlying system** — `samples/orders-dotnet/app`, the ASP.NET Core 8 order-confirmation service already exercised end-to-end by [`samples/orders-dotnet/tests/orders.e2e.yaml`](../samples/orders-dotnet/tests/orders.e2e.yaml) — so the only variable across the three examples is the *test asset being migrated*, not the system under test. Read `samples/orders-dotnet/README.md` first if you have not already; every idiom this tree relies on (the `@id::uuid` cast, `verifyMode: RETRY`, `{cb_container}`, `capture`) is explained there in full.
+All three port the **same underlying system** — `samples/orders-dotnet/app`, the ASP.NET Core 10 order-confirmation service already exercised end-to-end by [`samples/orders-dotnet/tests/orders.e2e.yaml`](../samples/orders-dotnet/tests/orders.e2e.yaml) — so the only variable across the three examples is the *test asset being migrated*, not the system under test. Read `samples/orders-dotnet/README.md` first if you have not already; every idiom this tree relies on (the `@id::uuid` cast, `verifyMode: RETRY`, `{cb_container}`, `capture`) is explained there in full.
 
 ## Re-author, don't auto-convert
 

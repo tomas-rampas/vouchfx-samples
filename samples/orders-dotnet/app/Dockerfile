@@ -1,11 +1,11 @@
 #
-# Multi-stage build for the "orders-dotnet" sample SUT — the ASP.NET Core 8 minimal API
+# Multi-stage build for the "orders-dotnet" sample SUT — the ASP.NET Core 10 minimal API
 # exercised end-to-end by ../tests/orders.e2e.yaml under vouchfx.
 
-# The runners can select the pinned .NET 9/10 pair without changing the
-# application target or the existing .NET 8 defaults.
-ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk@sha256:ec9c0a0dc5f60adc2065762050638dd5ed5facfc53716d4580a42d86027c8e80
-ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet@sha256:a3cd573ac05cf88ca496e3309cb7f7c44aa16664352d1ee41eda93154f50cdbf
+# The defaults are the digest-pinned .NET 10 SDK and ASP.NET runtime images (the same
+# pair as scripts/dotnet-images.properties). The runners can override either.
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2
+ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca
 FROM ${DOTNET_SDK_IMAGE} AS build
 WORKDIR /src
 
@@ -21,7 +21,7 @@ FROM ${DOTNET_RUNTIME_IMAGE} AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Run as the non-root 'app' user the aspnet:8.0 base image already ships (via the
+# Run as the non-root 'app' user the aspnet:10.0 base image already ships (via the
 # $APP_UID build arg/env var it defines) rather than the image's default root user.
 # Orders.Api binds Kestrel to 0.0.0.0:8080, an unprivileged port, so nothing about
 # dropping root affects its ability to serve traffic.

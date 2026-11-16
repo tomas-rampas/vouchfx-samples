@@ -57,7 +57,7 @@ new_case() {
   export VOUCHFX_SAMPLES_TEST_VERSION='1.0.0-sample-test+not-released'
   export VOUCHFX_SAMPLES_TEST_VERSION_EXIT=0
   unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
-  unset VOUCHFX_SAMPLE_DOTNET_VERSION VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
+  unset VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
   cat > "$ROOT/scripts/bootstrap.sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' bootstrap >> "$VOUCHFX_SAMPLES_TEST_LOG"
@@ -211,28 +211,41 @@ line_is 2 'cli run *orders-dotnet-compose/tests*--fail-on-env-error*--fail-on-in
 [[ ! -d "$ROOT/.vouchfx-src" ]] || fail 'Compose candidate mode created a source checkout.'
 pass
 
-new_case 'default image pins unchanged'
+new_case 'default image build passes no image overrides'
 sample app app
 run_case 0 app; count_is 2
 line_is 1 'docker build -t *'
 pass
 
-for version in 9.0 10.0; do
-  new_case "selected dotnet $version"
-  sample app app
-  export VOUCHFX_SAMPLE_DOTNET_VERSION="$version"
-  run_case 0 app; count_is 2
-  line_is 1 "docker build --build-arg DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:$version@sha256:* --build-arg DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:$version@sha256:* -t *"
-  pass
-done
-
-new_case 'invalid dotnet version refused'
+new_case 'image overrides reach docker build'
 sample app app
-export VOUCHFX_SAMPLE_DOTNET_VERSION=11.0
-run_case 1 app; count_is 0; pass
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override'
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:override'
+run_case 0 app; count_is 2
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
+pass
 
-new_case 'migration image runtime'
-export VOUCHFX_SAMPLE_DOTNET_VERSION=10.0
+new_case 'single image override leaves the other default'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:override'
+run_case 0 app; count_is 2
+line_is 1 'docker build --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
+pass
+
+new_case 'dockerfile and compose defaults match the pinned .NET 10 images'
+# shellcheck source=scripts/dotnet-images.properties
+source "$SCRIPT_DIR/../dotnet-images.properties"
+sample_root="$SCRIPT_DIR/../../samples"
+grep -qxF "ARG DOTNET_SDK_IMAGE=$sdk_10_0" "$sample_root/orders-dotnet/app/Dockerfile" || fail 'Dockerfile SDK default differs from the pinned .NET 10 image.'
+grep -qxF "ARG DOTNET_RUNTIME_IMAGE=$runtime_10_0" "$sample_root/orders-dotnet/app/Dockerfile" || fail 'Dockerfile runtime default differs from the pinned .NET 10 image.'
+grep -qF "VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE:-$sdk_10_0}" "$sample_root/orders-dotnet-compose/compose.yaml" || fail 'Compose SDK default differs from the pinned .NET 10 image.'
+grep -qF "VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE:-$runtime_10_0}" "$sample_root/orders-dotnet-compose/compose.yaml" || fail 'Compose runtime default differs from the pinned .NET 10 image.'
+[[ "$(grep -c '=' "$SCRIPT_DIR/../dotnet-images.properties")" -eq 2 ]] || fail 'The pin file must hold only the .NET 10 pair.'
+pass
+
+new_case 'migration image overrides'
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override'
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:override'
 mkdir -p "$ROOT/samples/orders-dotnet/app"
 for name in from-postman from-xunit from-specflow; do
   mkdir -p "$ROOT/migrations/$name/ported"
@@ -241,7 +254,7 @@ rc=0
 bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "Migration runner returned $rc."
 count_is 4
-line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0@sha256:* --build-arg DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0@sha256:* -t *'
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
 line_is 2 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
 line_is 3 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
 line_is 4 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'

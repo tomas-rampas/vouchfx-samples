@@ -1,6 +1,6 @@
 # samples/orders-dotnet/tests/orders.e2e.yaml
 #
-# End-to-end proof of ../app/ — a real ASP.NET Core 8 "Orders" minimal API — across all four
+# End-to-end proof of ../app/ — a real ASP.NET Core 10 "Orders" minimal API — across all four
 # vouchfx step families in one business transaction:
 #
 #   REST call (http.rest)  ->  Postgres row (db-assert.postgres)
@@ -22,7 +22,7 @@ metadata:
   tags: [samples, dotnet, postgres, kafka, webhook]
   description: >-
     One order-confirmation transaction across REST + Postgres + Kafka + an outbound webhook,
-    exercised against a real ASP.NET Core 8 service (samples/orders-dotnet/app).
+    exercised against a real ASP.NET Core 10 service (samples/orders-dotnet/app).
 
 environment:
   services:

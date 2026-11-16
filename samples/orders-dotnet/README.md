@@ -1,6 +1,6 @@
 # orders-dotnet
 
-A real ASP.NET Core 8 order-confirmation service, tested end-to-end with
+A real ASP.NET Core 10 order-confirmation service, tested end-to-end with
 [vouchfx](https://github.com/tomas-rampas/vouchfx): one HTTP request is followed all the way
 through a database write, an outbound event, and an outbound webhook callback — in a single
 `.e2e.yaml` suite, against a real container topology.
@@ -50,7 +50,7 @@ callback URL for — there is no listener container in the topology.
 
 ## The app (`app/`)
 
-`Orders.Api` — a single-project ASP.NET Core 8 minimal API (`Orders.Api.csproj`), dependencies
+`Orders.Api` — a single-project ASP.NET Core 10 minimal API (`Orders.Api.csproj`), dependencies
 `Npgsql` + `Confluent.Kafka` only, configured entirely by environment variables:
 
 | Env var | Purpose |

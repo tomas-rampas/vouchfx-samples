@@ -1,6 +1,6 @@
 # Migrating to vouchfx
 
-Three worked examples, each porting a genuine, realistic test asset onto vouchfx: a Postman smoke collection, a hand-rolled xUnit integration test, and a SpecFlow feature. All three live in [`migrations/`](https://github.com/tomas-rampas/vouchfx-samples/tree/main/migrations) and port the same underlying system — `samples/orders-dotnet/app`, the ASP.NET Core 8 order-confirmation service already exercised end-to-end by [the orders-dotnet sample](../samples/orders-dotnet/README.md) — so the only variable across the three examples is the *test asset being migrated*, not the system under test.
+Three worked examples, each porting a genuine, realistic test asset onto vouchfx: a Postman smoke collection, a hand-rolled xUnit integration test, and a SpecFlow feature. All three live in [`migrations/`](https://github.com/tomas-rampas/vouchfx-samples/tree/main/migrations) and port the same underlying system — `samples/orders-dotnet/app`, the ASP.NET Core 10 order-confirmation service already exercised end-to-end by [the orders-dotnet sample](../samples/orders-dotnet/README.md) — so the only variable across the three examples is the *test asset being migrated*, not the system under test.
 
 ## Re-author, don't auto-convert
 

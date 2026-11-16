@@ -23,7 +23,7 @@ function Add-Version {
     return $path
 }
 function New-Fixture {
-    param([string]$Name, [string]$Line = '8.0', [string]$RootName = 'dotnet-compatibility', [switch]$OmitCore)
+    param([string]$Name, [string]$Line = '10.0', [string]$RootName = 'dotnet-compatibility', [switch]$OmitCore)
     $temp = Join-Path (Join-Path $scratch $Name) 'runner-temp'
     $root = Join-Path $temp $RootName
     $null = Add-Version $root 'sdk' "$Line.426"
@@ -50,12 +50,13 @@ function Add-TestLink {
 }
 
 try {
-    foreach ($line in @('8.0', '9.0', '10.0')) {
+    foreach ($line in @('10.0')) {
         $fixture = New-Fixture "valid-$line" $line
-        $extra = if ($line -eq '10.0') { '11.0.1' } else { '10.0.13' }
         $removed = @()
         foreach ($container in @('sdk', 'shared/Microsoft.NETCore.App', 'shared/Microsoft.AspNetCore.App')) {
-            $removed += Add-Version $fixture.Root $container $extra
+            foreach ($extra in @('8.0.426', '11.0.1')) {
+                $removed += Add-Version $fixture.Root $container $extra
+            }
         }
         Invoke-Selector $fixture
         foreach ($path in $removed) { Assert-True (-not (Test-Path -LiteralPath $path)) 'Unselected SDK/runtime was retained.' }
@@ -67,21 +68,21 @@ try {
     $fixture.Temp = Join-Path $scratch 'different-runner-temp'
     $null = New-Item -ItemType Directory -Path $fixture.Temp
     Assert-Refused $fixture
-    Assert-True (Test-Path -LiteralPath (Join-Path $fixture.Root 'sdk/8.0.426/sentinel.txt')) 'Outside installation changed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $fixture.Root 'sdk/10.0.426/sentinel.txt')) 'Outside installation changed.'
     $passed++
 
-    $fixture = New-Fixture 'unknown-root' '8.0' 'unrecognised'
+    $fixture = New-Fixture 'unknown-root' '10.0' 'unrecognised'
     Assert-Refused $fixture
     $passed++
 
     $fixture = New-Fixture 'missing-selected' -OmitCore
-    $foreign = Add-Version $fixture.Root 'shared/Microsoft.NETCore.App' '10.0.13'
+    $foreign = Add-Version $fixture.Root 'shared/Microsoft.NETCore.App' '11.0.1'
     Assert-Refused $fixture
     Assert-True (Test-Path -LiteralPath $foreign) 'Incomplete setup must not trigger partial deletion.'
     $passed++
 
     $fixture = New-Fixture 'invalid-directory'
-    $foreign = Add-Version $fixture.Root 'sdk' '10.0.401'
+    $foreign = Add-Version $fixture.Root 'sdk' '11.0.100'
     $null = Add-Version $fixture.Root 'shared/Microsoft.NETCore.App' 'not-a-version'
     Assert-Refused $fixture
     Assert-True (Test-Path -LiteralPath $foreign) 'An invalid later entry caused partial deletion.'
@@ -92,7 +93,7 @@ try {
     [System.IO.File]::WriteAllText((Join-Path $outside 'sentinel.txt'), 'never delete link target')
 
     $fixture = New-Fixture 'linked-version'
-    $foreign = Add-Version $fixture.Root 'sdk' '10.0.401'
+    $foreign = Add-Version $fixture.Root 'sdk' '11.0.100'
     Add-TestLink (Join-Path $fixture.Root 'shared/Microsoft.AspNetCore.App/10.0.13') $outside
     Assert-Refused $fixture
     Assert-True (Test-Path -LiteralPath $foreign) 'A later linked runtime caused partial deletion.'
@@ -100,7 +101,7 @@ try {
     $passed++
 
     $fixture = New-Fixture 'nested-link'
-    $foreign = Add-Version $fixture.Root 'shared/Microsoft.NETCore.App' '10.0.13'
+    $foreign = Add-Version $fixture.Root 'shared/Microsoft.NETCore.App' '11.0.1'
     Add-TestLink (Join-Path $foreign 'nested-link') $outside
     Assert-Refused $fixture
     Assert-True (Test-Path -LiteralPath $foreign) 'A runtime containing a nested link was deleted.'
