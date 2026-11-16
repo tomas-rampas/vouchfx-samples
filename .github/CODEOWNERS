@@ -1,18 +1,10 @@
-# CODEOWNERS: maintainer review for the Claude Code on the web bootstrap.
+# CODEOWNERS: maintainer review for the SDK selection file.
 #
-# .claude/settings.json registers .claude/hooks/session-start.sh as a SessionStart
-# hook, so a web session runs the checked-out branch's copy of it, as root, before
-# anyone has read the diff. That makes .claude/ a supply-chain surface in the same
-# class as .github/workflows/: a change to it needs the maintainer's review, and
-# web sessions should be opened only on branches you trust.
+# global.json selects the SDK every build and workflow uses, and the .NET 10 host
+# honours "sdk.paths" there, loading an SDK (and its native host policy library)
+# from a directory the branch names. A change to it needs the maintainer's review.
 #
-# global.json is covered for the same reason: the hook runs `dotnet` inside the checkout
-# as root, and the .NET 10 host honours "sdk.paths" there, loading an SDK (and its native
-# host policy library) from a directory the branch names. The hook also refuses such a
-# file, but a change to it still needs the maintainer's eyes.
-#
-# Rules are last-match-wins. This file also owns itself, so the rule above cannot
+# Rules are last-match-wins. This file also owns itself, so the rules cannot
 # be removed without the same review.
-/.claude/               @tomas-rampas
-/global.json            @tomas-rampas
+/global.json           @tomas-rampas
 /.github/CODEOWNERS     @tomas-rampas
