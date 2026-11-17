@@ -80,7 +80,7 @@ trusted provider assemblies at startup, from `vouchfx providers install`, `--pro
 
 **The custom runner** predates that loader and remains the build-time alternative: the provider
 set and its versions are fixed with the rest of the build. This project's `runner/` is a
-~330-line C# program that:
+short C# program (a single `Program.cs`) that:
 
 1. Loads the stock engine's public SDK interfaces (`ScenarioRunner`, `StepKindRegistry`, etc.)
 2. References `Vouchfx.Community.JsonRpc` directly via NuGet

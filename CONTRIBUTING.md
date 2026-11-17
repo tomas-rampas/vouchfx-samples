@@ -7,12 +7,12 @@ This repository hosts reference samples that show the [vouchfx](https://github.c
 Each sample lives under `samples/<name>/` and contains:
 
 1. **`app/` (optional)** — a real application with a `Dockerfile` that builds a runnable image via `docker build samples/<name>/app`. Omit it for infrastructure-only samples such as `kafka-mtls`; the runner then skips the image build.
-2. **`tests/*.e2e.yaml`** — one or more `.e2e.yaml` suites exercising that flow through the vouchfx engine, per the [YAML DSL specification](https://github.com/tomas-rampas/vouchfx/blob/main/docs/02_YAML_DSL_Specification_and_VSCode_Extension_Design.md).
+2. **`tests/*.e2e.yaml`** — one or more `.e2e.yaml` suites exercising that flow through the vouchfx engine, per the [YAML DSL specification](https://vouchfx.io/02_YAML_DSL_Specification_and_VSCode_Extension_Design/).
 3. **`README.md`** — what the sample demonstrates, the technology pairing, how to run it standalone, and what a passing run looks like.
 
 Optional `setup.sh` / `setup.ps1` scripts generate certificates or other fixtures before any build or suite run. Provide both when setup is required, and return a nonzero exit code on failure. A `runner/` project may integrate a custom provider.
 
-A new sample is welcome when it demonstrates a **distinct** technology pairing or integration pattern not already covered by the existing samples (`orders-dotnet`, `inventory-python`, `payments-java`, `ledger-jsonrpc`, `kafka-mtls`). Open a [sample request issue](../../issues/new?template=sample-request.yml) first if you'd like early feedback on fit before doing the work.
+A new sample is welcome when it demonstrates a **distinct** technology pairing or integration pattern not already covered by the existing samples (`orders-dotnet`, `orders-dotnet-compose`, `inventory-python`, `payments-java`, `ledger-jsonrpc`, `kafka-mtls`). Open a [sample request issue](https://github.com/tomas-rampas/vouchfx-samples/issues/new?template=sample-request.yml) first if you'd like early feedback on fit before doing the work.
 
 ## Quality bar
 
@@ -21,7 +21,7 @@ Before opening a PR, confirm:
 - **The suite passes via the standard entry point:** `scripts/run-sample.sh <your-sample>` (or `scripts/run-sample.ps1` on Windows) exits `0`. This is exactly what CI runs (`.github/workflows/samples-ci.yml`) — if it does not pass locally, it will not pass in CI.
 - **When `app/` exists, its Dockerfile builds cleanly:** `docker build -t vouchfx-samples-<name>:local samples/<name>/app`.
 - **The sample is self-contained.** A fresh clone, `scripts/bootstrap.*`, then `scripts/run-sample.* <name>` must be sufficient — no dependency on state outside what the suite's `environment.dependencies` / `environment.seed` describe.
-- **No secrets, credentials, or personal data.** Samples run in CI on every push to `main` and on every pull request.
+- **No secrets, credentials, or personal data.** Samples run in CI on every code push to `main` and on every pull request that touches code (documentation-only changes skip the sample matrix).
 - **The README has at least: what it demonstrates, the technology pairing, how to run it, and what success looks like** (see `docs/RUNNING.md` for the verdict taxonomy to describe this accurately).
 
 ## Contribution terms

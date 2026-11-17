@@ -11,7 +11,7 @@ This page covers what you need installed, the two-command quick start, how to re
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). See the [Core 1.2.0 source validation record](validation/core-1.2.0-source-validation-2026-10-22.md) for current source results and the [Core 1.2.0 installed acceptance record](validation/core-1.2.0-installed-acceptance-2026-10-22.md) for official CLI results. The [Core 1.0.7 source](validation/core-1.0.7-source-validation-2026-10-17.md), [Core 1.0.7 installed](validation/core-1.0.7-installed-acceptance-2026-10-17.md) and [Core 1.0.6](validation/core-1.0.6-acceptance.md) records preserve historical evidence. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
+These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). The dated validation records are historical evidence for the engine versions they name, not results for the current pin: the [Core 1.2.0 source validation record](validation/core-1.2.0-source-validation-2026-10-22.md) covers the 1.2.0 source commit and the [Core 1.2.0 installed acceptance record](validation/core-1.2.0-installed-acceptance-2026-10-22.md) covers the official 1.2.0 CLI. The [Core 1.0.7 source](validation/core-1.0.7-source-validation-2026-10-17.md), [Core 1.0.7 installed](validation/core-1.0.7-installed-acceptance-2026-10-17.md) and [Core 1.0.6](validation/core-1.0.6-acceptance.md) records preserve earlier evidence. Samples CI exercises the current pin. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
 
 ## Quick start
 
@@ -272,14 +272,14 @@ The default build assumes direct internet access. On a network that forces traff
 
 ### 1. Dependency images can't be pulled
 
-Aspire/DCP pulls the managed dependency images (Postgres, Kafka, MySQL, Redis, RabbitMQ, NATS, Mailpit) itself at run time, so no script flag can redirect them. Point the Docker **daemon** at a registry mirror instead — this is transparent, needs no change to any suite, and keeps image references as `docker.io/...`:
+Aspire/DCP pulls the managed dependency images (Postgres, Kafka, MySQL, SQL Server, Redis, RabbitMQ, NATS, Mailpit) itself at run time, so no script flag can redirect them. Point the Docker **daemon** at a registry mirror instead — this is transparent, needs no change to any suite, and keeps image references as `docker.io/...`:
 
 ```json
 /* /etc/docker/daemon.json */
 { "registry-mirrors": ["https://mirror.gcr.io"] }
 ```
 
-Restart the daemon afterwards. Verify with `docker info | grep -A1 "Registry Mirrors"`. Confirm your mirror serves the digests you expect before trusting a run — `docker pull postgres:17.6` should report the same `sha256:` digest as Docker Hub.
+Restart the daemon afterwards. Verify with `docker info | grep -A1 "Registry Mirrors"`. Confirm your mirror serves the digests you expect before trusting a run — `docker pull` of a dependency image tag your run uses (for example `postgres:<tag>`) should report the same `sha256:` digest as Docker Hub.
 
 > Check this is permitted by your organisation's egress policy first. If Docker Hub is deliberately blocked, mirroring the same images may not be an approved route — allowlisting the registry is the cleaner fix.
 
@@ -307,7 +307,7 @@ An inspecting proxy presents its own CA, and the `payments-java` build then fail
 - `keytool -importcert` reads only the **first** certificate from a multi-certificate PEM bundle and silently ignores the rest, so passing a full `ca-bundle.crt` trusts the wrong anchor while printing `Certificate was added to keystore`.
 - Importing into the JDK's own `cacerts` is **not** sufficient on its own — `keytool -list` shows the alias, yet Maven still fails PKIX. The store has to be handed to the JVM explicitly via `-Djavax.net.ssl.trustStore`.
 
-The other three samples need no CA handling: the .NET build reaches NuGet through the forwarded proxy, and the Python and Node builds fetch from PyPI and npm, which are typically direct.
+The other application builds need no CA handling: the .NET build reaches NuGet through the forwarded proxy, and the Python and Node.js builds fetch from PyPI and npm, which are typically direct.
 
 ## Why samples don't run concurrently on one machine
 

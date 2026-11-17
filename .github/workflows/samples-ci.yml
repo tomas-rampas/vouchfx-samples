@@ -3,7 +3,7 @@
 #
 # Triggers: push and pull_request to main, plus manual dispatch. Docs-only
 # changes (Markdown anywhere, docs/, site/, LICENSE, .gitignore) skip the
-# whole workflow via paths-ignore (issue #12): the 5-runner Docker matrix
+# whole workflow via paths-ignore (issue #12): the six-runner Docker matrix
 # costs runner-minutes on every push and proves nothing about prose. The
 # branch ruleset names no required checks, so a skipped run does not wedge
 # merges. Anything that can affect a suite run — samples/, migrations/,

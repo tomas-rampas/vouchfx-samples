@@ -40,12 +40,14 @@ Each sample's `README.md` walks through the transaction, the code, the suite des
 
 **Prerequisites:** .NET 10 SDK, Docker with Linux containers, Git. See [`docs/RUNNING.md`](docs/RUNNING.md) for the full list and background.
 
-This checkout selects the source commit in [`ENGINE_PIN`](ENGINE_PIN).
-See the [Core 1.2.0 source validation record](docs/validation/core-1.2.0-source-validation-2026-10-22.md)
-for the current source results and the [Core 1.2.0 installed acceptance record](docs/validation/core-1.2.0-installed-acceptance-2026-10-22.md)
-for the official CLI. The [Core 1.0.7](docs/validation/core-1.0.7-source-validation-2026-10-17.md) and
-[Core 1.0.6](docs/validation/core-1.0.6-acceptance.md) records preserve historical source and
-official installed-package evidence. `ledger-jsonrpc`
+This checkout builds the engine from the source commit in [`ENGINE_PIN`](ENGINE_PIN).
+The dated records under [`docs/validation/`](docs/validation/core-1.2.0-source-validation-2026-10-22.md)
+are historical evidence for the engine versions they name, not results for the current pin:
+the [Core 1.2.0 source validation record](docs/validation/core-1.2.0-source-validation-2026-10-22.md)
+covers the 1.2.0 source commit, and the [Core 1.2.0 installed acceptance record](docs/validation/core-1.2.0-installed-acceptance-2026-10-22.md)
+covers the official 1.2.0 CLI. The [Core 1.0.7](docs/validation/core-1.0.7-source-validation-2026-10-17.md) and
+[Core 1.0.6](docs/validation/core-1.0.6-acceptance.md) records preserve earlier source and
+official installed-package evidence. Samples CI exercises the current pin. `ledger-jsonrpc`
 retains its custom source runner; source and installed-package runs are separate evidence.
 
 Two commands from the repository root:
@@ -135,13 +137,17 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 |-- ENGINE_PIN                          (the pinned vouchfx engine commit SHA)
 |-- docs/
 |   |-- RUNNING.md                      (prerequisites, quick start, reading results)
+|   |-- custom-runner.md                (consuming Community providers with a custom runner)
 |   |-- migrating.md                    (the migration guide: Postman/xUnit/SpecFlow -> vouchfx)
-|   `-- ...                             (other documentation)
+|   `-- validation/                     (dated validation records, historical evidence)
 |-- scripts/
 |   |-- bootstrap.sh / bootstrap.ps1    (fetch and build the pinned engine)
 |   |-- run-sample.sh / run-sample.ps1  (build a sample's image and run its suite)
 |   |-- run-migrations.sh / .ps1        (run the three ported migration suites)
-|   `-- ...
+|   |-- bump-engine-pin.sh / .ps1       (advance ENGINE_PIN)
+|   |-- dotnet-images.properties        (digest-pinned .NET application images)
+|   `-- ...                             (site build, runner regression tests, CI helpers)
+|-- site/                               (landing page and static inputs for samples.vouchfx.io)
 |-- migrations/
 |   |-- from-postman/                   (Postman collection -> .e2e.yaml, source + ported + mapping)
 |   |-- from-xunit/                     (xUnit integration test -> .e2e.yaml)
@@ -165,7 +171,15 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 |   |   |-- runner/                     (custom runner for Community providers)
 |   |   |-- tests/ledger.e2e.yaml       (the test suite)
 |   |   `-- README.md                   (sample documentation)
-|   `-- ...
+|   |-- orders-dotnet-compose/
+|   |   |-- compose.yaml                (user-supplied Compose project; builds the shared orders-dotnet app)
+|   |   |-- environment.compose.yaml    (Compose adapter configuration)
+|   |   |-- tests/orders.e2e.yaml       (the test suite)
+|   |   `-- README.md                   (sample documentation)
+|   `-- kafka-mtls/
+|       |-- setup.sh / setup.ps1        (generate the certificates before the run)
+|       |-- tests/kafka-mtls.e2e.yaml   (the test suite; no app/, infrastructure only)
+|       `-- README.md                   (sample documentation)
 |-- out/                                (test results: HTML, JUnit XML)
 |   `-- (generated after running samples)
 `-- .vouchfx-src/                       (pinned engine source, created by bootstrap.sh)
@@ -178,10 +192,13 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 
 - **[`README.md`](README.md)** — overview, catalogue, quick start (you are here)
 - **[`docs/RUNNING.md`](docs/RUNNING.md)** — prerequisites, how to read results, CI notes
+- **[`docs/custom-runner.md`](docs/custom-runner.md)** — the custom-runner recipe for consuming Community providers
 - **[`docs/migrating.md`](docs/migrating.md)** — porting Postman / xUnit / SpecFlow assets onto vouchfx, with the three worked examples in [`migrations/`](migrations/)
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — how to add a new sample, quality bar, contribution terms
 - **Per-sample READMEs:**
   - [`samples/orders-dotnet/README.md`](samples/orders-dotnet/README.md) — ASP.NET Core e2e flow, webhook listener design, database assertions
+  - [`samples/orders-dotnet-compose/README.md`](samples/orders-dotnet-compose/README.md) — the same five assertions against a user-supplied Docker Compose environment
+  - [`samples/kafka-mtls/README.md`](samples/kafka-mtls/README.md) — infrastructure-only Kafka mutual-TLS round trip and its certificate setup
   - [`samples/inventory-python/README.md`](samples/inventory-python/README.md) — Python/FastAPI, MySQL + Redis + RabbitMQ integration, read-through cache proof
   - [`samples/payments-java/README.md`](samples/payments-java/README.md) — Spring Boot, SQL Server, NATS JetStream, SMTP email capture, stream-ownership design pattern
   - [`samples/ledger-jsonrpc/README.md`](samples/ledger-jsonrpc/README.md) — Node.js JSON-RPC 2.0, custom runner pattern for Community providers, multi-role containers, Kafka producer + consumer coordination
@@ -197,13 +214,13 @@ The vouchfx engine separates **four** distinct verdicts — this is deliberate a
 ### Related Repositories
 
 - **[vouchfx-providers](https://providers.vouchfx.io/)** — the community provider hub: the registry of community providers and hub-hosted provider source. Providers can earn the maintainer-awarded Vouched badge after rubric review.
-- **[vouchfx-telemetry-backend](https://telemetry.vouchfx.io/)** — the optional telemetry aggregation service (aggregate run-metadata only: verdict counts, timings, tool/engine versions, under a privacy allowlist with 90-day retention default).
+- **[vouchfx-telemetry-backend](https://telemetry.vouchfx.io/)** — the optional, self-hostable telemetry aggregation service (aggregate run metadata only, under a privacy allowlist; its site documents what is and is not collected).
 
 ## Status
 
 **Samples:** Six reference suites are maintained. The [Samples CI workflow](https://github.com/tomas-rampas/vouchfx-samples/actions/workflows/samples-ci.yml) covers all six suites in the source-engine matrix, including `orders-dotnet-compose`. The installed-CLI matrix covers five suites, including Compose; `ledger-jsonrpc` uses a custom source-based runner. Docker-free runner regressions verify dispatch and failure handling separately.
 
-**Engine consumption:** The default runner targets the source commit selected for the v1 release in [`ENGINE_PIN`](ENGINE_PIN). Fresh public bootstrap requires that commit to be reachable on GitHub; source pinning and package publication are separate gates. Explicit installed mode validates a separately installed executable and its declared version without building engine source; passing source CI does not establish that an installed candidate works. `ledger-jsonrpc` requires its custom source runner and is rejected in installed mode.
+**Engine consumption:** The default runner targets the engine source commit in [`ENGINE_PIN`](ENGINE_PIN), which can be ahead of the newest published release. Fresh public bootstrap requires that commit to be reachable on GitHub; source pinning and package publication are separate gates. Explicit installed mode validates a separately installed executable and its declared version without building engine source; passing source CI does not establish that an installed candidate works. `ledger-jsonrpc` requires its custom source runner and is rejected in installed mode.
 
 **Documentation:** British English throughout. Samples are living documentation: every `.e2e.yaml` file is a worked example of the YAML DSL, and every sample's README cross-references the engine's architecture blueprint and language reference so authors can verify their understanding against the canonical source.
 
