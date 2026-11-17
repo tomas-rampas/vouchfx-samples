@@ -11,7 +11,7 @@
        point: THIS project is the executable that hosts the engine, so it (not
        the engine library) must carry the SDK and pass its OWN assembly name to
        ScenarioRunner.RunSuiteAsync as appHostAssemblyName (see Program.cs). -->
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.2" />
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.6" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -36,11 +36,37 @@
          the Node samples. NOTE: without RestoreLockedMode the lock file
          is a recorded manifest with integrity hashes, not an enforced gate —
          restore updates it silently on drift. Locked-mode enforcement is
-         deliberately NOT enabled: this file was last generated on Linux and
-         records linux-x64 Aspire RID assets, so locked-mode restore would fail on
-         any host that is not linux-x64 (Windows, macOS) and a non-locked restore there
-         rewrites the lock; regenerate per-OS before ever enabling it. -->
+         deliberately NOT enabled: the DCP packages are referenced for all four
+         platforms below, so the Aspire entries no longer depend on the host's RID,
+         but the lock was generated on Linux and has not been checked against a
+         locked-mode restore on Windows or macOS; verify that before enabling it. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Headless Aspire host — no dashboard package">
+    <!-- The SDK's default references add Aspire.Hosting.AppHost plus, for the build
+         host's RID, Aspire.Hosting.Orchestration (DCP, which the engine needs) and
+         Aspire.Dashboard.Sdk (the dashboard, which the engine never starts: its headless
+         topology always disables it). Every Aspire.Dashboard.Sdk release below 13.6.5
+         carries GHSA-4g86-54fm-h9h8 (critical, NU1904), and the engine stays on Aspire
+         13.4.x for v1.x. Skipping the defaults and referencing DCP explicitly keeps the
+         dashboard package out of the restore graph, exactly as the engine's
+         Vouchfx.Dcp.targets does for the CLI (.vouchfx-src/src/Cli/Vouchfx.Cli/): the
+         dependency is removed, not an audit suppression. The AppHost reference below is
+         then mandatory (the SDK reports ASPIRE002 without it). -->
+    <SkipAddAspireDefaultReferences>true</SkipAddAspireDefaultReferences>
+    <!-- Aspire validates DashboardPath as non-empty even with the dashboard disabled;
+         keep the metadata contract without restoring dashboard binaries. -->
+    <AspireDashboardPath>disabled-by-vouchfx-headless-host</AspireDashboardPath>
+    <!-- Distro-built SDKs report a non-portable RID (ubuntu.24.04-x64); use its portable form. -->
+    <_LedgerDcpHostRid>$(NETCoreSdkPortableRuntimeIdentifier)</_LedgerDcpHostRid>
+    <_LedgerDcpHostRid Condition="'$(_LedgerDcpHostRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_LedgerDcpHostRid>
+    <!-- Set during evaluation: Aspire's discovery target is skipped when DcpDir is empty.
+         A build host whose portable RID is not one of these four gets no dcpclipath. -->
+    <DcpDir Condition="'$(_LedgerDcpHostRid)' == 'win-x64'">$(PkgAspire_Hosting_Orchestration_win-x64)/tools/</DcpDir>
+    <DcpDir Condition="'$(_LedgerDcpHostRid)' == 'linux-x64'">$(PkgAspire_Hosting_Orchestration_linux-x64)/tools/</DcpDir>
+    <DcpDir Condition="'$(_LedgerDcpHostRid)' == 'osx-x64'">$(PkgAspire_Hosting_Orchestration_osx-x64)/tools/</DcpDir>
+    <DcpDir Condition="'$(_LedgerDcpHostRid)' == 'osx-arm64'">$(PkgAspire_Hosting_Orchestration_osx-arm64)/tools/</DcpDir>
   </PropertyGroup>
 
   <ItemGroup Label="Aspire host wiring — pinned explicitly (no CPM in this tree)">
@@ -48,7 +74,15 @@
          the DCP metadata (Aspire.AppHost.Sdk auto-adds it implicitly; the
          explicit reference here pins the version since CPM does not reach
          this project). -->
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.4.2" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.4.6" />
+    <!-- DCP for the four platforms the engine supports; build assets are excluded so a
+         foreign RID cannot overwrite DcpDir, which is set above from the build host's
+         own RID. Keep this version equal to the engine's VouchfxDcpVersion at the commit
+         in ENGINE_PIN (Directory.Packages.props). -->
+    <PackageReference Include="Aspire.Hosting.Orchestration.win-x64" Version="13.4.6" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="all" />
+    <PackageReference Include="Aspire.Hosting.Orchestration.linux-x64" Version="13.4.6" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="all" />
+    <PackageReference Include="Aspire.Hosting.Orchestration.osx-x64" Version="13.4.6" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="all" />
+    <PackageReference Include="Aspire.Hosting.Orchestration.osx-arm64" Version="13.4.6" GeneratePathProperty="true" PrivateAssets="all" ExcludeAssets="all" />
   </ItemGroup>
 
   <ItemGroup Label="The community provider under test">
@@ -88,15 +122,43 @@
          output directory. Referenced directly here so the DLLs ship with the
          runner. Versions copied verbatim from .vouchfx-src/Directory.Packages.props
          (CPM does not reach this project, so they are pinned explicitly). -->
-    <PackageReference Include="Npgsql" Version="8.0.7" />
-    <PackageReference Include="Confluent.Kafka" Version="2.14.2" />
-    <PackageReference Include="Confluent.SchemaRegistry" Version="2.14.2" />
-    <PackageReference Include="Confluent.SchemaRegistry.Serdes.Avro" Version="2.14.2" />
-    <PackageReference Include="Apache.Avro" Version="1.12.1" />
-    <!-- Also a direct dependency of Vouchfx.Community.JsonRpc 1.0.0
-         (3.0.2) — pinning the identical version here keeps restore from ever
-         needing to arbitrate between two versions of the same package. -->
-    <PackageReference Include="JsonPath.Net" Version="3.0.2" />
+    <PackageReference Include="Npgsql" Version="8.0.9" />
+    <PackageReference Include="Confluent.Kafka" Version="2.16.0" />
+    <PackageReference Include="Confluent.SchemaRegistry" Version="2.16.0" />
+    <PackageReference Include="Confluent.SchemaRegistry.Serdes.Avro" Version="2.16.0" />
+    <PackageReference Include="Apache.Avro" Version="1.12.2" />
+    <!-- Vouchfx.Community.JsonRpc 1.0.0 depends on JsonPath.Net 3.0.2, and the
+         engine's Vouchfx.Steps.MqExpect.Kafka requires 3.1.0 or later. Pinning the
+         engine's version here (a higher version satisfies the provider's lower bound)
+         keeps restore from reporting a package downgrade (NU1605). -->
+    <PackageReference Include="JsonPath.Net" Version="3.1.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Transitive security floors — mirror the engine's Directory.Packages.props">
+    <!-- This project does not inherit the engine's central transitive pinning, so
+         the advisory-fixed versions the engine pins are referenced directly. Without
+         them restore reports NU1902/NU1903 for the versions Aspire.Hosting and the
+         engine providers pull in. Keep them at or above the engine's versions at the
+         commit in ENGINE_PIN. -->
+    <!-- MessagePack arrives via Aspire.Hosting -> StreamJsonRpc; 2.5.303 fixes GHSA-qhrr-8q5h-9q3h. -->
+    <PackageReference Include="MessagePack" Version="2.5.303" />
+    <!-- Required by Aspire.Hosting.SqlServer 13.4.6 and NuGet.Packaging in the engine;
+         10.0.13 is outside GHSA-846f-f764-76mx and GHSA-2fmv-rv2c-59x7. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup Label="NuGet audit — one deliberate suppression, mirroring the engine">
+    <!-- GHSA-f7vh-h5g3-7jrh (high, a macOS Aspire dashboard cookie leak via a YARP link)
+         affects Aspire.Hosting and Aspire.Hosting.AppHost below 13.6.5, the only patched
+         release. The engine cannot take 13.6.x during v1.x because Aspire 13.6 needs
+         YamlDotNet 18.1 and the frozen v1 SDK surface keeps YamlDotNet at 16.x, so it pins
+         Aspire 13.4.6 and suppresses this one advisory (Directory.Build.props in the
+         engine at the commit in ENGINE_PIN holds the full reasoning). This runner
+         resolves the same Aspire version and, like the engine's headless topology, never
+         starts the dashboard. Only this advisory is suppressed: NuGetAuditLevel, NoWarn
+         and WarningsNotAsErrors are untouched, so every other advisory still fails
+         restore. Remove this item when Aspire reaches 13.6.5 or later. -->
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-f7vh-h5g3-7jrh" />
   </ItemGroup>
 
 </Project>

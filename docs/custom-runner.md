@@ -159,7 +159,7 @@ Your `.csproj` must:
 
 1. **Reference the Aspire.AppHost.Sdk** — this embeds DCP binary paths as metadata:
    ```xml
-   <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.2" />
+   <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.6" />
    ```
 
 2. **Mark as an Aspire host** — so the build targets embed DCP metadata onto your assembly:
@@ -182,9 +182,11 @@ Your `.csproj` must:
 
 5. **Pin provider client libraries** — Npgsql, Confluent.Kafka, etc. as direct PackageReferences so they deploy to the output directory:
    ```xml
-   <PackageReference Include="Npgsql" Version="8.0.7" />
-   <PackageReference Include="Confluent.Kafka" Version="2.14.2" />
+   <PackageReference Include="Npgsql" Version="8.0.9" />
+   <PackageReference Include="Confluent.Kafka" Version="2.16.0" />
    ```
+
+   Use the versions in the engine's `Directory.Packages.props` at the commit in `ENGINE_PIN`: a lower version fails restore with NU1605 (package downgrade). A runner outside the engine tree does not inherit the engine's transitive security pins, so it also references the advisory-fixed `MessagePack` and `System.Security.Cryptography.Pkcs` versions directly, skips the Aspire dashboard package (`SkipAddAspireDefaultReferences`, with explicit DCP references) and repeats the engine's single audit suppression for GHSA-f7vh-h5g3-7jrh. The sample's `LedgerRunner.csproj` documents each of these.
 
 See the [ledger-jsonrpc LedgerRunner.csproj](https://github.com/tomas-rampas/vouchfx-samples/blob/main/samples/ledger-jsonrpc/runner/LedgerRunner.csproj) for a complete example.
 

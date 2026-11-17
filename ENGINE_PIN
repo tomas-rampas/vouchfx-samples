@@ -1,4 +1,4 @@
-e3e7272635ac0fef6f69ff6a11d785fc3ab28aeb
+12ece7352c75057bd387bd2886279f74424c3cf7
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -87,6 +87,22 @@ e3e7272635ac0fef6f69ff6a11d785fc3ab28aeb
 #
 # Pin history
 # ------------
+# 2026-11-17: advanced to 12ece735 — vouchfx main after #688, a stopgap until the 1.4.0 tag exists (ZEB-29).
+# e3e72726 no longer restores: its Aspire 13.4.2 packages carry GHSA-f7vh-h5g3-7jrh and the
+# engine builds with warnings as errors (NU1903), so every source-build job failed in
+# bootstrap. 12ece735 carries Aspire 13.4.6 (#681) with the engine's single, documented
+# suppression of that advisory (#675), the source-build capability stamp fix (#666, so a
+# source build stamps 1.3.0 rather than 1.0.7 and admits providers declaring a newer
+# MinEngineVersion), and global.json 8.0.424 with rollForward major. The engine is still
+# a net8.0 build, so bootstrap keeps -p:RollForward=Major. Move this pin to the 1.4.0 tag
+# commit once it is published (the first .NET 10 engine release); do not pin a commit of the
+# engine's .NET 10 branch, as merges there are squashed and those commits will not survive.
+# Verified without Docker: dotnet restore and a Release build of the CLI at this commit
+# succeed with warnings as errors, and LedgerRunner restores and builds under -warnaserror.
+# LedgerRunner outside the engine tree now carries the engine's package floors itself
+# (samples/ledger-jsonrpc/runner/LedgerRunner.csproj, packages.lock.json regenerated). Not
+# run here: the Docker-backed sample and migration suites; samples-ci runs them.
+# Prior pin: e3e72726.
 # 2026-11-04: advanced to e3e72726 — vouchfx main after #655 (MySqlConnector 2.6.1, GHSA-473q-m89c-ghf8 / NU1902 fix) and #652 (.NET 9/10 support); no release tag yet contains #655 (v1.2.1 predates it).
 # Prior pin: 0af21de5.
 # 2026-10-22: advanced to 0af21de5 — official Core 1.2.0 source adoption.
