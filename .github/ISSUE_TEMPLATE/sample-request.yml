@@ -44,8 +44,8 @@ body:
       label: Why This Is Distinct
       description: >
         What integration pattern or technology combination is not already
-        covered by the existing samples (orders-dotnet, inventory-python,
-        payments-java, ledger-jsonrpc)?
+        covered by the existing samples (orders-dotnet, orders-dotnet-compose,
+        inventory-python, payments-java, ledger-jsonrpc, kafka-mtls)?
     validations:
       required: true
 

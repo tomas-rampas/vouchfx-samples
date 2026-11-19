@@ -24,8 +24,8 @@ $environmentNames = @(
     'VOUCHFX_SAMPLES_TEST_DOCKER_EXIT', 'VOUCHFX_SAMPLES_TEST_RUNNER_BUILD_EXIT',
     'VOUCHFX_SAMPLES_TEST_CLI_EXIT', 'VOUCHFX_SAMPLES_TEST_VERSION',
     'VOUCHFX_SAMPLES_TEST_VERSION_EXIT', 'VOUCHFX_SAMPLES_CLI', 'VOUCHFX_SAMPLES_CLI_VERSION',
-    'VOUCHFX_SAMPLE_DOTNET_VERSION', 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE',
-    'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE'
+    'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE', 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE',
+    'VOUCHFX_SAMPLE_DOTNET_VERSION'
 )
 $originalEnvironment = @{}
 foreach ($name in $environmentNames) {
@@ -63,9 +63,9 @@ function New-Case {
     $env:VOUCHFX_SAMPLES_TEST_VERSION_EXIT = '0'
     $env:VOUCHFX_SAMPLES_CLI = ''
     $env:VOUCHFX_SAMPLES_CLI_VERSION = ''
-    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = ''
     $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = ''
     $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = ''
+    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = ''
     if ($Installed) {
         $env:VOUCHFX_SAMPLES_CLI = Join-Path $bin $(if ($IsWindows) { 'candidate cli.cmd' } else { 'candidate cli' })
         $env:VOUCHFX_SAMPLES_CLI_VERSION = $env:VOUCHFX_SAMPLES_TEST_VERSION
@@ -312,38 +312,96 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $root '.vouchfx-src'))) 'Compose candidate mode must not bootstrap source.'
     $passed++
 
-    $root = New-Case 'default image pins unchanged'
+    $root = New-Case 'default image build passes no image overrides'
     $null = New-Sample $root 'app' -App
     $result = Invoke-Case $root 'app' 0
     Assert-True ($result.Calls[0] -like 'docker build *' -and -not $result.Calls[0].Contains('DOTNET_SDK_IMAGE=') -and -not $result.Calls[0].Contains('DOTNET_RUNTIME_IMAGE=')) 'The default image build must not gain runtime override arguments.'
     $passed++
 
-    $pins = ConvertFrom-StringData -StringData ([System.IO.File]::ReadAllText(
-        (Join-Path (Split-Path -Parent $source) 'dotnet-images.properties')))
-    Assert-True ($pins.Count -eq 6) 'Exactly one SDK/runtime image pair is required for each supported major.'
-    foreach ($version in @('9.0', '10.0')) {
-        $key = $version.Replace('.', '_')
-        Assert-True ($pins["sdk_$key"] -match "^mcr.microsoft.com/dotnet/sdk:$([regex]::Escape($version))@sha256:[a-f0-9]{64}$") 'Each selected SDK must use an immutable official image of the requested major.'
-        Assert-True ($pins["runtime_$key"] -match "^mcr.microsoft.com/dotnet/aspnet:$([regex]::Escape($version))@sha256:[a-f0-9]{64}$") 'Each selected runtime must use an immutable official image of the requested major.'
-        $root = New-Case "selected dotnet $version"
-        $null = New-Sample $root 'app' -App
-        $env:VOUCHFX_SAMPLE_DOTNET_VERSION = $version
-        $result = Invoke-Case $root 'app' 0
-        Assert-True ($result.Calls.Count -eq 2 -and $result.Calls[0].Contains("DOTNET_SDK_IMAGE=$($pins["sdk_$key"])") -and $result.Calls[0].Contains("DOTNET_RUNTIME_IMAGE=$($pins["runtime_$key"])")) 'The native image build must receive the shared pinned image pair.'
-        $passed++
-    }
-    $dockerfile = [System.IO.File]::ReadAllText((Join-Path (Split-Path -Parent (Split-Path -Parent $source)) 'samples/orders-dotnet/app/Dockerfile'))
-    Assert-True ($dockerfile.Contains("ARG DOTNET_SDK_IMAGE=$($pins['sdk_8_0'])") -and $dockerfile.Contains("ARG DOTNET_RUNTIME_IMAGE=$($pins['runtime_8_0'])")) 'The optional .NET 8 selection must match both unchanged Dockerfile defaults.'
-
-    $root = New-Case 'invalid dotnet version refused'
+    $root = New-Case 'image overrides reach docker build'
     $null = New-Sample $root 'app' -App
-    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = '11.0'
-    $result = Invoke-Case $root 'app' 1
-    Assert-True ($result.Calls.Count -eq 0) 'An unsupported runtime selection must stop before any native command.'
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override'
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example.invalid/dotnet/aspnet:override'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Calls.Count -eq 2 -and $result.Calls[0].Contains('DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override') -and $result.Calls[0].Contains('DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override')) 'Both image overrides must reach the native image build.'
     $passed++
 
-    $root = New-Case 'migration image runtime'
-    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = '10.0'
+    $root = New-Case 'single image override leaves the other default'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example.invalid/dotnet/aspnet:override'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Calls[0].Contains('DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override') -and -not $result.Calls[0].Contains('DOTNET_SDK_IMAGE=')) 'A single override must not add the other image argument.'
+    $passed++
+
+    $root = New-Case 'sdk-only image override leaves the runtime default'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Calls[0].Contains('--build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override') -and -not $result.Calls[0].Contains('DOTNET_RUNTIME_IMAGE=')) 'An SDK-only override must not add the runtime image argument.'
+    Assert-True ($result.Output.Contains('VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is set: the application build uses registry.example.invalid/dotnet/sdk:override')) 'The effective image override must be logged.'
+    Assert-True ($result.Output.Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is not pinned by digest')) 'A tag-only override must warn.'
+    $passed++
+
+    $root = New-Case 'digest-pinned image override does not warn'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example.invalid/dotnet/aspnet:10.0@sha256:0000000000000000000000000000000000000000000000000000000000000000'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True (-not $result.Output.Contains('WARNING')) 'A digest-pinned override must not warn.'
+    $passed++
+
+    $root = New-Case 'retired dotnet version variable warns and is otherwise ignored'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = 'retired-value'
+    $result = Invoke-Case $root 'app' 0
+    Assert-True ($result.Output.Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10')) 'The retired variable must warn.'
+    Assert-True (-not $result.Calls[0].Contains('retired-value')) 'The retired variable must not reach docker.'
+    $passed++
+
+    $root = New-Case 'image override with a space is refused before docker'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override --output=/tmp/x'
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'A refused image override must not reach docker or the CLI.'
+    Assert-True ($result.Output.Contains('VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters')) 'The refusal must name the variable.'
+    $passed++
+
+    $root = New-Case 'image override with an embedded newline is refused before docker'
+    $null = New-Sample $root 'app' -App
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = "registry.example.invalid/dotnet/aspnet:override`n--output=/tmp/x"
+    $result = Invoke-Case $root 'app' 1
+    Assert-True ($result.Calls.Count -eq 0) 'A refused image override must not reach docker or the CLI.'
+    Assert-True ($result.Output.Contains('VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE must not contain whitespace or control characters')) 'The refusal must name the variable.'
+    $passed++
+
+    $root = New-Case 'migration image override with whitespace is refused before docker'
+    $null = New-Item -ItemType Directory -Force -Path (Join-Path $root 'samples/orders-dotnet/app')
+    foreach ($name in @('from-postman', 'from-xunit', 'from-specflow')) {
+        $null = New-Item -ItemType Directory -Force -Path (Join-Path $root "migrations/$name/ported")
+    }
+    foreach ($bad in @('registry.example.invalid/dotnet/sdk:override --output=/tmp/x', "registry.example.invalid/dotnet/sdk:override`n--output=/tmp/x")) {
+        $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = $bad
+        $console = @(& $shell -NoProfile -File (Join-Path $root 'scripts/run-migrations.ps1') 2>&1)
+        Assert-True ($LASTEXITCODE -eq 1) "The migration runner must refuse the override: $($console -join ' ')"
+        Assert-True (-not (Test-Path -LiteralPath $env:VOUCHFX_SAMPLES_TEST_LOG)) 'A refused migration override must not reach docker or the CLI.'
+        Assert-True (($console -join ' ').Contains('VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters')) 'The migration refusal must name the variable.'
+    }
+    $passed++
+
+    $pins = ConvertFrom-StringData -StringData ([System.IO.File]::ReadAllText(
+        (Join-Path (Split-Path -Parent $source) 'dotnet-images.properties')))
+    Assert-True ($pins.Count -eq 2) 'Exactly one SDK/runtime image pair, for .NET 10, is required.'
+    Assert-True ($pins['sdk_10_0'] -match '^mcr.microsoft.com/dotnet/sdk:10.0@sha256:[a-f0-9]{64}$') 'The SDK must use an immutable official .NET 10 image.'
+    Assert-True ($pins['runtime_10_0'] -match '^mcr.microsoft.com/dotnet/aspnet:10.0@sha256:[a-f0-9]{64}$') 'The runtime must use an immutable official .NET 10 image.'
+    $repoRoot = Split-Path -Parent (Split-Path -Parent $source)
+    $dockerfile = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'samples/orders-dotnet/app/Dockerfile'))
+    $compose = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'samples/orders-dotnet-compose/compose.yaml'))
+    Assert-True ($dockerfile.Contains("ARG DOTNET_SDK_IMAGE=$($pins['sdk_10_0'])") -and $dockerfile.Contains("ARG DOTNET_RUNTIME_IMAGE=$($pins['runtime_10_0'])")) 'The Dockerfile defaults must match the pinned .NET 10 images.'
+    Assert-True ($compose.Contains("VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE:-$($pins['sdk_10_0'])}") -and $compose.Contains("VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE:-$($pins['runtime_10_0'])}")) 'The Compose defaults must match the pinned .NET 10 images.'
+    $passed++
+
+    $root = New-Case 'migration image overrides'
+    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example.invalid/dotnet/sdk:override'
+    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example.invalid/dotnet/aspnet:override'
     $null = New-Item -ItemType Directory -Force -Path (Join-Path $root 'samples/orders-dotnet/app')
     foreach ($name in @('from-postman', 'from-xunit', 'from-specflow')) {
         $null = New-Item -ItemType Directory -Force -Path (Join-Path $root "migrations/$name/ported")
@@ -351,7 +409,20 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     $console = @(& $shell -NoProfile -File (Join-Path $root 'scripts/run-migrations.ps1') 2>&1)
     Assert-True ($LASTEXITCODE -eq 0) "The migration runner failed: $($console -join ' ')"
     $calls = [System.IO.File]::ReadAllLines($env:VOUCHFX_SAMPLES_TEST_LOG)
-    Assert-True ($calls.Count -eq 4 -and $calls[0].Contains("DOTNET_SDK_IMAGE=$($pins['sdk_10_0'])") -and $calls[0].Contains("DOTNET_RUNTIME_IMAGE=$($pins['runtime_10_0'])")) 'Migrations must use the same selected image pair as normal samples.'
+    Assert-True ($calls.Count -eq 4 -and $calls[0].Contains('DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override') -and $calls[0].Contains('DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override')) 'Migrations must forward the same image overrides as normal samples.'
+    $passed++
+
+    $root = New-Case 'migration runner warns about the retired dotnet version variable'
+    $env:VOUCHFX_SAMPLE_DOTNET_VERSION = 'retired-value'
+    $null = New-Item -ItemType Directory -Force -Path (Join-Path $root 'samples/orders-dotnet/app')
+    foreach ($name in @('from-postman', 'from-xunit', 'from-specflow')) {
+        $null = New-Item -ItemType Directory -Force -Path (Join-Path $root "migrations/$name/ported")
+    }
+    $console = @(& $shell -NoProfile -File (Join-Path $root 'scripts/run-migrations.ps1') 2>&1)
+    Assert-True ($LASTEXITCODE -eq 0) "The migration runner failed: $($console -join ' ')"
+    Assert-True (($console -join ' ').Contains('WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10')) 'The migration runner must warn about the retired variable.'
+    $calls = [System.IO.File]::ReadAllLines($env:VOUCHFX_SAMPLES_TEST_LOG)
+    Assert-True (-not (($calls -join ' ').Contains('retired-value'))) 'The retired variable must not reach a native call.'
     $passed++
 
     $root = New-Case 'bootstrap preserves pin and enables runtime roll forward'
@@ -372,7 +443,7 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True ($LASTEXITCODE -eq 0 -and $status.Count -eq 0) 'Bootstrap must not modify the selected source checkout.'
     $passed++
 
-    Write-Host "$passed/26 sample-runner regressions passed."
+    Write-Host "$passed/33 sample-runner regressions passed."
 }
 finally {
     foreach ($name in $environmentNames) {

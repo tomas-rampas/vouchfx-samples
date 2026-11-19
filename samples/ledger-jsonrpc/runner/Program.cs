@@ -159,7 +159,7 @@ if (parsed.Count > 0)
     var suiteBaseDirectory = Path.GetDirectoryName(parsed[0].Path);
 
     // Same interactive-TTY + NO_COLOR gate the CLI computes before rendering
-    // (S10-G-03a) — decoration is purely additive, never load-bearing.
+    // — decoration is purely additive, never load-bearing.
     var decorate = !Console.IsOutputRedirected
         && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NO_COLOR"));
 

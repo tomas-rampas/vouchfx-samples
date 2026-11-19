@@ -12,8 +12,8 @@ The sample services are **not production templates**. Do not copy them into a
 production system and expect a hardened baseline. In particular, the following are
 known, deliberate properties of the demos, not reportable vulnerabilities:
 
-- **No authentication on the sample APIs.** The services (orders-dotnet,
-  inventory-python, payments-java, ledger-jsonrpc) expose unauthenticated
+- **No authentication on the sample APIs.** The services (orders-dotnet, which
+  orders-dotnet-compose also runs, inventory-python, payments-java, ledger-jsonrpc) expose unauthenticated
   endpoints because they run inside a vouchfx-orchestrated, throwaway container
   topology on a local Docker network.
 - **A documented SSRF-style callback surface in orders-dotnet.** The order flow

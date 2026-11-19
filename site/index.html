@@ -75,9 +75,9 @@
       <a class="btn btn--ghost" href="https://github.com/tomas-rampas/vouchfx-samples" target="_blank" rel="noopener noreferrer">GitHub repository</a>
     </div>
     <p class="hero__not">
-      Samples pinned to the vouchfx engine commit in
-      <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/ENGINE_PIN">ENGINE_PIN</a>
-      · current engine release {{fact:engine_release}}
+      Samples build the engine from the source commit in
+      <a href="https://github.com/tomas-rampas/vouchfx-samples/blob/main/ENGINE_PIN">ENGINE_PIN</a>,
+      which can be ahead of the newest published release ({{fact:engine_release}})
     </p>
   </div>
 </section>
@@ -148,8 +148,8 @@
       The stock <code>vouchfx</code> CLI ships the 25 Core providers, and from Core 1.2.0 it can also load
       trusted hub providers at startup, for example after <code>vouchfx providers install rpc.json-rpc</code>.
       The ledger-jsonrpc sample is the reference pattern for bundling a hub provider at build time instead — a
-      thin custom runner over the engine's public SDK (<code>Vouchfx.Sdk {{fact:sdk_version}}</code>), consuming
-      <code>Vouchfx.Community.JsonRpc {{fact:community_jsonrpc_version}}</code> from NuGet.org.
+      thin custom runner over the engine's public SDK, built from the engine source at <code>ENGINE_PIN</code>, consuming
+      the published <code>Vouchfx.Community.JsonRpc</code> package from NuGet.org at an exact pinned version.
     </p>
     <div class="grid grid--3">
       <a class="card" href="docs/custom-runner.html">
@@ -158,7 +158,7 @@
       </a>
       <a class="card" href="https://providers.vouchfx.io/docs/consuming-a-provider.html" target="_blank" rel="noopener noreferrer">
         <h3>Using community providers</h3>
-        <p>The hub's guide to compile-time discovery, NuGet pinning, and source builds.</p>
+        <p>The hub's guide to installing with the engine CLI, NuGet pinning, and source builds.</p>
       </a>
       <a class="card" href="samples/ledger-jsonrpc/README.html">
         <h3>The ledger-jsonrpc sample</h3>
@@ -209,7 +209,7 @@
       <span class="brand__mark" aria-hidden="true"></span>
       <div>
         <strong>vouchfx samples</strong>
-        <p>Real-world working samples for the vouchfx engine — four production-shaped applications, four stacks, one coherent business transaction proven end-to-end in each.</p>
+        <p>Real-world working samples for the vouchfx engine — four production-shaped applications in four stacks, plus an Orders Compose variant and a Kafka mutual-TLS suite, each proven end-to-end.</p>
       </div>
     </div>
     <div class="footer__links">
@@ -223,7 +223,7 @@
   </div>
   <div class="footer__base">
     <span>© 2026 vouchfx samples · Apache-2.0</span>
-    <span>Four stacks · one vouchfx engine · proven end-to-end against real containers</span>
+    <span>Six suites · one vouchfx engine · proven end-to-end against real containers</span>
   </div>
 </footer>
 

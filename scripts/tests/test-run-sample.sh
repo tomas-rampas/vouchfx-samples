@@ -57,7 +57,7 @@ new_case() {
   export VOUCHFX_SAMPLES_TEST_VERSION='1.0.0-sample-test+not-released'
   export VOUCHFX_SAMPLES_TEST_VERSION_EXIT=0
   unset VOUCHFX_SAMPLES_CLI VOUCHFX_SAMPLES_CLI_VERSION
-  unset VOUCHFX_SAMPLE_DOTNET_VERSION VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
+  unset VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE VOUCHFX_SAMPLE_DOTNET_VERSION
   cat > "$ROOT/scripts/bootstrap.sh" <<'STUB'
 #!/bin/sh
 printf '%s\n' bootstrap >> "$VOUCHFX_SAMPLES_TEST_LOG"
@@ -211,28 +211,97 @@ line_is 2 'cli run *orders-dotnet-compose/tests*--fail-on-env-error*--fail-on-in
 [[ ! -d "$ROOT/.vouchfx-src" ]] || fail 'Compose candidate mode created a source checkout.'
 pass
 
-new_case 'default image pins unchanged'
+new_case 'default image build passes no image overrides'
 sample app app
 run_case 0 app; count_is 2
 line_is 1 'docker build -t *'
 pass
 
-for version in 9.0 10.0; do
-  new_case "selected dotnet $version"
-  sample app app
-  export VOUCHFX_SAMPLE_DOTNET_VERSION="$version"
-  run_case 0 app; count_is 2
-  line_is 1 "docker build --build-arg DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:$version@sha256:* --build-arg DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:$version@sha256:* -t *"
-  pass
-done
-
-new_case 'invalid dotnet version refused'
+new_case 'image overrides reach docker build'
 sample app app
-export VOUCHFX_SAMPLE_DOTNET_VERSION=11.0
-run_case 1 app; count_is 0; pass
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override'
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:override'
+run_case 0 app; count_is 2
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
+pass
 
-new_case 'migration image runtime'
-export VOUCHFX_SAMPLE_DOTNET_VERSION=10.0
+new_case 'single image override leaves the other default'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:override'
+run_case 0 app; count_is 2
+line_is 1 'docker build --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
+pass
+
+new_case 'sdk-only image override leaves the runtime default'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override'
+run_case 0 app; count_is 2
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override -t *'
+[[ "$(sed -n 1p "$VOUCHFX_SAMPLES_TEST_LOG")" != *DOTNET_RUNTIME_IMAGE=* ]] || fail 'An SDK-only override also set DOTNET_RUNTIME_IMAGE.'
+grep -qF 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is set: the application build uses registry.example.invalid/dotnet/sdk:override' "$ROOT/console.log" || fail 'The effective image override was not logged.'
+grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE is not pinned by digest' "$ROOT/console.log" || fail 'A tag-only override did not warn.'
+pass
+
+new_case 'digest-pinned image override does not warn'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:10.0@sha256:0000000000000000000000000000000000000000000000000000000000000000'
+run_case 0 app; count_is 2
+if grep -q 'WARNING' "$ROOT/console.log"; then fail 'A digest-pinned override warned.'; fi
+pass
+
+new_case 'retired dotnet version variable warns and is otherwise ignored'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_VERSION='retired-value'
+run_case 0 app; count_is 2
+grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10' "$ROOT/console.log" || fail 'The retired variable did not warn.'
+[[ "$(sed -n 1p "$VOUCHFX_SAMPLES_TEST_LOG")" != *retired-value* ]] || fail 'The retired variable reached docker.'
+pass
+
+new_case 'image override with a space is refused before docker'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override --output=/tmp/x'
+run_case 1 app; count_is 0
+grep -qF 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters' "$ROOT/console.log" || fail 'The refusal did not name the variable.'
+pass
+
+new_case 'image override with an embedded newline is refused before docker'
+sample app app
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE=$'registry.example.invalid/dotnet/aspnet:override\n--output=/tmp/x'
+run_case 1 app; count_is 0
+grep -qF 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE must not contain whitespace or control characters' "$ROOT/console.log" || fail 'The refusal did not name the variable.'
+pass
+
+new_case 'migration image override with a space or newline is refused before docker'
+mkdir -p "$ROOT/samples/orders-dotnet/app"
+for name in from-postman from-xunit from-specflow; do
+  mkdir -p "$ROOT/migrations/$name/ported"
+done
+for bad in 'registry.example.invalid/dotnet/sdk:override --output=/tmp/x' $'registry.example.invalid/dotnet/sdk:override\n--output=/tmp/x'; do
+  export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE="$bad"
+  rc=0
+  bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
+  [[ "$rc" -eq 1 ]] || fail "Migration runner returned $rc for a refused override."
+  count_is 0
+  grep -qF 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE must not contain whitespace or control characters' "$ROOT/console.log" || fail 'The migration refusal did not name the variable.'
+done
+pass
+
+new_case 'dockerfile and compose defaults match the pinned .NET 10 images'
+# shellcheck source=scripts/dotnet-images.properties
+source "$SCRIPT_DIR/../dotnet-images.properties"
+sample_root="$SCRIPT_DIR/../../samples"
+grep -qxF "ARG DOTNET_SDK_IMAGE=$sdk_10_0" "$sample_root/orders-dotnet/app/Dockerfile" || fail 'Dockerfile SDK default differs from the pinned .NET 10 image.'
+grep -qxF "ARG DOTNET_RUNTIME_IMAGE=$runtime_10_0" "$sample_root/orders-dotnet/app/Dockerfile" || fail 'Dockerfile runtime default differs from the pinned .NET 10 image.'
+grep -qF "VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE:-$sdk_10_0}" "$sample_root/orders-dotnet-compose/compose.yaml" || fail 'Compose SDK default differs from the pinned .NET 10 image.'
+grep -qF "VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE:-$runtime_10_0}" "$sample_root/orders-dotnet-compose/compose.yaml" || fail 'Compose runtime default differs from the pinned .NET 10 image.'
+[[ "$sdk_10_0" =~ ^mcr\.microsoft\.com/dotnet/sdk:10\.0@sha256:[a-f0-9]{64}$ ]] || fail 'The pinned SDK image is not an immutable digest reference.'
+[[ "$runtime_10_0" =~ ^mcr\.microsoft\.com/dotnet/aspnet:10\.0@sha256:[a-f0-9]{64}$ ]] || fail 'The pinned runtime image is not an immutable digest reference.'
+[[ "$(grep -c '=' "$SCRIPT_DIR/../dotnet-images.properties")" -eq 2 ]] || fail 'The pin file must hold only the .NET 10 pair.'
+pass
+
+new_case 'migration image overrides'
+export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE='registry.example.invalid/dotnet/sdk:override'
+export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE='registry.example.invalid/dotnet/aspnet:override'
 mkdir -p "$ROOT/samples/orders-dotnet/app"
 for name in from-postman from-xunit from-specflow; do
   mkdir -p "$ROOT/migrations/$name/ported"
@@ -241,10 +310,23 @@ rc=0
 bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "Migration runner returned $rc."
 count_is 4
-line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0@sha256:* --build-arg DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0@sha256:* -t *'
+line_is 1 'docker build --build-arg DOTNET_SDK_IMAGE=registry.example.invalid/dotnet/sdk:override --build-arg DOTNET_RUNTIME_IMAGE=registry.example.invalid/dotnet/aspnet:override -t *'
 line_is 2 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
 line_is 3 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
 line_is 4 'dotnet run *--fail-on-env-error*--fail-on-inconclusive*'
+pass
+
+new_case 'migration runner warns about the retired dotnet version variable'
+export VOUCHFX_SAMPLE_DOTNET_VERSION='retired-value'
+mkdir -p "$ROOT/samples/orders-dotnet/app"
+for name in from-postman from-xunit from-specflow; do
+  mkdir -p "$ROOT/migrations/$name/ported"
+done
+rc=0
+bash "$ROOT/scripts/run-migrations.sh" > "$ROOT/console.log" 2>&1 || rc=$?
+[[ "$rc" -eq 0 ]] || fail "Migration runner returned $rc."
+grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10' "$ROOT/console.log" || fail 'The migration runner did not warn about the retired variable.'
+if grep -qF 'retired-value' "$VOUCHFX_SAMPLES_TEST_LOG"; then fail 'The retired variable reached a native call.'; fi
 pass
 
 new_case 'bootstrap preserves pin and enables runtime roll forward'
@@ -261,4 +343,4 @@ line_is 3 'dotnet build *-c Release -p:RollForward=Major'
 [[ -z "$(git -C "$ROOT/.vouchfx-src" status --porcelain)" ]] || fail 'Bootstrap changed the pinned source.'
 pass
 
-printf '%s/21 Bash sample-runner regressions passed.\n' "$PASSED"
+printf '%s/28 Bash sample-runner regressions passed.\n' "$PASSED"

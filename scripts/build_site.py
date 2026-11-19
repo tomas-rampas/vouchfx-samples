@@ -257,7 +257,7 @@ PORTAL = """<!DOCTYPE html>
     <p>Four application stacks, a Compose variant of Orders, and an infrastructure-only Kafka mutual-TLS suite.</p>
     <div class="doc-cards">
       <a class="doc-card" href="samples/orders-dotnet/README.html">
-        <span class="doc-card__k">C# · ASP.NET CORE 8</span><h3>Orders</h3>
+        <span class="doc-card__k">C# · ASP.NET CORE 10</span><h3>Orders</h3>
         <p>REST → Postgres row → Kafka event → outbound webhook callback. Five steps.</p>
       </a>
       <a class="doc-card" href="samples/orders-dotnet-compose/README.html">
@@ -309,7 +309,7 @@ PORTAL = """<!DOCTYPE html>
   <div class="container footer__inner">
     <div class="footer__brand">
       <span class="brand__mark" aria-hidden="true"></span>
-      <div><strong>vouchfx samples</strong><p>Real-world working samples for the vouchfx engine — four production-shaped applications, four stacks, one coherent business transaction proven end-to-end in each.</p></div>
+      <div><strong>vouchfx samples</strong><p>Real-world working samples for the vouchfx engine — four production-shaped applications in four stacks, plus an Orders Compose variant and a Kafka mutual-TLS suite, each proven end-to-end.</p></div>
     </div>
     <div class="footer__links">
       <a href="index.html">Home</a>
@@ -333,18 +333,19 @@ CONFIG = SiteConfig(
     extra=EXTRA,
     skip=SKIP,
     skip_prefixes=SKIP_PREFIXES,
-    # specs/seo-custom-domains.md REQ-006: this repo's custom domain. Opts build()
-    # into emitting robots.txt + sitemap.xml and supplying {canonical} to PAGE.
+    # This repo's custom domain. Opts build() into emitting robots.txt + sitemap.xml
+    # and supplying {canonical} to PAGE.
     site_url="https://samples.vouchfx.io/",
-    # specs/seo-fleet-audit.md B1/B2: a rendered page's own markdown title now
-    # renders a real <h1>, and the sidebar nav-group label drops out of the
-    # heading outline (paired with the site/docs.css selector rename below).
+    # A rendered page's own markdown title renders a real <h1>, and the sidebar
+    # nav-group label drops out of the heading outline.
     semantic_headings=True,
-    # specs/seo-fleet-audit.md B3: emits llms.txt (site_url is already set above).
+    # Emits llms.txt (site_url is already set above).
     llms_summary=(
-        "vouchfx samples provides four production-shaped sample applications, in C#, Python, "
-        "Node.js and Java, each pairing a real database, broker or cache with an end-to-end "
-        "integration test suite written for the vouchfx engine and run against real containers."
+        "vouchfx samples provides six end-to-end suites: four production-shaped sample "
+        "applications, in C#, Python, Node.js and Java, each pairing a real database, broker "
+        "or cache with an integration test suite written for the vouchfx engine, plus an "
+        "Orders Docker Compose variant and a Kafka mutual-TLS suite, all run against real "
+        "containers."
     ),
     llms_curated=True,
 )

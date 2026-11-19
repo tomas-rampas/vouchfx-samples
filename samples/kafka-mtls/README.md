@@ -45,7 +45,7 @@ failure above when this suite guessed `localhost:9092`. Current Core provides a 
 security recipe instead: declare `security` with a listener selector (`tcp`, `internal`, or a
 container port), provide PEM material through `serverArtifacts`, and set the declared PEM store
 locations in `env`. The engine owns the listener configuration and uses Aspire's allocated address
-for advertisement, Kafka clients, and confirmation. See the [managed Kafka recipe in Core](https://github.com/tomas-rampas/vouchfx/blob/194d530ede9b9cd94960d046e06a70bba2dfc757/docs/managed-kafka-security.md)
+for advertisement, Kafka clients, and confirmation. See the [managed Kafka recipe in Core](https://vouchfx.io/managed-kafka-security/)
 and §3.2.6b. `${conn:…}` remains invalid in dependency `env` values, and listener settings remain
 engine-owned for this managed recipe.
 

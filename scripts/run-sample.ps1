@@ -49,25 +49,20 @@ if ($env:VOUCHFX_SAMPLES_NO_BUILDKIT -eq '1') {
     $env:DOCKER_BUILDKIT = '0'
 }
 
-# Opt-in application runtime selection; Bash consumes this same pin data.
-if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION) {
-    if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION -notin @('8.0', '9.0', '10.0')) {
-        throw 'VOUCHFX_SAMPLE_DOTNET_VERSION must be 8.0, 9.0 or 10.0.'
-    }
-    $imagePins = ConvertFrom-StringData -StringData ([System.IO.File]::ReadAllText(
-        (Join-Path $PSScriptRoot 'dotnet-images.properties')))
-    $imageKey = $env:VOUCHFX_SAMPLE_DOTNET_VERSION.Replace('.', '_')
-    $env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = $imagePins["sdk_$imageKey"]
-    $env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = $imagePins["runtime_$imageKey"]
-}
+# Optional application image overrides. With neither variable set, the Dockerfile
+# defaults (the .NET 10 SDK and ASP.NET runtime digests) are used unchanged.
+#   VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE      -> docker build --build-arg DOTNET_SDK_IMAGE=...
+#   VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE  -> docker build --build-arg DOTNET_RUNTIME_IMAGE=...
 
 function Get-DockerBuildFlag {
     # Emits each extra `docker build` argument as its own array element, so a
     # value containing spaces is passed through as one argument.
     $flags = @()
-    if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION) {
+    if ($env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE) {
         $flags += '--build-arg'
         $flags += "DOTNET_SDK_IMAGE=$env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE"
+    }
+    if ($env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE) {
         $flags += '--build-arg'
         $flags += "DOTNET_RUNTIME_IMAGE=$env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE"
     }
@@ -102,6 +97,32 @@ function Write-Fail {
     param([string]$Message)
     Write-Host "[run-sample] ERROR: $Message" -ForegroundColor Red
     exit 1
+}
+
+# Test-ImageOverride refuses a .NET image override that holds whitespace or control
+# characters, before any docker call, to match scripts/run-sample.sh (where a newline
+# in a value would otherwise become extra `docker build` arguments). An accepted
+# override is logged, with a warning when it is not pinned by digest.
+function Test-ImageOverride {
+    param([string]$Name)
+    $value = [Environment]::GetEnvironmentVariable($Name)
+    if (-not $value) {
+        return
+    }
+    if ($value -match '[\s\x00-\x1F\x7F]') {
+        Write-Fail "$Name must not contain whitespace or control characters; it is an image reference."
+    }
+    Write-SampleLog "$Name is set: the application build uses $value"
+    if ($value -notlike '*@sha256:*') {
+        Write-SampleLog "WARNING: $Name is not pinned by digest (@sha256:...); an unpinned tag can change between builds."
+    }
+}
+
+Test-ImageOverride 'VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE'
+Test-ImageOverride 'VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE'
+
+if ($env:VOUCHFX_SAMPLE_DOTNET_VERSION) {
+    Write-SampleLog 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10'
 }
 
 function Get-AvailableSample {

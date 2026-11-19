@@ -69,7 +69,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Fail "git is not installed or not on PATH. Install it from https://git-scm.com/downloads and re-run."
 }
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Fail ".NET SDK is not installed or not on PATH. Install .NET 8 SDK (8.0.424 or later), .NET 9 or .NET 10 from https://dotnet.microsoft.com/download/dotnet and re-run."
+    Write-Fail ".NET SDK is not installed or not on PATH. Install the .NET 10 SDK from https://dotnet.microsoft.com/download/dotnet and re-run."
 }
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Fail "Docker is not installed or not on PATH. Install Docker Desktop (or the Docker Engine) from https://www.docker.com/products/docker-desktop/ -- the engine orchestrates test topology via containers and cannot run without it."
@@ -159,8 +159,8 @@ if (-not (Test-Path $CliProjectPath)) {
 }
 
 Write-BootstrapLog "Building engine CLI (Release)... this also restores the Aspire AppHost SDK's DCP binaries."
-# The immutable pin supplies source; this runner supplies the compatible
-# runtime policy, including pins released before major roll-forward.
+# The immutable pin supplies source; this runner supplies major roll-forward: the
+# engine source at ENGINE_PIN targets net8.0 and must run on this host's .NET 10 runtime.
 dotnet build $CliProjectPath -c Release -p:RollForward=Major
 Assert-Success "dotnet build failed for $CliProjectPath. See the build output above for details."
 

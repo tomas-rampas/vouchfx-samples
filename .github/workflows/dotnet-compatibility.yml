@@ -1,6 +1,6 @@
-# The net8.0 compatibility baseline must build and execute without a .NET 8
-# installation on the .NET 9 and 10 lanes. The existing CI retains Docker and
-# release checks; this matrix exercises the source and Docker-free runtime paths.
+# The net10.0 samples must build and execute on an isolated installation that
+# contains the .NET 10 SDK and runtimes and nothing else. The existing CI retains
+# Docker and release checks; this job exercises the source and Docker-free runtime paths.
 name: .NET compatibility
 
 on:
@@ -19,14 +19,11 @@ concurrency:
 
 jobs:
   compatibility:
-    name: .NET ${{ matrix.dotnet }} compatibility
+    name: .NET 10.0 compatibility
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        dotnet: ['8.0', '9.0', '10.0']
     env:
+      EXPECTED_DOTNET: '10.0'
       DOTNET_MULTILEVEL_LOOKUP: '0'
       DOTNET_NOLOGO: 'true'
       DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
@@ -40,27 +37,23 @@ jobs:
           persist-credentials: false
 
       # A fresh directory prevents preinstalled SDKs/runtimes from satisfying
-      # global.json or a net8.0 testhost on a newer-runtime lane.
+      # global.json or supply a runtime other than .NET 10.
       - name: Configure isolated SDK installation
         run: printf 'DOTNET_INSTALL_DIR=%s/dotnet-compatibility\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - name: Install isolated .NET SDK
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: ${{ matrix.dotnet }}.x
+          dotnet-version: ${{ env.EXPECTED_DOTNET }}.x
 
       - name: Test runtime-isolation guard safety
         shell: pwsh
         run: ./scripts/ci/test-select-dotnet-runtime.ps1
       - name: Keep only the selected SDK and shared frameworks
-        env:
-          EXPECTED_DOTNET: '${{ matrix.dotnet }}'
         shell: pwsh
         run: ./scripts/ci/select-dotnet-runtime.ps1 -ExpectedDotnet $env:EXPECTED_DOTNET
 
       - name: Require the selected SDK and runtime only
-        env:
-          EXPECTED_DOTNET: ${{ matrix.dotnet }}
         run: |
           set -euo pipefail
           test "$(dirname "$(command -v dotnet)")" = "$DOTNET_INSTALL_DIR"
@@ -112,14 +105,12 @@ jobs:
       - name: Launch the custom provider runner
         run: |
           set -euo pipefail
-          dotnet samples/ledger-jsonrpc/runner/bin/Release/net8.0/LedgerRunner.dll --list \
+          dotnet samples/ledger-jsonrpc/runner/bin/Release/net10.0/LedgerRunner.dll --list \
             | tee "$RUNNER_TEMP/compatibility-provider-list.txt"
           grep -F 'rpc.json-rpc' "$RUNNER_TEMP/compatibility-provider-list.txt"
 
 
       - name: Execute a suite on the selected runtime
-        env:
-          EXPECTED_DOTNET: ${{ matrix.dotnet }}
         run: |
           set -euo pipefail
           expected_major="${EXPECTED_DOTNET%%.*}"
@@ -136,7 +127,7 @@ jobs:
                     throw new Exception("Unexpected runtime: " + Environment.Version);
                 Console.WriteLine("LEDGER_RUNTIME_MAJOR=" + Environment.Version.Major);
           YAML
-          dotnet samples/ledger-jsonrpc/runner/bin/Release/net8.0/LedgerRunner.dll \
+          dotnet samples/ledger-jsonrpc/runner/bin/Release/net10.0/LedgerRunner.dll \
             "$suite_dir" --junit "$RUNNER_TEMP/compatibility-junit.xml" \
             | tee "$RUNNER_TEMP/compatibility-runtime.log"
           grep -F "LEDGER_RUNTIME_MAJOR=$expected_major" "$RUNNER_TEMP/compatibility-runtime.log"

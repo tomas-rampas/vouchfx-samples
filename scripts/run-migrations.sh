@@ -32,28 +32,20 @@ if [[ "${VOUCHFX_SAMPLES_NO_BUILDKIT:-0}" == "1" ]]; then
   export DOCKER_BUILDKIT=0
 fi
 
-# Opt-in application runtime selection; pin data is shared with PowerShell.
-# With no selection, Dockerfile defaults and ordinary build arguments stay unchanged.
-if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
-  case "$VOUCHFX_SAMPLE_DOTNET_VERSION" in
-    8.0|9.0|10.0) ;;
-    *) printf 'VOUCHFX_SAMPLE_DOTNET_VERSION must be 8.0, 9.0 or 10.0.\n' >&2; exit 1 ;;
-  esac
-  # shellcheck source=scripts/dotnet-images.properties
-  source "$REPO_ROOT/scripts/dotnet-images.properties"
-  image_key="sdk_${VOUCHFX_SAMPLE_DOTNET_VERSION//./_}"
-  export VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE="${!image_key}"
-  image_key="runtime_${VOUCHFX_SAMPLE_DOTNET_VERSION//./_}"
-  export VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE="${!image_key}"
-fi
+# Optional application image overrides. With neither variable set, the Dockerfile
+# defaults (the .NET 10 SDK and ASP.NET runtime digests) are used unchanged.
+#   VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE      -> docker build --build-arg DOTNET_SDK_IMAGE=...
+#   VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE  -> docker build --build-arg DOTNET_RUNTIME_IMAGE=...
 
 # docker_build_flags emits one extra `docker build` argument per line (nothing at
 # all when no accommodation is configured).
 docker_build_flags() {
   local var
-  if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
-    printf '%s\n' '--build-arg' "DOTNET_SDK_IMAGE=$VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE" \
-      '--build-arg' "DOTNET_RUNTIME_IMAGE=$VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE"
+  if [[ -n "${VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE:-}" ]]; then
+    printf '%s\n' '--build-arg' "DOTNET_SDK_IMAGE=$VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE"
+  fi
+  if [[ -n "${VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE:-}" ]]; then
+    printf '%s\n' '--build-arg' "DOTNET_RUNTIME_IMAGE=$VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE"
   fi
   if [[ -n "${VOUCHFX_SAMPLES_BUILD_NETWORK:-}" ]]; then
     printf '%s\n' '--network' "${VOUCHFX_SAMPLES_BUILD_NETWORK}"
@@ -73,6 +65,32 @@ fail() {
   printf '[run-migrations] ERROR: %s\n' "$1" >&2
   exit 1
 }
+
+# check_image_override <variable-name> refuses a .NET image override that holds
+# whitespace or control characters, before any docker call. docker_build_flags
+# passes one argument per line, so a newline inside a value would otherwise turn
+# the rest of it into extra `docker build` arguments (for example --output=...).
+# When an override is accepted it is logged, with a warning if it is not pinned
+# by digest (an unpinned tag can change between builds). Keep in step with
+# scripts/run-sample.sh.
+check_image_override() {
+  local var="$1" value="${!1:-}" bad_re='[[:space:][:cntrl:]]'
+  [[ -n "$value" ]] || return 0
+  if [[ "$value" =~ $bad_re ]]; then
+    fail "${var} must not contain whitespace or control characters; it is an image reference."
+  fi
+  log "${var} is set: the application build uses ${value}"
+  if [[ "$value" != *@sha256:* ]]; then
+    log "WARNING: ${var} is not pinned by digest (@sha256:...); an unpinned tag can change between builds."
+  fi
+}
+
+check_image_override VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE
+check_image_override VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE
+
+if [[ -n "${VOUCHFX_SAMPLE_DOTNET_VERSION:-}" ]]; then
+  log "WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples build on .NET 10"
+fi
 
 # ── Ensure the engine CLI is bootstrapped ────────────────────────────────────
 if [[ ! -d "$VOUCHFX_SRC_DIR" ]]; then

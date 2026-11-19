@@ -5,13 +5,13 @@ This page covers what you need installed, the two-command quick start, how to re
 ## Prerequisites
 
 - **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
-- **.NET 8, 9 or 10 SDK**, with 8.0.424 as the minimum. Current sample source keeps `net8.0` assets and enables major runtime roll-forward; `global.json` prefers .NET 8 and permits a higher SDK major when it is absent. Bootstrap also supplies this runtime policy when building the immutable engine source pin. Older installed CLI candidates need the explicit installation opt-in below on .NET 9/10-only hosts. Get .NET from <https://dotnet.microsoft.com/download/dotnet>.
+- **.NET 10 SDK.** `global.json` pins 10.0.100 and allows later 10.0 feature bands. The samples, runners and migration sources target `net10.0`. The engine source at `ENGINE_PIN` targets `net8.0`, so bootstrap builds it with major runtime roll-forward and it runs on the .NET 10 runtime. A previously published CLI candidate needs the explicit installation opt-in below. Get .NET from <https://dotnet.microsoft.com/download/dotnet>.
 - **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). Inline suites use .NET Aspire + Testcontainers; the Compose variant uses its selected native adapter to own the application and dependencies; nothing here runs against infrastructure you install by hand.
 - **Git**, reachable on `PATH`, for source mode (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
 - **Network access to GitHub and your container registry on first run.** The first `scripts/bootstrap.*` fetches the engine source; the first `scripts/run-sample.*` pulls the dependency images the chosen sample declares (Postgres, Kafka, SQL Server, ...). Both are cached afterwards — subsequent runs are offline-capable except for image/engine updates.
 
-These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). See the [Core 1.2.0 source validation record](validation/core-1.2.0-source-validation-2026-10-22.md) for current source results and the [Core 1.2.0 installed acceptance record](validation/core-1.2.0-installed-acceptance-2026-10-22.md) for official CLI results. The [Core 1.0.7 source](validation/core-1.0.7-source-validation-2026-10-17.md), [Core 1.0.7 installed](validation/core-1.0.7-installed-acceptance-2026-10-17.md) and [Core 1.0.6](validation/core-1.0.6-acceptance.md) records preserve historical evidence. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
+These runners default to a source build at the commit selected in [`ENGINE_PIN`](../ENGINE_PIN). The dated validation records are historical evidence for the engine versions they name, not results for the current pin: the [Core 1.2.0 source validation record](validation/core-1.2.0-source-validation-2026-10-22.md) covers the 1.2.0 source commit and the [Core 1.2.0 installed acceptance record](validation/core-1.2.0-installed-acceptance-2026-10-22.md) covers the official 1.2.0 CLI. The [Core 1.0.7 source](validation/core-1.0.7-source-validation-2026-10-17.md), [Core 1.0.7 installed](validation/core-1.0.7-installed-acceptance-2026-10-17.md) and [Core 1.0.6](validation/core-1.0.6-acceptance.md) records preserve earlier evidence. Samples CI exercises the current pin. `ledger-jsonrpc` uses its custom source runner. Source and installed-package runs remain separate evidence.
 
 ## Quick start
 
@@ -49,43 +49,56 @@ export VOUCHFX_COMPOSE_PASSWORD
 
 In default source mode, `scripts/run-sample.*` calls `scripts/bootstrap.*` automatically the first time (whenever `.vouchfx-src/` is missing), so a completely fresh clone only needs step 2. After advancing `ENGINE_PIN`, run bootstrap explicitly to replace an existing source checkout with the new pin.
 
-## Select a .NET application container runtime
+## .NET application container images
 
-Application images default to their existing .NET 8 bases. To exercise .NET 9 or 10 inside
-the Orders application container as well as in the runner, select a version explicitly:
+The Orders application images build on the digest-pinned .NET 10 SDK and ASP.NET runtime
+images recorded in [`scripts/dotnet-images.properties`](../scripts/dotnet-images.properties).
+Those digests are the defaults in the Orders `Dockerfile` and in the
+`orders-dotnet-compose` Compose file, and the runner regression tests fail if they drift
+apart. Python, Java and Node.js application runtimes are unaffected.
+
+To build the application against a different SDK or runtime image, set one or both of
+these variables. The Bash and PowerShell runners (including the migration runners) pass
+them to `docker build` as `DOTNET_SDK_IMAGE` and `DOTNET_RUNTIME_IMAGE`, and the Compose
+file reads them directly:
 
 ```bash
-VOUCHFX_SAMPLE_DOTNET_VERSION=10.0 ./scripts/run-sample.sh orders-dotnet
+VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE=registry.example/dotnet/sdk:10.0@sha256:<digest> \
+VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE=registry.example/dotnet/aspnet:10.0@sha256:<digest> \
+  ./scripts/run-sample.sh orders-dotnet
 ```
 
 ```powershell
-$env:VOUCHFX_SAMPLE_DOTNET_VERSION = '10.0'
+$env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE = 'registry.example/dotnet/sdk:10.0@sha256:<digest>'
+$env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE = 'registry.example/dotnet/aspnet:10.0@sha256:<digest>'
 try {
     ./scripts/run-sample.ps1 orders-dotnet
 }
 finally {
-    Remove-Item Env:VOUCHFX_SAMPLE_DOTNET_VERSION, Env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE,
+    Remove-Item Env:VOUCHFX_SAMPLE_DOTNET_SDK_IMAGE,
         Env:VOUCHFX_SAMPLE_DOTNET_RUNTIME_IMAGE -ErrorAction SilentlyContinue
 }
 ```
 
-The supported selections are `8.0`, `9.0` and `10.0`. Bash and PowerShell use the same
-[pinned SDK/runtime image pairs](../scripts/dotnet-images.properties); the default .NET 8
-digests are unchanged. The selection also applies to `orders-dotnet-compose` and both
-migration runners. Python, Java and Node.js application runtimes are unaffected.
-Samples CI selects a matching application runtime in each SDK/runtime lane.
+Prefer digest-pinned overrides (`@sha256:...`), as above: a tag can move between builds. The
+runners log each override they use and warn when it carries no digest. They refuse a value
+containing whitespace or control characters, because it is an image reference and nothing
+else, and they do so before any `docker` call.
 
 ## Validate an installed CLI candidate
 
-The published CLI is available on NuGet.org. Install it and select
-the independently recorded release version below. If the global tool is already installed,
-use `dotnet tool update --global vouchfx --version 1.2.0` instead of the install command.
-On a .NET 9/10-only host, add `--allow-roll-forward` when installing or updating this older
-published tool. That SDK option enables the selected installation to run on the newer runtime;
-it does not rewrite the published package or alter `ENGINE_PIN`.
+The published CLI is available on NuGet.org. Install it and select the independently
+recorded release version below. The published 1.2.0 package targets .NET 8 and declares
+no roll-forward policy, so on a host that carries only the .NET 10 runtime it must be
+installed with `--allow-roll-forward`; that option lets the installed tool run on the
+newer runtime without rewriting the package or altering `ENGINE_PIN`. `dotnet tool update`
+does not accept the option, so if the global tool is already installed, run
+`dotnet tool uninstall --global vouchfx` first and then the install command below.
+Alternatively, keep the existing installation and export `DOTNET_ROLL_FORWARD=Major` before
+running the runner (it applies to every .NET app started from that shell).
 
 ```bash
-dotnet tool install --global vouchfx --version 1.2.0
+dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward
 export VOUCHFX_SAMPLES_CLI='vouchfx'
 export VOUCHFX_SAMPLES_CLI_VERSION='1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
@@ -94,7 +107,7 @@ export VOUCHFX_COMPOSE_PASSWORD
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.2.0
+dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
 $env:VOUCHFX_SAMPLES_CLI_VERSION = '1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
@@ -259,14 +272,14 @@ The default build assumes direct internet access. On a network that forces traff
 
 ### 1. Dependency images can't be pulled
 
-Aspire/DCP pulls the managed dependency images (Postgres, Kafka, MySQL, Redis, RabbitMQ, NATS, Mailpit) itself at run time, so no script flag can redirect them. Point the Docker **daemon** at a registry mirror instead — this is transparent, needs no change to any suite, and keeps image references as `docker.io/...`:
+Aspire/DCP pulls the managed dependency images (Postgres, Kafka, MySQL, SQL Server, Redis, RabbitMQ, NATS, Mailpit) itself at run time, so no script flag can redirect them. Point the Docker **daemon** at a registry mirror instead — this is transparent, needs no change to any suite, and keeps image references as `docker.io/...`:
 
 ```json
 /* /etc/docker/daemon.json */
 { "registry-mirrors": ["https://mirror.gcr.io"] }
 ```
 
-Restart the daemon afterwards. Verify with `docker info | grep -A1 "Registry Mirrors"`. Confirm your mirror serves the digests you expect before trusting a run — `docker pull postgres:17.6` should report the same `sha256:` digest as Docker Hub.
+Restart the daemon afterwards. Verify with `docker info | grep -A1 "Registry Mirrors"`. Confirm your mirror serves the digests you expect before trusting a run — `docker pull` of a dependency image tag your run uses (for example `postgres:<tag>`) should report the same `sha256:` digest as Docker Hub.
 
 > Check this is permitted by your organisation's egress policy first. If Docker Hub is deliberately blocked, mirroring the same images may not be an approved route — allowlisting the registry is the cleaner fix.
 
@@ -294,7 +307,7 @@ An inspecting proxy presents its own CA, and the `payments-java` build then fail
 - `keytool -importcert` reads only the **first** certificate from a multi-certificate PEM bundle and silently ignores the rest, so passing a full `ca-bundle.crt` trusts the wrong anchor while printing `Certificate was added to keystore`.
 - Importing into the JDK's own `cacerts` is **not** sufficient on its own — `keytool -list` shows the alias, yet Maven still fails PKIX. The store has to be handed to the JVM explicitly via `-Djavax.net.ssl.trustStore`.
 
-The other three samples need no CA handling: the .NET build reaches NuGet through the forwarded proxy, and the Python and Node builds fetch from PyPI and npm, which are typically direct.
+The other application builds need no CA handling: the .NET build reaches NuGet through the forwarded proxy, and the Python and Node.js builds fetch from PyPI and npm, which are typically direct.
 
 ## Why samples don't run concurrently on one machine
 

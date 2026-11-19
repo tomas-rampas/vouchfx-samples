@@ -6,11 +6,14 @@
     setup-dotnet v6 installs the latest LTS CoreCLR before the requested SDK.
     Keep only the selected SDK/shared-framework line so roll-forward tests cannot
     use that unrelated runtime. Native host/fxr files are deliberately untouched.
+    With .NET 10 as the only supported version the selector removes nothing today,
+    because the latest LTS is the selected line; it still guards against a newer
+    line being present.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('8.0', '9.0', '10.0')]
+    [ValidateSet('10.0')]
     [string]$ExpectedDotnet,
     [string]$InstallRoot = $env:DOTNET_INSTALL_DIR,
     [string]$RunnerTemp = $env:RUNNER_TEMP

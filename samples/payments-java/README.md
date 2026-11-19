@@ -52,9 +52,9 @@ of type `sqlserver`, `nats`, and `mailpit` respectively.
 
 ## The app (`app/`)
 
-A single-module Maven project (`pom.xml`), Java 17, Spring Boot 3.3.13. No Lombok, no JPA/ORM —
-one table, plain `JdbcTemplate`. Dependencies: `spring-boot-starter-web`,
-`spring-boot-starter-jdbc`, `mssql-jdbc` (12.10.0.jre11), `io.nats:jnats` (2.25.3),
+A single-module Maven project (`pom.xml`), Java 17, Spring Boot 3.3. No Lombok, no JPA/ORM —
+one table, plain `JdbcTemplate`. Dependencies (versions are pinned in `pom.xml`): `spring-boot-starter-web`,
+`spring-boot-starter-jdbc`, `mssql-jdbc`, `io.nats:jnats`,
 `spring-boot-starter-mail` (used only to pull in `jakarta.mail-api` + Angus Mail — see
 `ReceiptMailSender`'s Javadoc for why Spring's own mail autoconfiguration is bypassed).
 
