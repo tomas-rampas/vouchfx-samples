@@ -329,7 +329,7 @@ grep -qF 'WARNING: VOUCHFX_SAMPLE_DOTNET_VERSION is no longer used; samples buil
 if grep -qF 'retired-value' "$VOUCHFX_SAMPLES_TEST_LOG"; then fail 'The retired variable reached a native call.'; fi
 pass
 
-new_case 'bootstrap preserves pin and enables runtime roll forward'
+new_case 'bootstrap preserves pin and builds it without a roll-forward override'
 cp "$SCRIPT_DIR/../bootstrap.sh" "$ROOT/scripts/bootstrap.sh"
 git -C "$ROOT/.vouchfx-src" init -q
 git -C "$ROOT/.vouchfx-src" add .
@@ -339,7 +339,7 @@ rc=0
 bash "$ROOT/scripts/bootstrap.sh" > "$ROOT/console.log" 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "Bootstrap returned $rc."
 count_is 3
-line_is 3 'dotnet build *-c Release -p:RollForward=Major'
+line_is 3 'dotnet build *-c Release'
 [[ -z "$(git -C "$ROOT/.vouchfx-src" status --porcelain)" ]] || fail 'Bootstrap changed the pinned source.'
 pass
 
