@@ -5,7 +5,7 @@ This page covers what you need installed, the two-command quick start, how to re
 ## Prerequisites
 
 - **Operating system:** Windows, macOS, or Linux. Use `scripts/*.sh` with Bash or `scripts/*.ps1` with PowerShell 7 or later.
-- **.NET 10 SDK.** `global.json` pins 10.0.100 and allows later 10.0 feature bands. The samples, runners and migration sources target `net10.0`. The engine source at `ENGINE_PIN` targets `net8.0`, so bootstrap builds it with major runtime roll-forward and it runs on the .NET 10 runtime. A previously published CLI candidate needs the explicit installation opt-in below. Get .NET from <https://dotnet.microsoft.com/download/dotnet>.
+- **.NET 10 SDK.** `global.json` pins 10.0.100 and allows later 10.0 feature bands. The samples, runners and migration sources target `net10.0`. The engine source at `ENGINE_PIN` targets `net10.0`, as every engine release from 1.4.0 does, so bootstrap builds it as it is with no runtime roll-forward. Published `vouchfx` tools from 1.4.0 onwards install plainly; only an older release (1.2.1 or earlier, which target .NET 8) needs the explicit installation opt-in below. Get .NET from <https://dotnet.microsoft.com/download/dotnet>.
 - **Docker**, with **Linux containers** (on Windows, that means Docker Desktop's WSL2 backend, not Windows containers). Inline suites use .NET Aspire + Testcontainers; the Compose variant uses its selected native adapter to own the application and dependencies; nothing here runs against infrastructure you install by hand.
 - **Git**, reachable on `PATH`, for source mode (used to shallow-fetch the pinned engine commit).
 - **~8 GB of free RAM** for the heaviest sample. Aspire brings up the sample's own service(s) plus its managed dependencies (a database, a broker, etc.) all at once; budget accordingly if you're also running other containers.
@@ -88,28 +88,34 @@ else, and they do so before any `docker` call.
 ## Validate an installed CLI candidate
 
 The published CLI is available on NuGet.org. Install it and select the independently
-recorded release version below. The published 1.2.0 package targets .NET 8 and declares
-no roll-forward policy, so on a host that carries only the .NET 10 runtime it must be
-installed with `--allow-roll-forward`; that option lets the installed tool run on the
-newer runtime without rewriting the package or altering `ENGINE_PIN`. `dotnet tool update`
-does not accept the option, so if the global tool is already installed, run
-`dotnet tool uninstall --global vouchfx` first and then the install command below.
-Alternatively, keep the existing installation and export `DOTNET_ROLL_FORWARD=Major` before
-running the runner (it applies to every .NET app started from that shell).
+recorded release version below. The published 1.4.0 package targets .NET 10, the runtime
+this repository requires, so it installs and starts with no roll-forward option. If a
+different version of the global tool is already installed, run
+`dotnet tool update --global vouchfx --version 1.4.0` (or uninstall it first) before the
+install command below.
+
+To validate an older release instead (1.2.1 and earlier target .NET 8 and declare no
+roll-forward policy), install it with `--allow-roll-forward` on a host that carries only
+the .NET 10 runtime, for example
+`dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward`; the option
+cannot be used with `dotnet tool update`, so uninstall first. Alternatively export
+`DOTNET_ROLL_FORWARD=Major` before running the runner (it applies to every .NET app started
+from that shell). Set `VOUCHFX_SAMPLES_CLI_VERSION` to the full version string that release
+reports from `vouchfx --version`.
 
 ```bash
-dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward
+dotnet tool install --global vouchfx --version 1.4.0
 export VOUCHFX_SAMPLES_CLI='vouchfx'
-export VOUCHFX_SAMPLES_CLI_VERSION='1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
+export VOUCHFX_SAMPLES_CLI_VERSION='1.4.0+18f5a1cdfc8c1f10a963bc7c7527a20808bbf289'
 read -rsp 'Isolated database password: ' VOUCHFX_COMPOSE_PASSWORD; printf '\n'
 export VOUCHFX_COMPOSE_PASSWORD
 ./scripts/run-sample.sh orders-dotnet-compose
 ```
 
 ```powershell
-dotnet tool install --global vouchfx --version 1.2.0 --allow-roll-forward
+dotnet tool install --global vouchfx --version 1.4.0
 $env:VOUCHFX_SAMPLES_CLI = 'vouchfx'
-$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.2.0+0af21de5bd0a4e91ca002e03e6c256bc4e8ca4e8'
+$env:VOUCHFX_SAMPLES_CLI_VERSION = '1.4.0+18f5a1cdfc8c1f10a963bc7c7527a20808bbf289'
 $env:VOUCHFX_COMPOSE_PASSWORD = Read-Host -MaskInput 'Isolated database password'
 .\scripts\run-sample.ps1 orders-dotnet-compose
 ```

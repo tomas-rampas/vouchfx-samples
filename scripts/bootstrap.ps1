@@ -159,9 +159,12 @@ if (-not (Test-Path $CliProjectPath)) {
 }
 
 Write-BootstrapLog "Building engine CLI (Release)... this also restores the Aspire AppHost SDK's DCP binaries."
-# The immutable pin supplies source; this runner supplies major roll-forward: the
-# engine source at ENGINE_PIN targets net8.0 and must run on this host's .NET 10 runtime.
-dotnet build $CliProjectPath -c Release -p:RollForward=Major
+# The engine source at ENGINE_PIN (the v1.4.0 tag commit onwards) targets net10.0, the
+# runtime this repository requires, so it is built as-is and needs no roll-forward. The
+# earlier stopgap pin was a net8.0 build and needed -p:RollForward=Major; if the pin is ever
+# moved back to a net8.0 commit, restore that flag. run-sample.* start the CLI with
+# `dotnet run --project ... --no-build`, so nothing here depends on the target framework.
+dotnet build $CliProjectPath -c Release
 Assert-Success "dotnet build failed for $CliProjectPath. See the build output above for details."
 
 Write-BootstrapLog "Bootstrap complete. Engine CLI built from commit $EngineSha."

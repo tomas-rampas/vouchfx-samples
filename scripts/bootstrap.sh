@@ -115,9 +115,12 @@ CLI_PROJECT_PATH="${VOUCHFX_SRC_DIR}/${CLI_PROJECT_REL}"
   || fail "Expected CLI project not found at ${CLI_PROJECT_PATH}. The engine's repo layout may have changed since this pin was set — check that src/Cli/Vouchfx.Cli/ exists at commit ${ENGINE_SHA}."
 
 log "Building engine CLI (Release)... this also restores the Aspire AppHost SDK's DCP binaries."
-# Keep the pinned source immutable while enabling major roll-forward: the engine
-# source at ENGINE_PIN targets net8.0 and must run on this host's .NET 10 runtime.
-if ! dotnet build "$CLI_PROJECT_PATH" -c Release -p:RollForward=Major; then
+# The engine source at ENGINE_PIN (the v1.4.0 tag commit onwards) targets net10.0, the
+# runtime this repository requires, so it is built as-is and needs no roll-forward. The
+# earlier stopgap pin was a net8.0 build and needed -p:RollForward=Major; if the pin is ever
+# moved back to a net8.0 commit, restore that flag. run-sample.* start the CLI with
+# `dotnet run --project ... --no-build`, so nothing here depends on the target framework.
+if ! dotnet build "$CLI_PROJECT_PATH" -c Release; then
   fail "dotnet build failed for ${CLI_PROJECT_PATH}. See the build output above for details."
 fi
 

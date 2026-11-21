@@ -1,4 +1,4 @@
-12ece7352c75057bd387bd2886279f74424c3cf7
+18f5a1cdfc8c1f10a963bc7c7527a20808bbf289
 #
 # ENGINE_PIN — the exact vouchfx engine commit this samples repo builds against.
 #
@@ -87,6 +87,31 @@
 #
 # Pin history
 # ------------
+# 2026-11-21: advanced to 18f5a1cd — the v1.4.0 tag commit (tagged and published 2026-11-21; the
+# engine CHANGELOG at that commit dates the release 2026-11-19; the tag resolves
+# with `gh api repos/tomas-rampas/vouchfx/commits/v1.4.0 --jq .sha`), replacing the 12ece735 stopgap.
+# v1.4.0 is the first engine release that targets net10.0 (the five provider-contract libraries
+# stay net8.0); releases up to 1.2.1 were net8.0 builds. What follows here: bootstrap.* no longer
+# passes -p:RollForward=Major (run-sample.* start the CLI with `dotnet run --project ... --no-build`,
+# so no path depends on the target framework), the installed lanes in samples-ci.yml install the
+# published `vouchfx` 1.4.0 without --allow-roll-forward and expect 1.4.0+18f5a1cdfc8c1f10a963bc7c7527a20808bbf289
+# (the string `vouchfx --version` prints for that package), and README, docs/RUNNING.md and
+# site/facts-fallback.json say 1.4.0. Roll-forward is now only needed to validate a 1.2.1-or-earlier
+# CLI, which docs/RUNNING.md still explains. Engine 1.4.0 upgrade notes checked against the
+# samples: no suite uses a PKCS#12 security.caCert (kafka-mtls names ./certs/ca.pem) and every
+# http.rest body is a plain YAML mapping, so no sample needed editing.
+# Verified without Docker: the shallow fetch of this commit, then `dotnet build` of the CLI project
+# with -c Release (0 warnings, 0 errors; output under bin/Release/net10.0/), then
+# `dotnet run --project ... -c Release --no-build -- --version`, which prints
+# 1.0.0-0.local+18f5a1cdfc8c1f10a963bc7c7527a20808bbf289 (the source build keeps the SDK's
+# 1.0.0-0.local package identity; its provider-admission capability stamp is 1.4.0 from the
+# engine's Directory.Build.props). `dotnet tool install vouchfx --version 1.4.0` installs without
+# roll-forward and prints 1.4.0+18f5a1cdfc8c1f10a963bc7c7527a20808bbf289. Checked during review of
+# this change, in a scratch copy: the ledger-jsonrpc runner restores against this commit with
+# `dotnet restore --locked-mode` (packages.lock.json unchanged) and builds with -c Release
+# (0 warnings). Not run here: the Docker-backed sample and migration suites and the installed
+# lanes; samples-ci runs them.
+# Prior pin: 12ece735.
 # 2026-11-17: advanced to 12ece735 — vouchfx main after #688, a stopgap until the 1.4.0 tag exists (ZEB-29).
 # e3e72726 no longer restores: its Aspire 13.4.2 packages carry GHSA-f7vh-h5g3-7jrh and the
 # engine builds with warnings as errors (NU1903), so every source-build job failed in

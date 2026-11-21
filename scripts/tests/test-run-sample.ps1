@@ -425,7 +425,7 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     Assert-True (-not (($calls -join ' ').Contains('retired-value'))) 'The retired variable must not reach a native call.'
     $passed++
 
-    $root = New-Case 'bootstrap preserves pin and enables runtime roll forward'
+    $root = New-Case 'bootstrap preserves pin and builds it without a roll-forward override'
     Copy-Item -LiteralPath (Join-Path (Split-Path -Parent $source) 'bootstrap.ps1') -Destination (Join-Path $root 'scripts/bootstrap.ps1') -Force
     $sourceRoot = Join-Path $root '.vouchfx-src'
     git -C $sourceRoot init -q
@@ -438,7 +438,7 @@ exit "$VOUCHFX_SAMPLES_TEST_CLI_EXIT"
     $console = @(& $shell -NoProfile -File (Join-Path $root 'scripts/bootstrap.ps1') 2>&1)
     Assert-True ($LASTEXITCODE -eq 0) "Bootstrap failed: $($console -join ' ')"
     $calls = [System.IO.File]::ReadAllLines($env:VOUCHFX_SAMPLES_TEST_LOG)
-    Assert-True ($calls.Count -eq 3 -and $calls[2] -like 'dotnet build *-c Release -p:RollForward=Major') 'Bootstrap must supply Major roll-forward while building the selected pin.'
+    Assert-True ($calls.Count -eq 3 -and $calls[2] -like 'dotnet build *-c Release') 'Bootstrap must build the selected net10.0 pin with no roll-forward override.'
     $status = @(git -C $sourceRoot status --porcelain)
     Assert-True ($LASTEXITCODE -eq 0 -and $status.Count -eq 0) 'Bootstrap must not modify the selected source checkout.'
     $passed++
