@@ -10,14 +10,16 @@ Real-world working samples for [vouchfx](https://github.com/tomas-rampas/vouchfx
 
 The .NET samples, runners and migration sources target `net10.0`, and .NET 10 is the
 only supported SDK and runtime; `global.json` pins it. The engine source at
-[`ENGINE_PIN`](ENGINE_PIN) still targets `net8.0`, so bootstrap builds it with major
-runtime roll-forward and it runs on the .NET 10 runtime. The
+[`ENGINE_PIN`](ENGINE_PIN) is the engine 1.4.0 tag commit, the first engine release that
+targets `net10.0`, so bootstrap builds it as it is and no runtime roll-forward is involved.
+The published `vouchfx` 1.4.0 tool installs with the plain `dotnet tool install` command. The
 [compatibility workflow](https://github.com/tomas-rampas/vouchfx-samples/blob/main/.github/workflows/dotnet-compatibility.yml)
 builds the .NET samples and migration sources and launches the custom provider
 runner on an isolated installation that holds only .NET 10. Samples CI also runs every
 source sample, installed sample and migration against .NET 10, including the .NET 10
-application container images. Previously published CLI candidates, which target an
-earlier runtime, require the explicit install opt-in described in the running guide.
+application container images. Engine releases up to 1.2.1 target an earlier runtime;
+installing one of those on a host with only .NET 10 needs the explicit opt-in described in
+the running guide.
 
 ## The Sample Catalogue
 
